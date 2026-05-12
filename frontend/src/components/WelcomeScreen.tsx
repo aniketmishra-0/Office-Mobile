@@ -72,9 +72,9 @@ export default function WelcomeScreen({ onAuthenticated }: Props) {
       {/* Main content */}
       <main className="login-content" role="main">
         {/* Logo */}
-        <header className="login-header">
-          <div className="login-logo">
-            <Logo size="lg" showText={true} />
+        <header className="login-header flex justify-center mb-4">
+          <div className="login-logo text-center">
+            <Logo size="lg" showText={true} stacked={true} />
           </div>
         </header>
 

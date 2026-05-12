@@ -57,6 +57,17 @@ def _connect() -> sqlite3.Connection:
         os.makedirs(db_dir, exist_ok=True)
     conn = sqlite3.connect(settings.form_db_path)
     conn.row_factory = sqlite3.Row
+    # Enable Write-Ahead Logging so readers don't block writers and vice versa.
+    # busy_timeout gives SQLite up to 5s to acquire a lock before raising,
+    # which handles the occasional concurrent write cleanly.
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("PRAGMA busy_timeout=5000")
+    except sqlite3.DatabaseError:
+        # Some filesystems (e.g. read-only mounts) reject PRAGMA changes.
+        # We continue with defaults rather than crash.
+        pass
     return conn
 
 
@@ -72,6 +83,18 @@ def init_db() -> None:
             )
         except Exception:
             pass  # Column already exists
+
+        # Indexes — idempotent, safe to run every start.
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_forms_spreadsheet_id ON forms(spreadsheet_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_forms_updated_at ON forms(updated_at DESC)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_submissions_form_id_time "
+            "ON submissions(form_id, submitted_at DESC)"
+        )
         conn.commit()
 
 

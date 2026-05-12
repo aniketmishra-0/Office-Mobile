@@ -5,19 +5,20 @@ import React from "react";
 interface LogoProps {
   size?: "sm" | "md" | "lg";
   showText?: boolean;
+  stacked?: boolean;
 }
 
-export default function Logo({ size = "md", showText = true }: LogoProps) {
+export default function Logo({ size = "md", showText = true, stacked = false }: LogoProps) {
   const dimensions = {
     sm: { box: "w-7 h-7", icon: 16, text: "text-sm" },
     md: { box: "w-8 h-8", icon: 18, text: "text-base" },
-    lg: { box: "w-11 h-11", icon: 24, text: "text-xl" },
+    lg: { box: "w-14 h-14", icon: 32, text: "text-2xl" }, // slightly bigger for lg to look better
   };
 
   const d = dimensions[size];
 
   return (
-    <div className="flex items-center gap-2">
+    <div className={`flex items-center ${stacked ? "flex-col justify-center gap-3" : "gap-2"}`}>
       <div
         className={`${d.box} rounded-xl bg-gray-900 flex items-center justify-center flex-shrink-0`}
       >

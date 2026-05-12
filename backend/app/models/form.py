@@ -1,8 +1,14 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.field import CustomKeywordRule, FieldSchema
+
+
+# Caps for public submission payloads. These block abuse where an attacker
+# sends megabytes of data per submission or thousands of synthetic fields.
+MAX_FIELDS_PER_SUBMISSION = 200
+MAX_STRING_VALUE_LENGTH = 10_000
 
 
 class PreviewRequest(BaseModel):
@@ -73,6 +79,22 @@ class UpdateFormResponse(BaseModel):
 
 class SubmitFormRequest(BaseModel):
     values: dict[str, str | int | float | bool | None]
+
+    @field_validator("values")
+    @classmethod
+    def _limit_payload_size(
+        cls, v: dict[str, str | int | float | bool | None]
+    ) -> dict[str, str | int | float | bool | None]:
+        if len(v) > MAX_FIELDS_PER_SUBMISSION:
+            raise ValueError(
+                f"Too many fields: submissions may have at most {MAX_FIELDS_PER_SUBMISSION} entries"
+            )
+        for key, value in v.items():
+            if isinstance(value, str) and len(value) > MAX_STRING_VALUE_LENGTH:
+                raise ValueError(
+                    f"Value for '{key}' exceeds the {MAX_STRING_VALUE_LENGTH}-character limit"
+                )
+        return v
 
 
 class SubmitFormResponse(BaseModel):

@@ -16,6 +16,14 @@ async def lifespan(app: FastAPI):
 
 settings = get_settings()
 
+# Hard-fail on dangerous CORS configuration. A wildcard origin combined with
+# allow_credentials=True would let any site make authenticated requests.
+if "*" in settings.allowed_origins:
+    raise RuntimeError(
+        "ALLOWED_ORIGINS may not contain '*' when credentials are allowed. "
+        "Set it to an explicit list of origins, e.g. https://app.example.com"
+    )
+
 app = FastAPI(
     title="AllinForm API",
     description="Convert Google Sheets into mobile-first data entry forms.",
@@ -27,8 +35,14 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=[
+        "Content-Type",
+        "Authorization",
+        "Idempotency-Key",
+        "X-Requested-With",
+    ],
+    max_age=86400,
 )
 
 app.include_router(health.router)
