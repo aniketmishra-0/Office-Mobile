@@ -20,7 +20,7 @@ pip-delete-this-directory.txt
 
 # Google Service Account
 credentials/
-*.json
+*service_account*.json
 
 # Database
 *.db
