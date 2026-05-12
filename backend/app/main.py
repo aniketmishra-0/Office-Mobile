@@ -1,7 +1,8 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.routers import auth, forms, health, upload
@@ -30,6 +31,34 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Reject oversized request bodies at the edge. 2 MB is well above any
+# legitimate form submission and blocks memory-exhaustion attacks.
+_MAX_BODY_BYTES = 2 * 1024 * 1024
+# Upload endpoint needs more headroom for multipart file uploads.
+_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
+
+@app.middleware("http")
+async def limit_request_size(request: Request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length is not None:
+        try:
+            size = int(content_length)
+        except ValueError:
+            size = 0
+        limit = (
+            _MAX_UPLOAD_BYTES
+            if request.url.path.startswith("/api/upload")
+            else _MAX_BODY_BYTES
+        )
+        if size > limit:
+            return JSONResponse(
+                status_code=413,
+                content={"detail": "Payload too large"},
+            )
+    return await call_next(request)
+
 
 app.add_middleware(
     CORSMiddleware,

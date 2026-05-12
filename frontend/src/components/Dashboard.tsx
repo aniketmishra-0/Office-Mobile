@@ -27,10 +27,17 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").re
 
 type Step = "input" | "preview" | "done";
 
+type RecentSheet = {
+  url: string;
+  title: string;
+  timestamp: number;
+};
+
 export default function Dashboard() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("input");
   const [mounted, setMounted] = useState(false);
+  const [recentSheets, setRecentSheets] = useState<RecentSheet[]>([]);
 
   // Restore step from sessionStorage on mount to avoid hydration flicker
   useEffect(() => {
@@ -38,6 +45,14 @@ export default function Dashboard() {
     if (saved === "done" || saved === "preview") {
       setStep(saved as Step);
     }
+    
+    try {
+      const savedRecent = localStorage.getItem("recent-sheets");
+      if (savedRecent) {
+        setRecentSheets(JSON.parse(savedRecent));
+      }
+    } catch (e) {}
+
     setMounted(true);
   }, []);
 
@@ -122,6 +137,22 @@ export default function Dashboard() {
       setFields(data.fields);
       setFormTitle(data.spreadsheet_title);
       setWarnings(data.warnings);
+
+      // Save to recent sheets
+      try {
+        const newRecent: RecentSheet = {
+          url: sheetUrl,
+          title: data.spreadsheet_title || "Untitled Sheet",
+          timestamp: Date.now(),
+        };
+        setRecentSheets((prev) => {
+          const filtered = prev.filter((s) => s.url !== sheetUrl);
+          const updated = [newRecent, ...filtered].slice(0, 5); // Keep top 5
+          localStorage.setItem("recent-sheets", JSON.stringify(updated));
+          return updated;
+        });
+      } catch (e) {}
+
       setStep("preview");
     } catch (e: any) {
       setError(e.message ?? "Failed to read the sheet");
@@ -319,10 +350,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Keyword rules (collapsed) */}
-          <div className="mb-6">
-            <KeywordRulesEditor rules={rules} onChange={setRules} />
-          </div>
+          {/* Keyword rules (removed as requested) */}
 
           {/* Check History — navigates to dedicated page */}
           <button
@@ -354,7 +382,7 @@ export default function Dashboard() {
               </span>
             </div>
             <svg
-              className="w-4 h-4 text-gray-400"
+              className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -363,6 +391,42 @@ export default function Dashboard() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
             </svg>
           </button>
+
+          {/* Recently Used Sheets */}
+          {recentSheets.length > 0 && (
+            <div className="mb-6 animate-fade-in">
+              <h3 className="text-[12px] font-bold text-gray-400 mb-3 uppercase tracking-wider px-1">
+                Recently Used Sheets
+              </h3>
+              <div className="space-y-2.5">
+                {recentSheets.map((sheet, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setSheetUrl(sheet.url);
+                      validateUrl(sheet.url);
+                    }}
+                    className="w-full text-left p-3.5 rounded-xl border border-gray-150 bg-white hover:border-accent-300 hover:bg-accent-50/30 transition-all duration-200 flex items-center gap-3.5 group shadow-sm hover:shadow"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0 border border-emerald-100 group-hover:bg-emerald-100 group-hover:border-emerald-200 transition-colors">
+                      <svg className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[14px] font-semibold text-gray-900 truncate group-hover:text-accent-700 transition-colors">
+                        {sheet.title}
+                      </p>
+                      <p className="text-[12px] text-gray-400 truncate mt-0.5">
+                        {sheet.url.replace("https://docs.google.com/spreadsheets/d/", "...")}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Setup help (collapsed) */}
           {serviceAccountEmail && (

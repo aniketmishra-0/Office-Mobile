@@ -620,7 +620,10 @@ def read_sheet_rows(
 
 def map_sheet_exception(exc: Exception) -> tuple[int, str]:
     if isinstance(exc, GoogleSheetsConfigurationError):
-        return 500, str(exc)
+        # Configuration errors are deployment issues, not user issues —
+        # log the real reason but only show a neutral message to the client.
+        logger.error("sheets.config_error", exc_info=exc)
+        return 500, "Google Sheets is not configured. Please contact support."
     if isinstance(exc, PublicSheetError):
         return 422, str(exc)
     if isinstance(exc, SpreadsheetNotFound):
@@ -631,16 +634,16 @@ def map_sheet_exception(exc: Exception) -> tuple[int, str]:
         status_code = (
             getattr(getattr(exc, "response", None), "status_code", None) or 502
         )
-        message = str(exc)
+        # Log the raw message for debugging, surface a safe one.
+        logger.warning("sheets.api_error status=%s message=%s", status_code, str(exc)[:500])
         if status_code == 400:
-            # Parse common 400 errors into user-friendly messages
-            if "exceeds grid limits" in message.lower():
-                message = "Sheet is at maximum capacity. Please add more rows to the sheet or create a new tab."
-            elif "unable to parse range" in message.lower():
-                message = "Invalid sheet range. The sheet structure may have changed."
-        elif status_code == 403:
-            message = "The service account does not have permission to read or write this sheet."
-        elif status_code == 429:
-            message = "Google Sheets rate limit reached. Try again in a minute."
-        return int(status_code), message
+            return 400, "The sheet structure changed or the request was invalid."
+        if status_code == 403:
+            return 403, "No permission to read or write this sheet."
+        if status_code == 404:
+            return 404, "Sheet or tab not found."
+        if status_code == 429:
+            return 429, "Google Sheets rate limit reached. Try again in a minute."
+        return int(status_code), "Google Sheets is unavailable right now. Please retry."
+    logger.exception("sheets.unexpected_error", exc_info=exc)
     return 500, "Unexpected Google Sheets error."
