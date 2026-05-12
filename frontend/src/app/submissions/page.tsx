@@ -1,0 +1,99 @@
+"use client";
+
+import { useState } from "react";
+import AppHeader from "@/components/AppHeader";
+import LoadingOverlay from "@/components/LoadingOverlay";
+import ErrorToast from "@/components/ErrorToast";
+import { listSubmissions } from "@/lib/api";
+
+export default function SubmissionsPage() {
+  const [formId, setFormId] = useState("");
+  const [token, setToken] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [items, setItems] = useState<Array<any>>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  async function handleLoad() {
+    if (!formId.trim() || !token.trim()) {
+      setError("Enter both form ID and edit token");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await listSubmissions(formId.trim(), token.trim());
+      setItems(data.items);
+      setLoaded(true);
+    } catch (e: any) {
+      setError(e.message ?? "Failed to load submissions");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col min-h-screen bg-white">
+      <AppHeader title="Submissions" showBack onBack={() => window.location.href = "/"} />
+      {loading && <LoadingOverlay message="Loading submissions..." />}
+
+      <div className="flex-1 px-5 pt-6 pb-10 space-y-4">
+        {/* Input card */}
+        <div className="rounded-xl border border-gray-150 p-4 space-y-3">
+          <div>
+            <label className="block text-[13px] font-medium text-gray-700 mb-1.5">Form ID</label>
+            <input
+              value={formId}
+              onChange={(e) => setFormId(e.target.value)}
+              placeholder="e.g. ad600c2b2dfd"
+              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-[15px] min-h-[48px] focus:outline-none focus:ring-2 focus:ring-accent-500"
+            />
+          </div>
+          <div>
+            <label className="block text-[13px] font-medium text-gray-700 mb-1.5">Edit Token</label>
+            <input
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="Paste token from edit link"
+              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-[15px] min-h-[48px] focus:outline-none focus:ring-2 focus:ring-accent-500"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleLoad}
+            className="w-full bg-gray-900 hover:bg-gray-800 text-white font-semibold rounded-xl h-11 flex items-center justify-center text-[14px] transition-colors"
+          >
+            Load submissions
+          </button>
+        </div>
+
+        {/* Results */}
+        {loaded && items.length === 0 && (
+          <div className="text-center py-8">
+            <p className="text-[13px] text-gray-400">No submissions yet.</p>
+            <p className="text-[12px] text-gray-300 mt-1">Share your form link to start collecting responses.</p>
+          </div>
+        )}
+
+        {items.length > 0 && (
+          <div className="space-y-2.5">
+            <p className="text-[12px] font-medium text-gray-400">{items.length} response{items.length !== 1 ? "s" : ""}</p>
+            {items.map((it) => (
+              <div key={it.id} className="rounded-xl border border-gray-150 p-3.5">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[12px] font-mono text-gray-400">#{it.id.slice(0, 8)}</span>
+                  <span className="text-[11px] text-gray-400">{new Date(it.submitted_at).toLocaleString()}</span>
+                </div>
+                <pre className="text-[12px] bg-gray-50 border border-gray-100 rounded-lg p-3 overflow-auto text-gray-600 font-mono">
+                  {JSON.stringify(it.values, null, 2)}
+                </pre>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <ErrorToast message={error} onDismiss={() => setError(null)} />
+    </div>
+  );
+}

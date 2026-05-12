@@ -1,0 +1,449 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Prevent iOS input zoom — all inputs must be at least 16px */
+input, select, textarea {
+  font-size: 16px;
+}
+
+/* Safe area helpers */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Remove number input spinners */
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #f8fafc;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Entrance animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-in {
+  animation: fadeIn 0.3s ease-out forwards;
+  opacity: 0;
+}
+
+/* Focus visible ring for accessibility */
+:focus-visible {
+  outline: 2px solid #4F46E5;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* Better tap highlight on mobile */
+* {
+  -webkit-tap-highlight-color: rgba(79, 70, 229, 0.08);
+}
+
+/* Smooth transitions for interactive elements */
+button, a, input, select, textarea {
+  transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Active state for buttons */
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1;
+}
+
+/* Utility: stagger children animations */
+.stagger-children > * {
+  opacity: 0;
+  animation: fadeIn 0.3s ease-out forwards;
+}
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 50ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 100ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 150ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 200ms; }
+.stagger-children > *:nth-child(6) { animation-delay: 250ms; }
+
+/* ============================================
+   LOGIN / WELCOME SCREEN
+   ============================================ */
+
+.login-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 24px 20px;
+  overflow: hidden;
+  background: #fafaf9;
+  z-index: 100;
+}
+
+/* Subtle dot-grid background */
+.login-bg {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, #d4d4d4 0.8px, transparent 0.8px);
+  background-size: 24px 24px;
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.login-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 380px;
+  animation: loginFadeUp 0.6s ease-out forwards;
+}
+
+@keyframes loginFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Logo */
+.login-header {
+  width: 100%;
+  margin-bottom: 40px;
+}
+
+.login-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.login-logo-mark {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1a1a1a;
+  border-radius: 10px;
+  color: white;
+}
+
+.login-logo-text {
+  font-size: 17px;
+  font-weight: 700;
+  color: #1a1a1a;
+  letter-spacing: -0.3px;
+}
+
+/* Steps */
+.login-steps {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.login-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #f5f5f4;
+  border: 1px solid #e7e5e4;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #57534e;
+  white-space: nowrap;
+}
+
+.login-step-icon {
+  display: flex;
+  align-items: center;
+  color: #78716c;
+}
+
+.login-step-divider {
+  display: flex;
+  align-items: center;
+  color: #d6d3d1;
+}
+
+/* Hero */
+.login-hero {
+  text-align: center;
+  margin-bottom: 36px;
+}
+
+.login-headline {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #1a1a1a;
+  letter-spacing: -0.5px;
+  margin: 0 0 12px 0;
+}
+
+.login-subheadline {
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: #78716c;
+  margin: 0;
+  max-width: 320px;
+}
+
+/* CTA */
+.login-cta-area {
+  width: 100%;
+  margin-bottom: 24px;
+}
+
+.login-google-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 52px;
+  padding: 0 24px;
+  background: #ffffff;
+  border: 1.5px solid #e7e5e4;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1a;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.02);
+  transition: all 200ms ease;
+}
+
+.login-google-btn:hover:not(:disabled) {
+  border-color: #d6d3d1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.04);
+  transform: translateY(-1px);
+}
+
+.login-google-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.login-google-btn:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.login-google-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* States */
+.login-checking,
+.login-success {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 52px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #78716c;
+}
+
+.login-success {
+  color: #16a34a;
+}
+
+.login-success-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: #dcfce7;
+  border-radius: 50%;
+  color: #16a34a;
+  animation: loginScaleIn 0.3s ease-out;
+}
+
+@keyframes loginScaleIn {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.login-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #e7e5e4;
+  border-top-color: #78716c;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.login-error-area {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.login-error-message {
+  font-size: 13px;
+  color: #dc2626;
+  text-align: center;
+  margin: 8px 0 0 0;
+  line-height: 1.4;
+}
+
+/* Trust */
+.login-trust {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #a8a29e;
+  text-align: center;
+  margin: 0;
+}
+
+/* Footer */
+.login-footer {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 48px;
+}
+
+.login-footer-link {
+  font-size: 12px;
+  color: #a8a29e;
+  text-decoration: none;
+  transition: color 150ms ease;
+}
+
+.login-footer-link:hover {
+  color: #78716c;
+}
+
+.login-footer-dot {
+  color: #d6d3d1;
+  font-size: 12px;
+}
+
+/* Desktop enhancements */
+@media (min-width: 640px) {
+  .login-screen {
+    padding: 48px 32px;
+  }
+
+  .login-header {
+    margin-bottom: 56px;
+  }
+
+  .login-headline {
+    font-size: 36px;
+  }
+
+  .login-subheadline {
+    font-size: 16px;
+  }
+
+  .login-steps {
+    margin-bottom: 40px;
+  }
+
+  .login-hero {
+    margin-bottom: 44px;
+  }
+
+  .login-footer {
+    margin-top: 64px;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .login-content {
+    animation: none;
+    opacity: 1;
+  }
+
+  .login-spinner {
+    animation-duration: 1.5s;
+  }
+
+  .login-success-icon {
+    animation: none;
+  }
+
+  .login-google-btn:hover:not(:disabled) {
+    transform: none;
+  }
+
+  .login-google-btn:active:not(:disabled) {
+    transform: none;
+  }
+}
