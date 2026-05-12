@@ -17,6 +17,7 @@ const TYPE_LABELS: Record<FieldType, string> = {
   number: "Number",
   textarea: "Long Text",
   url: "URL",
+  file: "File Upload",
 };
 
 const BUILTIN_PREVIEW: { keyword: string; type: string }[] = [
