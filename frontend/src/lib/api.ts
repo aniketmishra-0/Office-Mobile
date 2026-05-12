@@ -242,15 +242,37 @@ export async function lookupFormsBySheet(
   sheetUrl: string,
 ): Promise<{
   items: Array<{
-    id: string;
+    id: string | null;
     form_title: string;
     worksheet_name: string | null;
     fields: FieldSchema[];
     autofill_columns: string[];
+    has_form: boolean;
   }>;
+  spreadsheet_id?: string;
 }> {
   return jsonGet(
     `/forms/lookup/by-sheet?sheet_url=${encodeURIComponent(sheetUrl)}`,
+  );
+}
+
+/**
+ * GET /api/sheet/history?sheet_url=…&worksheet_name=…
+ * Read history directly from any worksheet tab (no form needed).
+ */
+export async function getSheetHistory(
+  sheetUrl: string,
+  worksheetName: string | null,
+): Promise<{
+  worksheet_name: string;
+  fields: FieldSchema[];
+  rows: Record<string, string>[];
+}> {
+  const wsParam = worksheetName
+    ? `&worksheet_name=${encodeURIComponent(worksheetName)}`
+    : "";
+  return jsonGet(
+    `/sheet/history?sheet_url=${encodeURIComponent(sheetUrl)}${wsParam}`,
   );
 }
 

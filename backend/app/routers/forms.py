@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Query
@@ -29,6 +30,8 @@ from app.utils.sanitizer import headers_to_fields
 from app.utils.url_parser import InvalidGoogleSheetUrl, extract_spreadsheet_id
 
 router = APIRouter(prefix="/api", tags=["forms"])
+
+logger = logging.getLogger(__name__)
 
 
 def _sheet_error(exc: Exception) -> HTTPException:
@@ -156,37 +159,128 @@ def create_form(payload: CreateFormRequest) -> CreateFormResponse:
     )
 
 
-@router.get("/forms/lookup/by-sheet")
-def lookup_forms_by_sheet(sheet_url: str) -> dict:
+@router.get("/sheet/history")
+def get_sheet_history(sheet_url: str, worksheet_name: str | None = None, limit: int = Query(10000, ge=1, le=50000)) -> dict:
     """
-    Find forms linked to a Google Sheet URL. Used by the history lookup
-    feature so users can paste their sheet URL to find associated forms.
+    Read history directly from any worksheet tab of a Google Sheet,
+    even if no form has been created for it. Used by the Check History feature.
     """
     try:
         spreadsheet_id = extract_spreadsheet_id(sheet_url)
     except InvalidGoogleSheetUrl as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    records = form_store.find_forms_by_spreadsheet(spreadsheet_id)
+    # Read headers to build synthetic field schemas
+    try:
+        spreadsheet_title, actual_worksheet, headers = read_headers(
+            spreadsheet_id, worksheet_name
+        )
+    except Exception as exc:
+        raise _sheet_error(exc) from exc
 
-    items = [
-        {
-            "id": r["id"],
-            "form_title": r["form_title"],
-            "worksheet_name": r.get("worksheet_name"),
-            "fields": [f.model_dump() for f in r["fields"]],
-            "autofill_columns": r.get("autofill_columns", []),
+    fields, _warnings = headers_to_fields(headers, custom_keywords=[])
+    if not fields:
+        return {
+            "worksheet_name": actual_worksheet,
+            "fields": [],
+            "rows": [],
         }
-        for r in records
-    ]
 
-    if not items:
+    # Read data rows
+    try:
+        rows = read_sheet_rows(
+            spreadsheet_id=spreadsheet_id,
+            worksheet_name=actual_worksheet,
+            fields=fields,
+            max_rows=limit,
+        )
+    except Exception as exc:
+        logger.warning(f"Failed to read rows for history: {exc}")
+        rows = []
+
+    return {
+        "worksheet_name": actual_worksheet,
+        "fields": [f.model_dump() for f in fields],
+        "rows": rows,
+    }
+
+
+@router.get("/forms/lookup/by-sheet")
+def lookup_forms_by_sheet(sheet_url: str) -> dict:
+    """
+    List ALL worksheet tabs from a Google Sheet (including ones without forms),
+    merged with any existing form metadata. This lets users search history in
+    any tab, not just tabs where a form has been created.
+    """
+    try:
+        spreadsheet_id = extract_spreadsheet_id(sheet_url)
+    except InvalidGoogleSheetUrl as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # Fetch existing forms for this sheet, deduped by tab name (keep most recent)
+    records = form_store.find_forms_by_spreadsheet(spreadsheet_id)
+    forms_by_tab: dict[str, dict] = {}
+    for r in records:
+        tab_key = (r.get("worksheet_name") or "").strip().lower()
+        if tab_key and tab_key not in forms_by_tab:
+            forms_by_tab[tab_key] = r
+
+    # Fetch the actual list of worksheet tabs from Google Sheets
+    try:
+        from app.services.sheets_client import list_worksheet_names
+
+        tab_names = list_worksheet_names(spreadsheet_id)
+    except Exception as exc:
+        # Fall back to just the tabs we know from existing forms
+        logger.warning(f"Could not list worksheet tabs: {exc}")
+        tab_names = []
+
+    # If we couldn't fetch tabs AND there are no forms, bail out
+    if not tab_names and not records:
         raise HTTPException(
             status_code=404,
-            detail="No forms found for this sheet. Create a form first.",
+            detail="No tabs or forms found for this sheet.",
         )
 
-    return {"items": items}
+    items = []
+
+    # If we got the actual tab list, use that as source of truth
+    if tab_names:
+        for tab in tab_names:
+            tab_key = tab.strip().lower()
+            existing = forms_by_tab.get(tab_key)
+            if existing:
+                items.append({
+                    "id": existing["id"],
+                    "form_title": existing["form_title"],
+                    "worksheet_name": existing.get("worksheet_name") or tab,
+                    "fields": [f.model_dump() for f in existing["fields"]],
+                    "autofill_columns": existing.get("autofill_columns", []),
+                    "has_form": True,
+                })
+            else:
+                # Tab exists in the sheet but no form yet — we'll load schema on demand
+                items.append({
+                    "id": None,
+                    "form_title": tab,
+                    "worksheet_name": tab,
+                    "fields": [],
+                    "autofill_columns": [],
+                    "has_form": False,
+                })
+    else:
+        # Fallback: only show tabs where forms exist
+        for r in forms_by_tab.values():
+            items.append({
+                "id": r["id"],
+                "form_title": r["form_title"],
+                "worksheet_name": r.get("worksheet_name"),
+                "fields": [f.model_dump() for f in r["fields"]],
+                "autofill_columns": r.get("autofill_columns", []),
+                "has_form": True,
+            })
+
+    return {"items": items, "spreadsheet_id": spreadsheet_id}
 
 
 @router.get("/forms/{form_id}", response_model=PublicFormResponse)

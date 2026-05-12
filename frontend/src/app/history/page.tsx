@@ -5,14 +5,24 @@ import AppHeader from "@/components/AppHeader";
 import ErrorToast from "@/components/ErrorToast";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import type { FieldSchema } from "@/types/field";
-import { getPublicForm, getFormSuggestions, lookupFormsBySheet } from "@/lib/api";
+import {
+  getFormSuggestions,
+  getSheetHistory,
+  lookupFormsBySheet,
+} from "@/lib/api";
 
-interface FormInfo {
-  id: string;
-  form_title: string;
+interface TabOption {
+  id: string | null; // form id if form exists, else null
   worksheet_name: string | null;
+  form_title: string;
   fields: FieldSchema[];
-  autofill_columns: string[];
+  has_form: boolean;
+}
+
+interface LoadedTab {
+  worksheet_name: string;
+  fields: FieldSchema[];
+  rows: Record<string, string>[];
 }
 
 export default function HistoryPage() {
@@ -20,9 +30,9 @@ export default function HistoryPage() {
   const [urlValid, setUrlValid] = useState(false);
   const [urlError, setUrlError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [availableForms, setAvailableForms] = useState<FormInfo[] | null>(null);
-  const [formInfo, setFormInfo] = useState<FormInfo | null>(null);
-  const [suggestions, setSuggestions] = useState<Record<string, string>[]>([]);
+  const [availableTabs, setAvailableTabs] = useState<TabOption[] | null>(null);
+  const [sheetUrl, setSheetUrl] = useState(""); // keep original URL for non-form tab reads
+  const [loaded, setLoaded] = useState<LoadedTab | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [selectedRow, setSelectedRow] = useState<Record<string, string> | null>(null);
@@ -35,10 +45,9 @@ export default function HistoryPage() {
     }
     const isValid =
       value.includes("docs.google.com/spreadsheets") ||
-      value.includes("/f/") ||
-      /^[a-zA-Z0-9-_]{6,}$/.test(value.trim());
+      /^[a-zA-Z0-9-_]{20,}$/.test(value.trim());
     setUrlValid(isValid);
-    setUrlError(isValid ? "" : "This doesn't look like a sheet link");
+    setUrlError(isValid ? "" : "This doesn't look like a Google Sheet URL");
     return isValid;
   }
 
@@ -49,84 +58,85 @@ export default function HistoryPage() {
     if (value.trim()) {
       const isValid =
         value.includes("docs.google.com/spreadsheets") ||
-        value.includes("/f/") ||
-        /^[a-zA-Z0-9-_]{6,}$/.test(value.trim());
+        /^[a-zA-Z0-9-_]{20,}$/.test(value.trim());
       setUrlValid(isValid);
     } else {
       setUrlValid(false);
     }
   }, []);
 
-  function detectInputType(input: string): "sheet" | "form" | "id" {
-    const trimmed = input.trim();
-    if (trimmed.includes("docs.google.com/spreadsheets")) return "sheet";
-    if (trimmed.includes("/f/")) return "form";
-    return "id";
-  }
-
-  function extractFormId(input: string): string {
-    const match = input.trim().match(/\/f\/([a-zA-Z0-9]+)/);
-    return match ? match[1] : input.trim();
-  }
-
-  async function handleLoadForm() {
+  async function handleLoadSheet() {
     if (!validateUrl(formInput)) return;
+    const trimmed = formInput.trim();
 
     setLoading(true);
     setError(null);
-    setFormInfo(null);
-    setAvailableForms(null);
-    setSuggestions([]);
+    setAvailableTabs(null);
+    setLoaded(null);
     setSearchQuery("");
     setSelectedRow(null);
 
     try {
-      const trimmed = formInput.trim();
-      if (detectInputType(trimmed) === "sheet") {
-        const result = await lookupFormsBySheet(trimmed);
-        if (!result.items.length) {
-          setError("No forms found for this sheet");
-          return;
-        }
-        const forms: FormInfo[] = result.items.map((f) => ({
-          id: f.id,
-          form_title: f.form_title,
-          worksheet_name: f.worksheet_name,
-          fields: f.fields,
-          autofill_columns: f.autofill_columns ?? [],
-        }));
-        if (forms.length === 1) {
-          await selectForm(forms[0]);
-        } else {
-          setAvailableForms(forms);
-        }
+      const result = await lookupFormsBySheet(trimmed);
+      setSheetUrl(trimmed);
+
+      const tabs: TabOption[] = result.items.map((item) => ({
+        id: item.id,
+        worksheet_name: item.worksheet_name,
+        form_title: item.form_title,
+        fields: item.fields,
+        has_form: item.has_form,
+      }));
+
+      if (!tabs.length) {
+        setError("No tabs found in this sheet");
+        return;
+      }
+
+      // If only one tab, auto-select it
+      if (tabs.length === 1) {
+        await selectTab(tabs[0], trimmed);
       } else {
-        const formId = extractFormId(trimmed);
-        const formData = await getPublicForm(formId);
-        await selectForm({
-          id: formData.id,
-          form_title: formData.form_title,
-          worksheet_name: formData.worksheet_name ?? null,
-          fields: formData.fields,
-          autofill_columns: formData.autofill_columns ?? [],
-        });
+        setAvailableTabs(tabs);
       }
     } catch (e: any) {
-      setError(e.message ?? "Failed to load");
+      setError(e.message ?? "Failed to load sheet");
     } finally {
       setLoading(false);
     }
   }
 
-  async function selectForm(info: FormInfo) {
-    setFormInfo(info);
-    setAvailableForms(null);
+  async function selectTab(tab: TabOption, sheet_url?: string) {
+    setAvailableTabs(null);
     setLoading(true);
+    setError(null);
+
     try {
-      const data = await getFormSuggestions(info.id);
-      setSuggestions(data.rows ?? []);
+      if (tab.has_form && tab.id) {
+        // Load via form suggestions (uses the form's saved schema)
+        const data = await getFormSuggestions(tab.id);
+        setLoaded({
+          worksheet_name: tab.worksheet_name || tab.form_title,
+          fields: tab.fields,
+          rows: data.rows ?? [],
+        });
+      } else {
+        // Load directly from the sheet tab (no form exists)
+        const url = sheet_url ?? sheetUrl;
+        const data = await getSheetHistory(url, tab.worksheet_name);
+        setLoaded({
+          worksheet_name: data.worksheet_name,
+          fields: data.fields,
+          rows: data.rows,
+        });
+      }
     } catch (e: any) {
       setError(e.message ?? "Failed to load entries");
+      // Re-show the tab picker so user can try another
+      if (availableTabs === null) {
+        // already cleared — bring user back to URL step
+        handleReset();
+      }
     } finally {
       setLoading(false);
     }
@@ -134,47 +144,65 @@ export default function HistoryPage() {
 
   // Search across ALL columns
   const matches = useMemo(() => {
-    if (!formInfo || !suggestions.length) return [];
+    if (!loaded || !loaded.rows.length) return [];
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return suggestions.slice(0, 100);
-
-    const filtered = suggestions.filter((row) =>
-      formInfo.fields.some((f) => (row[f.key] ?? "").toLowerCase().includes(query)),
+    if (!query) return loaded.rows.slice(0, 100);
+    const filtered = loaded.rows.filter((row) =>
+      loaded.fields.some((f) => (row[f.key] ?? "").toLowerCase().includes(query)),
     );
     return filtered.slice(0, 100);
-  }, [formInfo, suggestions, searchQuery]);
+  }, [loaded, searchQuery]);
 
   const handleReset = useCallback(() => {
-    setFormInfo(null);
-    setAvailableForms(null);
-    setSuggestions([]);
+    setLoaded(null);
+    setAvailableTabs(null);
     setSearchQuery("");
     setSelectedRow(null);
     setFormInput("");
+    setSheetUrl("");
     setUrlValid(false);
     setUrlError("");
     setError(null);
   }, []);
 
-  // Step detection for the progress indicator
-  const step: 1 | 2 | 3 = availableForms ? 2 : formInfo ? 3 : 1;
+  const handleBackToTabs = useCallback(() => {
+    setLoaded(null);
+    setSelectedRow(null);
+    setSearchQuery("");
+    // Re-fetch tabs if we have a sheet URL
+    if (sheetUrl && !availableTabs) {
+      lookupFormsBySheet(sheetUrl)
+        .then((result) => {
+          const tabs: TabOption[] = result.items.map((item) => ({
+            id: item.id,
+            worksheet_name: item.worksheet_name,
+            form_title: item.form_title,
+            fields: item.fields,
+            has_form: item.has_form,
+          }));
+          setAvailableTabs(tabs);
+        })
+        .catch(() => handleReset());
+    }
+  }, [sheetUrl, availableTabs, handleReset]);
 
-  // ══════════════════════════════════════════════════════════════
-  // Detail view
-  // ══════════════════════════════════════════════════════════════
-  if (selectedRow && formInfo) {
+  // Step indicator
+  const step: 1 | 2 | 3 = availableTabs ? 2 : loaded ? 3 : 1;
+
+  // ═══════════════════════ Detail view ═══════════════════════
+  if (selectedRow && loaded) {
     return (
       <div className="flex flex-col min-h-screen bg-white">
         <AppHeader title="Entry details" showBack onBack={() => setSelectedRow(null)} />
         <div className="flex-1 px-5 pt-5 pb-10">
           <div className="mb-4">
             <h2 className="text-[16px] font-bold text-gray-900">
-              {formInfo.worksheet_name || formInfo.form_title}
+              {loaded.worksheet_name}
             </h2>
             <p className="text-[12px] text-gray-500">Full entry</p>
           </div>
           <div className="rounded-xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
-            {[...formInfo.fields]
+            {[...loaded.fields]
               .sort((a, b) => a.order - b.order)
               .map((field) => {
                 const val = selectedRow[field.key] ?? "";
@@ -195,24 +223,21 @@ export default function HistoryPage() {
     );
   }
 
-  // ══════════════════════════════════════════════════════════════
-  // Loaded: search + results (inner filter unchanged)
-  // ══════════════════════════════════════════════════════════════
-  if (formInfo) {
+  // ═══════════════════════ Search + results view ═══════════════════════
+  if (loaded) {
     return (
       <div className="flex flex-col min-h-screen bg-white">
-        <AppHeader title="Check history" showBack onBack={handleReset} />
+        <AppHeader title="Check history" showBack onBack={handleBackToTabs} />
         {loading && <LoadingOverlay message="Loading entries..." />}
 
         <div className="flex-1 px-5 pt-5 pb-10">
-          {/* Header */}
           <div className="flex items-center justify-between mb-4">
             <div className="min-w-0 flex-1">
               <h2 className="text-[16px] font-bold text-gray-900 truncate">
-                {formInfo.worksheet_name || formInfo.form_title}
+                {loaded.worksheet_name}
               </h2>
               <p className="text-[12px] text-gray-500">
-                {suggestions.length.toLocaleString()} entries
+                {loaded.rows.length.toLocaleString()} entries
               </p>
             </div>
             <button
@@ -224,7 +249,6 @@ export default function HistoryPage() {
             </button>
           </div>
 
-          {/* Search box */}
           <div className="relative mb-4">
             <svg className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
@@ -251,14 +275,13 @@ export default function HistoryPage() {
             )}
           </div>
 
-          {/* Results */}
-          {suggestions.length === 0 && !loading && (
+          {loaded.rows.length === 0 && !loading && (
             <div className="text-center py-12">
-              <p className="text-[13px] text-gray-400">No entries in this sheet yet</p>
+              <p className="text-[13px] text-gray-400">No entries in this tab yet</p>
             </div>
           )}
 
-          {suggestions.length > 0 && matches.length > 0 && (
+          {loaded.rows.length > 0 && matches.length > 0 && (
             <div>
               {searchQuery && (
                 <p className="text-[11px] font-medium text-gray-500 mb-2 px-1">
@@ -268,7 +291,7 @@ export default function HistoryPage() {
               <div className="rounded-xl border border-gray-200 overflow-hidden">
                 {matches.map((row, idx) => {
                   const parts: string[] = [];
-                  for (const f of formInfo.fields) {
+                  for (const f of loaded.fields) {
                     if (parts.length >= 4) break;
                     const val = row[f.key];
                     if (val?.trim()) parts.push(val.trim());
@@ -295,7 +318,7 @@ export default function HistoryPage() {
             </div>
           )}
 
-          {suggestions.length > 0 && matches.length === 0 && (
+          {loaded.rows.length > 0 && matches.length === 0 && (
             <div className="text-center py-10">
               <p className="text-[13px] text-gray-500 font-medium">No matches</p>
               <p className="text-[11px] text-gray-400 mt-0.5">Try a different search term</p>
@@ -308,9 +331,7 @@ export default function HistoryPage() {
     );
   }
 
-  // ══════════════════════════════════════════════════════════════
-  // Initial URL input — styled like the main dashboard home
-  // ══════════════════════════════════════════════════════════════
+  // ═══════════════════════ Initial / Tab picker ═══════════════════════
   return (
     <div className="flex flex-col min-h-screen bg-white">
       <AppHeader title="Check history" showBack />
@@ -329,7 +350,7 @@ export default function HistoryPage() {
           </p>
         </div>
 
-        {/* URL Input Card */}
+        {/* URL Input */}
         <div className="mb-6">
           <label
             htmlFor="history-url"
@@ -345,7 +366,7 @@ export default function HistoryPage() {
               value={formInput}
               onChange={(e) => handleUrlChange(e.target.value)}
               onBlur={() => formInput && validateUrl(formInput)}
-              onKeyDown={(e) => e.key === "Enter" && handleLoadForm()}
+              onKeyDown={(e) => e.key === "Enter" && handleLoadSheet()}
               placeholder="https://docs.google.com/spreadsheets/d/..."
               aria-invalid={!!urlError}
               className={`w-full rounded-xl border px-4 py-3.5 text-[15px] min-h-[52px] pr-10 focus:outline-none focus:ring-2 transition-all ${
@@ -376,12 +397,12 @@ export default function HistoryPage() {
           )}
           {!urlValid && !urlError && (
             <p className="text-gray-400 text-[13px] mt-1.5">
-              Paste the same link you used when creating the form
+              Paste any Google Sheets link
             </p>
           )}
         </div>
 
-        {/* How it works */}
+        {/* Step indicator */}
         <div className="mb-6">
           <div className="flex items-center gap-4 text-[13px] text-gray-400">
             <div className="flex items-center gap-1.5">
@@ -405,32 +426,34 @@ export default function HistoryPage() {
           </div>
         </div>
 
-        {/* Tab picker (shown inline after URL is loaded and multiple forms exist) */}
-        {availableForms && (
+        {/* Tab picker */}
+        {availableTabs && (
           <div className="mb-6 animate-fade-in">
             <p className="text-[13px] font-semibold text-gray-700 mb-2.5">
               Pick a sheet tab
             </p>
             <div className="space-y-1.5">
-              {availableForms.map((form) => (
+              {availableTabs.map((tab, idx) => (
                 <button
-                  key={form.id}
+                  key={`${tab.worksheet_name}-${idx}`}
                   type="button"
-                  onClick={() => selectForm(form)}
+                  onClick={() => selectTab(tab)}
                   className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white hover:border-accent-300 hover:bg-accent-50/30 transition-all text-left group"
                 >
                   <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                      <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125" />
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${tab.has_form ? "bg-emerald-50" : "bg-gray-100"}`}>
+                      <svg className={`w-4 h-4 ${tab.has_form ? "text-emerald-600" : "text-gray-400"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.375 19.5h17.25M3.375 5.625h17.25M3.375 12h17.25M3.375 19.5c-.621 0-1.125-.504-1.125-1.125V5.625c0-.621.504-1.125 1.125-1.125h17.25c.621 0 1.125.504 1.125 1.125v12.75c0 .621-.504 1.125-1.125 1.125H3.375z" />
                       </svg>
                     </div>
                     <div className="min-w-0">
                       <p className="text-[13px] font-semibold text-gray-900 truncate">
-                        {form.worksheet_name || form.form_title}
+                        {tab.worksheet_name || tab.form_title}
                       </p>
                       <p className="text-[11px] text-gray-400 truncate">
-                        {form.fields.length} columns
+                        {tab.has_form
+                          ? `${tab.fields.length} columns · has form`
+                          : "No form yet · read-only"}
                       </p>
                     </div>
                   </div>
@@ -443,8 +466,7 @@ export default function HistoryPage() {
           </div>
         )}
 
-        {/* Trust note */}
-        {!availableForms && (
+        {!availableTabs && (
           <div className="flex items-start gap-2 text-[12px] text-gray-400">
             <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
@@ -454,14 +476,14 @@ export default function HistoryPage() {
         )}
       </div>
 
-      {/* Sticky CTA — only when tab picker is NOT showing */}
-      {!availableForms && (
+      {/* Sticky CTA */}
+      {!availableTabs && (
         <div
           className="fixed bottom-0 left-0 right-0 max-w-[480px] mx-auto px-5 pt-3 pb-3 bg-white/95 backdrop-blur-md border-t border-gray-100 shadow-sticky z-40"
           style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
         >
           <button
-            onClick={handleLoadForm}
+            onClick={handleLoadSheet}
             disabled={loading || !formInput.trim()}
             className="w-full bg-gray-900 hover:bg-gray-800 active:bg-gray-950 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold text-[15px] rounded-xl h-[52px] flex items-center justify-center gap-2 transition-all duration-150"
           >
@@ -471,7 +493,7 @@ export default function HistoryPage() {
                 <span>Loading...</span>
               </>
             ) : (
-              <span>Load entries</span>
+              <span>Load sheet</span>
             )}
           </button>
         </div>

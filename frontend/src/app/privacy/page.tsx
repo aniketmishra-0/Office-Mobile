@@ -26,7 +26,7 @@ export default function PrivacyPolicyPage() {
             <p>
               AllinForm (&quot;we&quot;, &quot;our&quot;, or &quot;the app&quot;) is a tool that
               converts Google Sheets into mobile-friendly data entry forms. This Privacy Policy
-              explains how we collect, use, and protect your information when you use our service.
+              explains how we collect, use, protect, and share your information when you use our service.
             </p>
           </section>
 
@@ -50,9 +50,32 @@ export default function PrivacyPolicyPage() {
             </p>
           </section>
 
+          {/* Google API Services User Data Policy */}
+          <section>
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">3. Google API Services User Data Policy (Limited Use)</h2>
+            <p>
+              AllinForm&apos;s use and transfer to any other app of information received from Google APIs will adhere to the{" "}
+              <a 
+                href="https://developers.google.com/terms/api-services-user-data-policy" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-accent-600 hover:underline font-medium"
+              >
+                Google API Services User Data Policy
+              </a>
+              , including the Limited Use requirements.
+            </p>
+            <p className="mt-3">Specifically:</p>
+            <ul className="list-disc pl-5 mt-2 space-y-1.5">
+              <li>We only use Google data to provide and improve the form-generation functionality.</li>
+              <li>We do not use your Google data for targeted advertisements.</li>
+              <li>We do not allow humans to read your data unless we have your affirmative agreement for specific messages, doing so is necessary for security purposes such as investigating abuse, to comply with applicable law, or for the App&apos;s internal operations and even then only when the data have been aggregated and anonymized.</li>
+            </ul>
+          </section>
+
           {/* Data We Store */}
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">3. Data We Store</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">4. Data We Store</h2>
             <p>We store the following data on our servers:</p>
             <ul className="list-disc pl-5 mt-2 space-y-1.5">
               <li>Form configuration (field names, types, and settings)</li>
@@ -67,16 +90,16 @@ export default function PrivacyPolicyPage() {
 
           {/* Data Sharing */}
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">4. Data Sharing</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">5. Data Sharing</h2>
             <p>
-              We do <strong>not</strong> sell, share, or transfer your data to any third parties.
-              Your data is only transmitted between your browser and Google&apos;s APIs.
+              We do <strong>not</strong> sell, share, or transfer your data to any third parties for any purpose, including for advertising or marketing. 
+              Your data is only transmitted between your browser, our secure servers, and Google&apos;s APIs to facilitate the core functionality of the application.
             </p>
           </section>
 
           {/* Data Security */}
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">5. Data Security</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">6. Data Security</h2>
             <p>
               We use industry-standard security measures including HTTPS encryption
               for all data transfers. OAuth tokens are stored securely on the server
@@ -86,52 +109,53 @@ export default function PrivacyPolicyPage() {
 
           {/* User Rights */}
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">6. Your Rights</h2>
-            <p>You can at any time:</p>
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">7. Your Rights and Data Deletion</h2>
+            <p>You have full control over your data. You can at any time:</p>
             <ul className="list-disc pl-5 mt-2 space-y-1.5">
-              <li>Disconnect your Google Account from within the app</li>
+              <li>Disconnect your Google Account from within the app settings.</li>
               <li>
                 Revoke access via your{" "}
                 <a
                   href="https://myaccount.google.com/permissions"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-accent-600 hover:underline"
+                  className="text-accent-600 hover:underline font-medium"
                 >
                   Google Account Permissions
                 </a>
+                .
               </li>
-              <li>Request deletion of your data by contacting us</li>
+              <li>Request complete deletion of your account and associated data by contacting us.</li>
             </ul>
           </section>
 
           {/* Cookies */}
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">7. Cookies</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">8. Cookies</h2>
             <p>
-              We use essential cookies only for maintaining your session. We do not
+              We use essential cookies only for maintaining your session and authentication state. We do not
               use analytics, advertising, or tracking cookies.
             </p>
           </section>
 
           {/* Changes */}
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">8. Changes to This Policy</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">9. Changes to This Policy</h2>
             <p>
-              We may update this Privacy Policy from time to time. Any changes will
-              be posted on this page with an updated date.
+              We may update this Privacy Policy from time to time to reflect changes in our practices or for other operational, legal, or regulatory reasons. Any changes will
+              be posted on this page with an updated &quot;Last updated&quot; date.
             </p>
           </section>
 
           {/* Contact */}
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">9. Contact Us</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">10. Contact Us</h2>
             <p>
-              If you have questions about this Privacy Policy, please contact the
+              If you have questions about this Privacy Policy or your data, please contact the
               developer at{" "}
               <a
                 href="mailto:archana.tiwari@pw.live"
-                className="text-accent-600 hover:underline"
+                className="text-accent-600 hover:underline font-medium"
               >
                 archana.tiwari@pw.live
               </a>
