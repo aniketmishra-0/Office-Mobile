@@ -197,12 +197,17 @@ export default function WelcomeScreen({ onAuthenticated }: Props) {
       </main>
 
       {/* Footer */}
-      <footer className="login-footer">
-        <a href="/privacy" className="login-footer-link">Privacy</a>
-        <span className="login-footer-dot" aria-hidden="true">·</span>
-        <a href="/terms" className="login-footer-link">Terms</a>
-        <span className="login-footer-dot" aria-hidden="true">·</span>
-        <a href="mailto:support@officemobile.app" className="login-footer-link">Help</a>
+      <footer className="login-footer flex flex-col items-center gap-3">
+        <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+          <span>Made with ❤️ by Aniket</span>
+        </div>
+        <div className="flex items-center justify-center gap-3 text-xs text-gray-400">
+          <a href="/privacy" className="hover:text-gray-600 transition-colors">Privacy</a>
+          <span aria-hidden="true">·</span>
+          <a href="/terms" className="hover:text-gray-600 transition-colors">Terms</a>
+          <span aria-hidden="true">·</span>
+          <a href="mailto:aniketmishra492@gmail.com" className="hover:text-gray-600 transition-colors">Help</a>
+        </div>
       </footer>
     </div>
   );

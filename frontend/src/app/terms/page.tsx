@@ -98,10 +98,10 @@ export default function TermsPage() {
             <p>
               For questions about these Terms, contact us at{" "}
               <a
-                href="mailto:archana.tiwari@pw.live"
-                className="text-accent-600 hover:underline"
+                href="mailto:aniketmishra492@gmail.com"
+                className="text-accent-600 hover:text-accent-700 font-medium"
               >
-                archana.tiwari@pw.live
+                aniketmishra492@gmail.com
               </a>
             </p>
           </section>

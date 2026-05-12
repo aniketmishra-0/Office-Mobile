@@ -154,10 +154,10 @@ export default function PrivacyPolicyPage() {
               If you have questions about this Privacy Policy or your data, please contact the
               developer at{" "}
               <a
-                href="mailto:archana.tiwari@pw.live"
-                className="text-accent-600 hover:underline font-medium"
+                href="mailto:aniketmishra492@gmail.com"
+                className="text-accent-600 hover:text-accent-700 font-medium"
               >
-                archana.tiwari@pw.live
+                aniketmishra492@gmail.com
               </a>
             </p>
           </section>
