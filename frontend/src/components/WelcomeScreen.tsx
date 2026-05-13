@@ -27,15 +27,60 @@ export default function WelcomeScreen({ onAuthenticated }: Props) {
     setAuthState("loading");
     setErrorMessage(null);
 
+    // Popup sizing. We clamp the position to the current screen so the
+    // popup doesn't open off-screen on multi-monitor setups.
     const width = 500;
     const height = 600;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
+    const dualScreenLeft = window.screenLeft ?? window.screenX ?? 0;
+    const dualScreenTop = window.screenTop ?? window.screenY ?? 0;
+    const viewportWidth =
+      window.innerWidth ||
+      document.documentElement.clientWidth ||
+      window.screen.width;
+    const viewportHeight =
+      window.innerHeight ||
+      document.documentElement.clientHeight ||
+      window.screen.height;
+    const left = Math.max(0, dualScreenLeft + (viewportWidth - width) / 2);
+    const top = Math.max(0, dualScreenTop + (viewportHeight - height) / 2);
+
+    // Explicit chrome-disabling flags force Chromium/Firefox/Safari to
+    // render this as a real popup window rather than a background tab.
+    // Just `popup=yes` alone is not enough on some browsers.
+    const features = [
+      `width=${width}`,
+      `height=${height}`,
+      `left=${left}`,
+      `top=${top}`,
+      "popup=yes",
+      "toolbar=no",
+      "menubar=no",
+      "location=no",
+      "status=no",
+      "scrollbars=yes",
+      "resizable=yes",
+      "noopener=no",
+      "noreferrer=no",
+    ].join(",");
+
     const popup = window.open(
       `${API_BASE}/api/auth/google/start`,
       "google-oauth",
-      `width=${width},height=${height},left=${left},top=${top},popup=yes`,
+      features,
     );
+
+    // Popup blocked (returns null) or opened as a tab without focus — fall
+    // back to same-tab redirect so the user can still complete sign-in.
+    if (!popup || popup.closed || typeof popup.closed === "undefined") {
+      window.location.href = `${API_BASE}/api/auth/google/start`;
+      return;
+    }
+
+    // Bring the popup to the front in case the browser hid it behind the
+    // main window.
+    try {
+      popup.focus();
+    } catch {}
 
     function handleMessage(event: MessageEvent) {
       if (event.data?.type === "oauth-success") {
