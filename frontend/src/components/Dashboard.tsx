@@ -593,7 +593,7 @@ export default function Dashboard() {
           {worksheets.length > 1 && (
             <div>
               <label className="block text-[13px] font-semibold text-zinc-800 mb-2">
-                Sheet tab
+                Sub Sheet
               </label>
               <MobileDropdown
                 value={selectedWorksheet ?? ""}
@@ -679,7 +679,7 @@ export default function Dashboard() {
       <AppHeader
         showLogo
         showBack
-        onBack={() => setStep("input")}
+        onBack={() => setStep("preview")}
         rightAction={
           <span className="text-[11px] font-medium text-zinc-500">3 of 3</span>
         }
