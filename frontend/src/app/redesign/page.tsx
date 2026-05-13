@@ -225,7 +225,7 @@ function LandingScreen({
           Your <em>Form.</em>
         </h1>
         <p className="om-landing-sub">
-          // connect a google sheet. collect data. done.
+          {"// connect a google sheet. collect data. done."}
         </p>
       </div>
 
