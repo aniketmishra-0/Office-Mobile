@@ -1,0 +1,31 @@
+name: Auto Deploy to GCP
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GCP via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.GCP_HOST }}
+          username: ${{ secrets.GCP_USERNAME }}
+          key: ${{ secrets.GCP_SSH_KEY }}
+          script: |
+            cd ~/Office-Mobile
+            git pull origin main
+            
+            # Restart Frontend (Managed by PM2)
+            pm2 restart all || true
+            
+            # Restart Backend (Uvicorn)
+            # Find and kill any existing uvicorn process running on port 8000
+            sudo pkill -f uvicorn || true
+            
+            # Navigate to backend folder and start it in the background
+            cd backend
+            sudo nohup /usr/local/bin/python3.12 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &
