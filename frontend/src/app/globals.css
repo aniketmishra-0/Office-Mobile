@@ -387,3 +387,35 @@ button:active:not(:disabled) {
     opacity: 1 !important;
   }
 }
+
+/* ============================================================
+   Responsive page shell
+   Every page wraps its content in `max-w-[560px] mx-auto` — a
+   hand-tuned mobile column. On larger viewports we let that
+   column breathe so the app no longer looks stranded in a narrow
+   strip on laptops, desktops, and TVs.
+   ============================================================ */
+@media (min-width: 640px) {
+  .max-w-\[560px\] { max-width: 620px !important; }
+}
+@media (min-width: 768px) {
+  .max-w-\[560px\] { max-width: 680px !important; }
+}
+@media (min-width: 1024px) {
+  .max-w-\[560px\] { max-width: 760px !important; }
+}
+@media (min-width: 1280px) {
+  .max-w-\[560px\] { max-width: 860px !important; }
+}
+@media (min-width: 1536px) {
+  .max-w-\[560px\] { max-width: 960px !important; }
+}
+@media (min-width: 1920px) {
+  .max-w-\[560px\] { max-width: 1080px !important; }
+}
+
+/* Loading overlay — ensure it covers every viewport size, including
+   TVs, by anchoring the ring to the visual center of the largest
+   possible stage. The component already uses position:fixed; inset:0
+   which is correct — nothing extra needed here. */
+

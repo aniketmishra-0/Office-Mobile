@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import WelcomeScreen from "@/components/WelcomeScreen";
 import Dashboard from "@/components/Dashboard";
+import LoadingOverlay from "@/components/LoadingOverlay";
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
 
@@ -40,15 +41,7 @@ export default function HomePage() {
 
   // Still checking auth status
   if (connected === null) {
-    return (
-      <div className="login-screen">
-        <div className="login-bg" aria-hidden="true" />
-        <div className="login-checking" style={{ position: "relative", zIndex: 1 }}>
-          <div className="login-spinner" />
-          <span>Loading…</span>
-        </div>
-      </div>
-    );
+    return <LoadingOverlay message="Loading" />;
   }
 
   // Not authenticated — show welcome/login screen
