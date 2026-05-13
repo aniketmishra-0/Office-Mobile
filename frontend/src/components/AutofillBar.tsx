@@ -56,14 +56,12 @@ export default function AutofillBar({
 
   // Toggle a filter column on/off
   const toggleFilter = useCallback((key: string) => {
-    setFilters((prev) => {
-      if (prev.includes(key)) {
-        return prev.filter((k) => k !== key);
-      }
-      return [...prev, key];
-    });
+    const newFilters = filters.includes(key)
+      ? filters.filter((k) => k !== key)
+      : [...filters, key];
+    setFilters(newFilters);
     setShowResults(true);
-  }, [setFilters]);
+  }, [filters, setFilters]);
 
   // Filter suggestions based on active filter columns that have values
   const matches = useMemo(() => {
