@@ -47,6 +47,12 @@ git pull --ff-only origin main || git fetch origin main && git reset --hard orig
 if [ -f "$ENV_FILE" ]; then
   echo "Updating backend environment file..."
 
+  # Handle base64-encoded JSON (from GitHub Actions)
+  if [ -n "${GOOGLE_SERVICE_ACCOUNT_JSON_B64:-}" ]; then
+    echo "Decoding Google service account JSON from base64..."
+    GOOGLE_SERVICE_ACCOUNT_JSON=$(echo "$GOOGLE_SERVICE_ACCOUNT_JSON_B64" | base64 -d)
+  fi
+
   if [ -n "${GOOGLE_SERVICE_ACCOUNT_JSON:-}" ]; then
     echo "Writing Google service account JSON to credentials file..."
     mkdir -p "$CREDENTIALS_DIR"
