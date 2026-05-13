@@ -62,6 +62,30 @@ export interface CreateFormResponse {
   edit_url: string;
 }
 
+/** Returned by POST /api/sheet/create */
+export interface CreateSheetResponse {
+  spreadsheet_id: string;
+  sheet_url: string;
+  worksheet_name: string;
+}
+
+export interface FormLibraryItem {
+  id: string;
+  form_title: string;
+  sheet_url: string;
+  spreadsheet_id: string;
+  worksheet_name: string | null;
+  field_count: number;
+  submission_count: number;
+  updated_at: string;
+  form_url: string;
+  edit_url: string;
+}
+
+export interface FormLibraryResponse {
+  items: FormLibraryItem[];
+}
+
 /** Returned by GET /api/forms/:id */
 export interface PublicFormResponse {
   id: string;

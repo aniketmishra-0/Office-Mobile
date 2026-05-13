@@ -28,6 +28,17 @@ class PreviewResponse(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class CreateSheetRequest(BaseModel):
+    form_title: str = Field(default="Untitled Form", min_length=1, max_length=120)
+    fields: list[FieldSchema]
+
+
+class CreateSheetResponse(BaseModel):
+    spreadsheet_id: str
+    sheet_url: str
+    worksheet_name: str = "Sheet1"
+
+
 class CreateFormRequest(BaseModel):
     sheet_url: str = Field(..., min_length=10)
     spreadsheet_id: str

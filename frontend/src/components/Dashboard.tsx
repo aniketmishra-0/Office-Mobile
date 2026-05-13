@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import Logo from "@/components/Logo";
@@ -8,17 +8,22 @@ import LoadingOverlay from "@/components/LoadingOverlay";
 import ErrorToast from "@/components/ErrorToast";
 import KeywordRulesEditor from "@/components/KeywordRulesEditor";
 import FormFieldEditor from "@/components/FormFieldEditor";
+import FormBuilder from "@/components/FormBuilder";
 import MobileDropdown from "@/components/MobileDropdown";
 import SubmitButton from "@/components/SubmitButton";
+import { QRCodeCanvas } from "qrcode.react";
 import {
+  createSheet,
   previewSheet,
   createForm,
   getPublicConfig,
+  listFormLibrary,
   listWorksheets,
 } from "@/lib/api";
 import type {
   FieldSchema,
   CustomKeywordRule,
+  FormLibraryItem,
   PreviewResponse,
   CreateFormResponse,
 } from "@/types/field";
@@ -35,15 +40,25 @@ type RecentSheet = {
 
 export default function Dashboard() {
   const router = useRouter();
+  const qrRef = useRef<HTMLCanvasElement | null>(null);
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
   const [step, setStep] = useState<Step>("input");
+  const [mode, setMode] = useState<"paste" | "create">("paste");
   const [mounted, setMounted] = useState(false);
   const [recentSheets, setRecentSheets] = useState<RecentSheet[]>([]);
+  const [libraryItems, setLibraryItems] = useState<FormLibraryItem[]>([]);
+  const [libraryLoading, setLibraryLoading] = useState(true);
+  const [libraryQuery, setLibraryQuery] = useState("");
 
   // Restore step from sessionStorage on mount to avoid hydration flicker
   useEffect(() => {
     const saved = sessionStorage.getItem("dashboard-step");
     if (saved === "done" || saved === "preview") {
       setStep(saved as Step);
+    }
+    const savedMode = sessionStorage.getItem("dashboard-mode");
+    if (savedMode === "paste" || savedMode === "create") {
+      setMode(savedMode);
     }
     
     try {
@@ -56,12 +71,29 @@ export default function Dashboard() {
     setMounted(true);
   }, []);
 
+  async function refreshLibrary() {
+    try {
+      const data = await listFormLibrary();
+      setLibraryItems(data.items);
+    } catch {
+      setLibraryItems([]);
+    } finally {
+      setLibraryLoading(false);
+    }
+  }
+
   // Persist step to sessionStorage so back navigation restores it
   useEffect(() => {
     if (mounted) {
       sessionStorage.setItem("dashboard-step", step);
     }
   }, [step, mounted]);
+
+  useEffect(() => {
+    if (mounted) {
+      sessionStorage.setItem("dashboard-mode", mode);
+    }
+  }, [mode, mounted]);
 
   const [sheetUrl, setSheetUrl] = useState("");
   const [urlError, setUrlError] = useState("");
@@ -89,6 +121,10 @@ export default function Dashboard() {
     getPublicConfig()
       .then((cfg) => setServiceAccountEmail(cfg.service_account_email))
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    void refreshLibrary();
   }, []);
 
   // Check sheet access when URL becomes valid
@@ -229,9 +265,63 @@ export default function Dashboard() {
         autofill_columns: autofillColumns,
       });
       setCreatedForm(result);
+      await refreshLibrary();
       setStep("done");
     } catch (e: any) {
       setError(e.message ?? "Failed to save form");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const visibleLibraryItems = libraryQuery.trim()
+    ? libraryItems.filter((item) => {
+        const query = libraryQuery.trim().toLowerCase();
+        return (
+          item.form_title.toLowerCase().includes(query) ||
+          item.sheet_url.toLowerCase().includes(query)
+        );
+      })
+    : libraryItems;
+
+  const featuredForm = visibleLibraryItems[0] ?? null;
+  const featuredShareUrl = featuredForm ? `${origin}${featuredForm.form_url}` : "";
+  const featuredEditUrl = featuredForm ? `${origin}${featuredForm.edit_url}` : "";
+
+  function formatUpdatedAt(value: string): string {
+    const updated = new Date(value).getTime();
+    if (Number.isNaN(updated)) return "Recently updated";
+    const diffMinutes = Math.max(1, Math.round((Date.now() - updated) / 60000));
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    const diffHours = Math.round(diffMinutes / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.round(diffHours / 24);
+    return `${diffDays}d ago`;
+  }
+
+  async function handleCreateNewForm(payload: { formTitle: string; fields: FieldSchema[] }) {
+    setSaving(true);
+    setError(null);
+    try {
+      const sheet = await createSheet({
+        form_title: payload.formTitle,
+        fields: payload.fields,
+      });
+      const result = await createForm({
+        sheet_url: sheet.sheet_url,
+        spreadsheet_id: sheet.spreadsheet_id,
+        worksheet_name: sheet.worksheet_name,
+        form_title: payload.formTitle,
+        fields: payload.fields,
+        custom_keywords: [],
+        autofill_columns: [],
+      });
+      setCreatedForm(result);
+      setFormTitle(payload.formTitle);
+      await refreshLibrary();
+      setStep("done");
+    } catch (e: any) {
+      setError(e.message ?? "Failed to create form");
     } finally {
       setSaving(false);
     }
@@ -301,6 +391,225 @@ export default function Dashboard() {
               Responses go straight back to your Sheet.
             </p>
           </div>
+
+          <div className="mb-6 grid gap-3 sm:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => setMode("create")}
+              className="rounded-3xl border border-zinc-200 bg-white p-4 text-left shadow-sm transition-transform duration-150 hover:-translate-y-0.5 hover:shadow-md"
+            >
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mb-2">
+                Builder
+              </p>
+              <h2 className="text-[18px] font-bold text-zinc-950 leading-tight">Create a new form</h2>
+              <p className="mt-2 text-[13px] text-zinc-600">Add columns, pick field types, and publish a sheet-backed form.</p>
+            </button>
+
+            <div className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mb-2">
+                Library
+              </p>
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <h2 className="text-[18px] font-bold text-zinc-950 leading-tight">Saved forms</h2>
+                  <p className="mt-2 text-[13px] text-zinc-600">{libraryItems.length} published app{libraryItems.length === 1 ? "" : "s"}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => router.push("/history")}
+                  className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-2 text-[12px] font-medium text-zinc-700 hover:bg-zinc-100"
+                >
+                  History
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mb-2">
+                Share
+              </p>
+              {featuredShareUrl ? (
+                <div className="flex items-start gap-3">
+                  <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-2">
+                    <QRCodeCanvas
+                      ref={qrRef}
+                      value={featuredShareUrl}
+                      size={88}
+                      bgColor="#ffffff"
+                      fgColor="#09090b"
+                      includeMargin
+                      level="M"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-[18px] font-bold text-zinc-950 leading-tight">QR code ready</h2>
+                    <p className="mt-2 text-[13px] text-zinc-600">Open the latest form, copy the share link, or jump to its editor.</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => router.push(featuredEditUrl)}
+                        className="rounded-full bg-zinc-950 px-3 py-2 text-[12px] font-medium text-white hover:bg-zinc-800"
+                      >
+                        Open QR
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => navigator.clipboard.writeText(featuredShareUrl)}
+                        className="rounded-full border border-zinc-200 bg-white px-3 py-2 text-[12px] font-medium text-zinc-700 hover:bg-zinc-50"
+                      >
+                        Copy link
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <h2 className="text-[18px] font-bold text-zinc-950 leading-tight">No QR yet</h2>
+                  <p className="mt-2 text-[13px] text-zinc-600">Create and publish a form to generate its shareable QR code.</p>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="mb-6 rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mb-1">
+                  Workspace
+                </p>
+                <h2 className="text-[18px] font-bold text-zinc-950">Your forms library</h2>
+              </div>
+              <div className="text-right">
+                <p className="text-[11px] text-zinc-500">Saved apps</p>
+                <p className="text-sm font-semibold text-zinc-950">{libraryItems.length}</p>
+              </div>
+            </div>
+
+            <div className="mb-3">
+              <input
+                type="search"
+                value={libraryQuery}
+                onChange={(e) => setLibraryQuery(e.target.value)}
+                placeholder="Search your forms"
+                className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-[14px] text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900"
+              />
+            </div>
+
+            {libraryLoading ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {[0, 1].map((index) => (
+                  <div key={index} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 animate-pulse">
+                    <div className="h-4 w-24 rounded bg-zinc-200 mb-3" />
+                    <div className="h-6 w-40 rounded bg-zinc-200 mb-4" />
+                    <div className="h-10 rounded bg-zinc-200" />
+                  </div>
+                ))}
+              </div>
+            ) : visibleLibraryItems.length > 0 ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {visibleLibraryItems.map((item, index) => (
+                  <div
+                    key={item.id}
+                    className={`rounded-2xl border p-4 shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md ${
+                      index % 3 === 0
+                        ? "border-emerald-200 bg-emerald-50/60"
+                        : index % 3 === 1
+                        ? "border-sky-200 bg-sky-50/60"
+                        : "border-amber-200 bg-amber-50/60"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3 mb-4">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mb-1">
+                          Form
+                        </p>
+                        <h3 className="text-[16px] font-bold text-zinc-950 truncate">
+                          {item.form_title}
+                        </h3>
+                        <p className="text-[12px] text-zinc-600 mt-1">
+                          {item.field_count} fields · {item.submission_count} responses
+                        </p>
+                      </div>
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-950 text-white flex-shrink-0">
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v7.5A2.25 2.25 0 005.25 18h13.5A2.25 2.25 0 0021 15.75V12M13.5 6l3-3m0 0l3 3m-3-3v9" />
+                        </svg>
+                      </div>
+                    </div>
+
+                    <div className="mb-4 space-y-2">
+                      <div className="flex items-center justify-between text-[12px] text-zinc-700">
+                        <span>Updated</span>
+                        <span className="font-medium">{formatUpdatedAt(item.updated_at)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[12px] text-zinc-700">
+                        <span>Sheet tab</span>
+                        <span className="font-medium truncate max-w-[140px]">{item.worksheet_name ?? "Sheet1"}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => router.push(item.form_url)}
+                        className="flex-1 rounded-xl bg-zinc-950 px-3 py-2.5 text-[13px] font-medium text-white hover:bg-zinc-800"
+                      >
+                        Open form
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => router.push(item.edit_url)}
+                        className="rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-[13px] font-medium text-zinc-700 hover:bg-zinc-50"
+                      >
+                        Edit / QR
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-5 text-center">
+                <p className="text-[14px] font-semibold text-zinc-900">No saved forms yet</p>
+                <p className="mt-1 text-[13px] text-zinc-500">
+                  Create your first app below and it will appear here like a Glide workspace.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 mb-6 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setMode("paste")}
+              className={`rounded-lg px-3 py-3 text-[13px] font-medium transition-colors min-h-[48px] ${
+                mode === "paste"
+                  ? "bg-zinc-950 text-white"
+                  : "bg-transparent text-zinc-600 hover:bg-zinc-50"
+              }`}
+            >
+              Paste link
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("create")}
+              className={`rounded-lg px-3 py-3 text-[13px] font-medium transition-colors min-h-[48px] ${
+                mode === "create"
+                  ? "bg-zinc-950 text-white"
+                  : "bg-transparent text-zinc-600 hover:bg-zinc-50"
+              }`}
+            >
+              Create new form
+            </button>
+          </div>
+
+          {mode === "create" && (
+            <div className="mb-6">
+              <FormBuilder submitting={saving} onSubmit={handleCreateNewForm} />
+            </div>
+          )}
+
+          {mode === "paste" && (
+            <>
 
           {/* URL Input Card */}
           <div className="mb-6">
@@ -536,28 +845,36 @@ export default function Dashboard() {
             </svg>
             <span>Your data stays in your Google Sheet. We never store spreadsheet content.</span>
           </div>
+
+            </>
+          )}
+
         </div>
 
-        {/* Sticky CTA */}
-        <div
-          className="fixed bottom-0 left-0 right-0 max-w-[560px] mx-auto px-5 pt-3 pb-3 bg-white border-t border-zinc-200 shadow-sticky z-40"
-          style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
-        >
-          <button
-            onClick={handleGenerate}
-            disabled={loadingPreview || !sheetUrl.trim() || accessStatus === "none" || accessStatus === "read"}
-            className="w-full bg-zinc-950 hover:bg-zinc-800 active:bg-black disabled:bg-zinc-200 disabled:text-zinc-500 text-white font-semibold text-[15px] rounded-lg h-[52px] flex items-center justify-center gap-2 transition-all duration-150"
-          >
-            {loadingPreview ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span>Reading sheet...</span>
-              </>
-            ) : (
-              <span>Preview your form</span>
-            )}
-          </button>
-        </div>
+        {mode === "paste" && (
+          <>
+            {/* Sticky CTA */}
+            <div
+              className="fixed bottom-0 left-0 right-0 max-w-[560px] mx-auto px-5 pt-3 pb-3 bg-white border-t border-zinc-200 shadow-sticky z-40"
+              style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
+            >
+              <button
+                onClick={handleGenerate}
+                disabled={loadingPreview || !sheetUrl.trim() || accessStatus === "none" || accessStatus === "read"}
+                className="w-full bg-zinc-950 hover:bg-zinc-800 active:bg-black disabled:bg-zinc-200 disabled:text-zinc-500 text-white font-semibold text-[15px] rounded-lg h-[52px] flex items-center justify-center gap-2 transition-all duration-150"
+              >
+                {loadingPreview ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Reading sheet...</span>
+                  </>
+                ) : (
+                  <span>Preview your form</span>
+                )}
+              </button>
+            </div>
+          </>
+        )}
 
         <ErrorToast message={error} onDismiss={() => setError(null)} />
       </div>
@@ -593,7 +910,7 @@ export default function Dashboard() {
           {worksheets.length > 1 && (
             <div>
               <label className="block text-[13px] font-semibold text-zinc-800 mb-2">
-                Sub Sheet
+                Sub Sheets
               </label>
               <MobileDropdown
                 value={selectedWorksheet ?? ""}
@@ -670,16 +987,22 @@ export default function Dashboard() {
   }
 
   // ─── STEP: done ───────────────────────────────────────────────────────────────
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const fullFormUrl = origin + (createdForm?.form_url ?? "");
-  const fullEditUrl = origin + (createdForm?.edit_url ?? "");
+  const appOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const fullFormUrl = appOrigin + (createdForm?.form_url ?? "");
+  const fullEditUrl = appOrigin + (createdForm?.edit_url ?? "");
 
   return (
     <div className="flex flex-col min-h-screen bg-zinc-100">
       <AppHeader
         showLogo
         showBack
-        onBack={() => setStep("preview")}
+          onBack={() => {
+            if (previewData) {
+              setStep("preview");
+            } else {
+              setStep("input");
+            }
+          }}
         rightAction={
           <span className="text-[11px] font-medium text-zinc-500">3 of 3</span>
         }

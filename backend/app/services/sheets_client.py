@@ -382,6 +382,26 @@ def read_headers(
         raise
 
 
+def sync_sheet_headers(
+    *,
+    spreadsheet_id: str,
+    worksheet_name: str | None,
+    headers: list[str],
+) -> None:
+    """Rewrite row 1 so the live Google Sheet matches the saved field headers."""
+    if not _has_credentials():
+        return
+
+    client = get_client()
+    spreadsheet = client.open_by_key(spreadsheet_id)
+    worksheet = _select_worksheet(spreadsheet, worksheet_name)
+
+    if not headers:
+        return
+
+    worksheet.update("A1", [headers], value_input_option="RAW")
+
+
 # ---------------------------------------------------------------------------
 # Smart row detection + append
 # ---------------------------------------------------------------------------

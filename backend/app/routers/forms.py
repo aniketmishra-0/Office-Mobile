@@ -7,6 +7,8 @@ from fastapi import APIRouter, HTTPException, Query
 
 from app.config import get_settings
 from app.models.form import (
+    CreateSheetRequest,
+    CreateSheetResponse,
     CreateFormRequest,
     CreateFormResponse,
     EditFormResponse,
@@ -23,9 +25,11 @@ from app.services.session_context import DEFAULT_OAUTH_KEY, get_current_oauth_se
 from app.services.sheets_client import (
     _has_credentials,
     append_form_row,
+    get_client,
     map_sheet_exception,
     read_headers,
     read_sheet_rows,
+    sync_sheet_headers,
 )
 from app.utils.sanitizer import headers_to_fields
 from app.utils.url_parser import InvalidGoogleSheetUrl, extract_spreadsheet_id
@@ -86,6 +90,55 @@ def _validate_submission(record: dict, values: dict) -> None:
 def public_config() -> dict[str, str | None]:
     settings = get_settings()
     return {"service_account_email": settings.google_service_account_email}
+
+
+@router.post("/sheet/create", response_model=CreateSheetResponse)
+def create_sheet(payload: CreateSheetRequest) -> CreateSheetResponse:
+    _ensure_fields(payload.fields)
+
+    try:
+        client = get_client()
+        spreadsheet = client.create(payload.form_title)
+        worksheet = spreadsheet.sheet1
+        headers = [field.source_header for field in payload.fields]
+        worksheet.update("A1", [headers], value_input_option="RAW")
+    except Exception as exc:
+        raise _sheet_error(exc) from exc
+
+    spreadsheet_id = spreadsheet.id
+    sheet_url = (
+        spreadsheet.url
+        if getattr(spreadsheet, "url", None)
+        else f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit"
+    )
+
+    return CreateSheetResponse(
+        spreadsheet_id=spreadsheet_id,
+        sheet_url=sheet_url,
+        worksheet_name=worksheet.title,
+    )
+
+
+@router.get("/forms/library")
+def list_form_library(limit: int = Query(50, ge=1, le=200)) -> dict:
+    items = form_store.list_forms(limit=limit)
+    return {
+        "items": [
+            {
+                "id": item["id"],
+                "form_title": item["form_title"],
+                "sheet_url": item["sheet_url"],
+                "spreadsheet_id": item["spreadsheet_id"],
+                "worksheet_name": item.get("worksheet_name"),
+                "field_count": len(item.get("fields", [])),
+                "submission_count": item.get("submission_count") or 0,
+                "updated_at": item.get("updated_at"),
+                "form_url": f"/f/{item['id']}",
+                "edit_url": f"/edit/{item['id']}?token={item['edit_token']}",
+            }
+            for item in items
+        ]
+    }
 
 
 @router.get("/sheet/access")
@@ -348,6 +401,18 @@ def update_form(form_id: str, payload: UpdateFormRequest) -> UpdateFormResponse:
     )
     if updated is None:
         raise HTTPException(status_code=404, detail="Form not found")
+
+    try:
+        oauth_key = updated.get("oauth_key") or DEFAULT_OAUTH_KEY
+        with oauth_session_context(oauth_key):
+            sync_sheet_headers(
+                spreadsheet_id=updated["spreadsheet_id"],
+                worksheet_name=updated["worksheet_name"],
+                headers=[field.source_header for field in payload.fields],
+            )
+    except Exception as exc:
+        if _has_credentials():
+            raise _sheet_error(exc) from exc
 
     return UpdateFormResponse(success=True, id=form_id)
 

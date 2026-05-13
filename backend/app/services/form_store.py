@@ -132,6 +132,10 @@ def _row_to_record(row: sqlite3.Row | None) -> dict[str, Any] | None:
         oauth_key = row["oauth_key"]
     except (IndexError, KeyError):
         oauth_key = None
+    try:
+        submission_count = row["submission_count"]
+    except (IndexError, KeyError):
+        submission_count = None
     return {
         "id": row["id"],
         "edit_token": row["edit_token"],
@@ -143,6 +147,7 @@ def _row_to_record(row: sqlite3.Row | None) -> dict[str, Any] | None:
         "fields": _load_fields(row["fields_json"]),
         "custom_keywords": _load_keywords(row["custom_keywords_json"]),
         "autofill_columns": json.loads(autofill_raw) if autofill_raw else [],
+        "submission_count": submission_count,
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -206,6 +211,28 @@ def find_forms_by_spreadsheet(spreadsheet_id: str) -> list[dict[str, Any]]:
             (spreadsheet_id,),
         ).fetchall()
     results = []
+    for row in rows:
+        record = _row_to_record(row)
+        if record:
+            results.append(record)
+    return results
+
+
+def list_forms(limit: int = 100) -> list[dict[str, Any]]:
+    with _connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT f.*, COUNT(s.id) AS submission_count
+            FROM forms f
+            LEFT JOIN submissions s ON s.form_id = f.id
+            GROUP BY f.id
+            ORDER BY f.updated_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+
+    results: list[dict[str, Any]] = []
     for row in rows:
         record = _row_to_record(row)
         if record:

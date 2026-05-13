@@ -11,6 +11,7 @@ import AutofillColumnSelector from "@/components/AutofillColumnSelector";
 import SubmitButton from "@/components/SubmitButton";
 import { getEditForm, updateForm, previewSheet } from "@/lib/api";
 import type { EditFormResponse, FieldSchema, CustomKeywordRule } from "@/types/field";
+import { QRCodeCanvas } from "qrcode.react";
 
 export default function EditFormPage() {
   const params = useParams();
@@ -30,7 +31,10 @@ export default function EditFormPage() {
   const [error, setError] = useState<string | null>(null);
   const [reapplying, setReapplying] = useState(false);
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [shareUrl, setShareUrl] = useState("");
+  const [copiedShare, setCopiedShare] = useState(false);
   const manuallyChangedTypes = useRef<Set<string>>(new Set());
+  const qrRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
     if (!token) {
@@ -49,6 +53,12 @@ export default function EditFormPage() {
       .catch((e) => setLoadError(e.message ?? "Failed to load form"))
       .finally(() => setLoading(false));
   }, [id, token]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setShareUrl(`${window.location.origin}/f/${id}`);
+    }
+  }, [id]);
 
   function handleFieldChange(updated: FieldSchema[]) {
     updated.forEach((updatedField) => {
@@ -89,7 +99,10 @@ export default function EditFormPage() {
       await updateForm(id, {
         edit_token: token,
         form_title: formTitle,
-        fields,
+        fields: fields.map((field) => ({
+          ...field,
+          source_header: field.label,
+        })),
         custom_keywords: rules,
         autofill_columns: autofillColumns,
       });
@@ -100,6 +113,23 @@ export default function EditFormPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function handleCopyShareLink() {
+    if (!shareUrl) return;
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      setCopiedShare(true);
+      setTimeout(() => setCopiedShare(false), 1500);
+    });
+  }
+
+  function handleDownloadQr() {
+    const canvas = qrRef.current;
+    if (!canvas || !shareUrl) return;
+    const anchor = document.createElement("a");
+    anchor.href = canvas.toDataURL("image/png");
+    anchor.download = `office-mobile-form-${id}.png`;
+    anchor.click();
   }
 
   if (loading) return <LoadingOverlay message="Loading editor..." />;
@@ -205,6 +235,61 @@ export default function EditFormPage() {
             )}
           </div>
         )}
+
+        <div className="rounded-lg border border-zinc-200 bg-white p-4 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-medium text-zinc-500 uppercase tracking-wide mb-1">Share</p>
+              <p className="text-[14px] font-semibold text-zinc-950">Public form link and QR code</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleDownloadQr}
+              disabled={!shareUrl}
+              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-[12px] font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40"
+            >
+              Download QR
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+            <div className="flex-1 min-w-0">
+              <label className="block text-[12px] font-semibold text-zinc-700 mb-2">Public link</label>
+              <div className="flex gap-2">
+                <input
+                  readOnly
+                  value={shareUrl}
+                  className="flex-1 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-[13px] text-zinc-700 font-mono"
+                  onFocus={(e) => e.target.select()}
+                />
+                <button
+                  type="button"
+                  onClick={handleCopyShareLink}
+                  disabled={!shareUrl}
+                  className="rounded-lg bg-zinc-950 px-4 py-2.5 text-[13px] font-medium text-white disabled:opacity-40"
+                >
+                  {copiedShare ? "Copied" : "Copy"}
+                </button>
+              </div>
+              <p className="mt-2 text-[12px] text-zinc-500">
+                Anyone with this link can open the form and submit a response.
+              </p>
+            </div>
+
+            <div className="flex flex-col items-center rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+              <QRCodeCanvas
+                ref={qrRef}
+                value={shareUrl || ""}
+                size={156}
+                bgColor="#ffffff"
+                fgColor="#09090b"
+                includeMargin
+                level="M"
+              />
+              <p className="mt-2 text-[11px] font-medium text-zinc-500">Scan to open</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <SubmitButton label="Save changes" submitting={saving} onClick={handleSave} />

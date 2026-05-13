@@ -10,9 +10,11 @@
 
 import type {
   CreateFormResponse,
+  CreateSheetResponse,
   CustomKeywordRule,
   EditFormResponse,
   FieldSchema,
+  FormLibraryResponse,
   PreviewResponse,
   PublicFormResponse,
   SubmitFormResponse,
@@ -177,6 +179,25 @@ export async function createForm(payload: {
   autofill_columns?: string[];
 }): Promise<CreateFormResponse> {
   return jsonRequest<CreateFormResponse>("POST", "/forms", payload);
+}
+
+/**
+ * POST /api/sheet/create
+ * Create a brand-new Google Sheet and seed row 1 with the supplied headers.
+ */
+export async function createSheet(payload: {
+  form_title: string;
+  fields: FieldSchema[];
+}): Promise<CreateSheetResponse> {
+  return jsonRequest<CreateSheetResponse>("POST", "/sheet/create", payload);
+}
+
+/**
+ * GET /api/forms/library
+ * Fetch the saved forms dashboard content.
+ */
+export async function listFormLibrary(limit = 50): Promise<FormLibraryResponse> {
+  return jsonGet<FormLibraryResponse>(`/forms/library?limit=${limit}`);
 }
 
 /**

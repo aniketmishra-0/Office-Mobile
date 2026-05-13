@@ -162,7 +162,55 @@ class TestPreview:
 
 
 # ===========================================================================
-# 3. Create form
+# 3. Create sheet
+# ===========================================================================
+
+
+class TestCreateSheet:
+    def test_creates_sheet_and_writes_headers(self, client):
+        headers_written = {}
+
+        class FakeWorksheet:
+            title = "Sheet1"
+
+            def update(self, cell_range, values, value_input_option="RAW"):
+                headers_written["cell_range"] = cell_range
+                headers_written["values"] = values
+                headers_written["value_input_option"] = value_input_option
+
+        class FakeSpreadsheet:
+            id = SPREADSHEET_ID
+            url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/edit"
+
+            def __init__(self):
+                self.sheet1 = FakeWorksheet()
+
+        class FakeClient:
+            def create(self, title):
+                headers_written["title"] = title
+                return FakeSpreadsheet()
+
+        payload = {
+            "form_title": "New Intake Form",
+            "fields": SAMPLE_FIELDS,
+        }
+
+        with patch("app.routers.forms.get_client", return_value=FakeClient()):
+            response = client.post("/api/sheet/create", json=payload)
+
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data["spreadsheet_id"] == SPREADSHEET_ID
+        assert data["sheet_url"].endswith(f"/d/{SPREADSHEET_ID}/edit")
+        assert data["worksheet_name"] == "Sheet1"
+        assert headers_written["title"] == "New Intake Form"
+        assert headers_written["cell_range"] == "A1"
+        assert headers_written["values"] == [["Full Name", "Email*"]]
+        assert headers_written["value_input_option"] == "RAW"
+
+
+# ===========================================================================
+# 4. Create form
 # ===========================================================================
 
 
@@ -178,7 +226,24 @@ class TestCreateForm:
 
 
 # ===========================================================================
-# 4. Get public form
+# 4. Form library
+# ===========================================================================
+
+
+class TestFormLibrary:
+    def test_lists_saved_forms(self, client, sample_form):
+        response = client.get("/api/forms/library")
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data["items"]
+        first = data["items"][0]
+        assert first["id"] == sample_form["id"]
+        assert first["form_title"] == "Router Test Form"
+        assert first["field_count"] == 2
+
+
+# ===========================================================================
+# 5. Get public form
 # ===========================================================================
 
 
@@ -199,7 +264,7 @@ class TestGetPublicForm:
 
 
 # ===========================================================================
-# 5. Get edit form
+# 6. Get edit form
 # ===========================================================================
 
 
@@ -226,7 +291,7 @@ class TestGetEditForm:
 
 
 # ===========================================================================
-# 6. Submit form   (ordered BEFORE update so the required email field exists)
+# 7. Submit form   (ordered BEFORE update so the required email field exists)
 # ===========================================================================
 
 
@@ -276,7 +341,7 @@ class TestSubmitForm:
 
 
 # ===========================================================================
-# 7. Update form   (ordered LAST to avoid mutating state consumed by earlier tests)
+# 8. Update form   (ordered LAST to avoid mutating state consumed by earlier tests)
 # ===========================================================================
 
 
@@ -293,12 +358,53 @@ class TestUpdateForm:
             "fields": SAMPLE_FIELDS,
             "custom_keywords": [],
         }
-        response = client.put(f"/api/forms/{form_id}", json=payload)
+        with patch("app.routers.forms.sync_sheet_headers"):
+            response = client.put(f"/api/forms/{form_id}", json=payload)
 
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
         assert data["id"] == form_id
+
+    def test_update_syncs_sheet_headers(self, client, sample_form):
+        form_id = sample_form["id"]
+        token = sample_form["edit_token"]
+        synced = {}
+
+        payload = {
+            "edit_token": token,
+            "form_title": "Updated Form Title",
+            "fields": [
+                {
+                    "key": "full_name",
+                    "source_header": "Employee Name",
+                    "label": "Employee Name",
+                    "type": "text",
+                    "required": False,
+                    "order": 0,
+                    "column_index": 0,
+                    "placeholder": "Enter full name",
+                },
+                {
+                    "key": "email",
+                    "source_header": "Work Email",
+                    "label": "Work Email",
+                    "type": "email",
+                    "required": True,
+                    "order": 1,
+                    "column_index": 1,
+                    "placeholder": "Enter email",
+                },
+            ],
+            "custom_keywords": [],
+        }
+
+        with patch("app.routers.forms.sync_sheet_headers") as mock_sync:
+            response = client.put(f"/api/forms/{form_id}", json=payload)
+            synced["headers"] = mock_sync.call_args.kwargs["headers"]
+
+        assert response.status_code == 200, response.text
+        assert synced["headers"] == ["Employee Name", "Work Email"]
 
     def test_update_persists_new_title(self, client, sample_form):
         """Verify the updated title is visible via the public endpoint."""
