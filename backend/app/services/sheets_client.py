@@ -639,6 +639,8 @@ def map_sheet_exception(exc: Exception) -> tuple[int, str]:
         return 404, "Spreadsheet not found or not shared with the service account."
     if isinstance(exc, WorksheetNotFound):
         return 404, "Worksheet/tab not found."
+    if isinstance(exc, PermissionError):
+        return 403, "You do not have permission to access this Google Sheet. Please make sure you have access to it."
     if isinstance(exc, APIError):
         status_code = (
             getattr(getattr(exc, "response", None), "status_code", None) or 502
