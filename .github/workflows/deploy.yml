@@ -23,7 +23,7 @@ jobs:
       - name: Deploy Backend to GCP
         run: |
           gcloud compute ssh archana_tiwari@office-mobile-server \
-            --zone=us-central1-a \
+            --zone=us-east1-c \
             --command="cd ~/Office-Mobile && GOOGLE_SERVICE_ACCOUNT_JSON='${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}' bash scripts/deploy-backend.sh"
 
       - name: Trigger Frontend Vercel Deployment
