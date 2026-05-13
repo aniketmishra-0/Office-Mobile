@@ -71,16 +71,30 @@ fi
 
 echo "Installing backend dependencies..."
 cd backend
-npm install --production 2>/dev/null || pip install -r requirements.txt
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "python3 is required but was not found on PATH." >&2
+  exit 1
+fi
+
+if [ ! -d ".venv" ]; then
+  echo "Creating virtual environment..."
+  python3 -m venv .venv
+fi
+
+PYTHON_BIN="$(pwd)/.venv/bin/python"
+"$PYTHON_BIN" -m pip install --upgrade pip
+"$PYTHON_BIN" -m pip install -r requirements.txt
+
+UVICORN_CMD="$PYTHON_BIN -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
 echo "Starting/Restarting backend with pm2..."
 if pm2 info backend > /dev/null 2>&1; then
-  echo "Restarting existing backend process..."
-  pm2 restart backend --update-env
-else
-  echo "Starting backend for the first time..."
-  pm2 start "npm start" --name backend --update-env
+  echo "Replacing existing backend process..."
+  pm2 delete backend
 fi
+pm2 start "$UVICORN_CMD" --name backend --update-env
+pm2 save
 
 echo "========================================="
 echo "✓ Backend deploy complete!"
