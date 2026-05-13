@@ -319,7 +319,11 @@ def read_headers_public(
     headers = [col.get("label", "") for col in cols]
 
     actual_worksheet = worksheet_name or "Sheet1"
-    spreadsheet_title = "My Form"
+    # The gviz/tq endpoint doesn't reliably include a spreadsheet title for
+    # unauthenticated requests. Use a clearer, minimally-unique default so
+    # multiple inaccessible sheets don't all appear as "My Form" in the UI.
+    short_id = spreadsheet_id[-6:]
+    spreadsheet_title = f"Untitled Form ({short_id})"
 
     return spreadsheet_title, actual_worksheet, headers
 
@@ -798,7 +802,10 @@ def map_sheet_exception(exc: Exception) -> tuple[int, str]:
         if status_code == 400:
             return 400, "The sheet structure changed or the request was invalid."
         if status_code == 403:
-            return 403, "No permission to read or write this sheet."
+            return 403, (
+                "No permission to read or write this sheet. "
+                "If you expect the app to create or access sheets, share the sheet/Drive with the service account or sign in with Google."
+            )
         if status_code == 404:
             return 404, "Sheet or tab not found."
         if status_code == 429:

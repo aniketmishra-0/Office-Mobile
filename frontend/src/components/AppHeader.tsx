@@ -22,6 +22,7 @@ export default function AppHeader({
   rightAction,
 }: Props) {
   const router = useRouter();
+  const [user, setUser] = useState<{ email?: string | null; name?: string | null; picture?: string | null } | null>(null);
   const [openMenu, setOpenMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -35,6 +36,22 @@ export default function AppHeader({
     }
     document.addEventListener("click", onDoc);
     return () => document.removeEventListener("click", onDoc);
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    async function load() {
+      try {
+        const res = await fetch((process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "") + "/api/auth/status", { credentials: "include" });
+        const data = await res.json();
+        if (!mounted) return;
+        setUser(data.user ?? null);
+      } catch (e) {
+        // ignore
+      }
+    }
+    load();
+    return () => { mounted = false };
   }, []);
 
   function handleBack() {
@@ -102,11 +119,15 @@ export default function AppHeader({
                 type="button"
                 aria-label="Open menu"
                 onClick={() => setOpenMenu((s) => !s)}
-                className="flex items-center justify-center w-9 h-9 rounded-lg border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 transition-colors"
+                className="flex items-center justify-center w-9 h-9 rounded-lg border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 transition-colors overflow-hidden"
               >
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zM6 20v-1c0-2.21 3.58-4 6-4s6 1.79 6 4v1" />
-                </svg>
+                {user && user.picture ? (
+                  <img src={user.picture} alt={(user.name ?? user.email) || "Profile"} className="w-9 h-9 object-cover rounded-md" />
+                ) : (
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zM6 20v-1c0-2.21 3.58-4 6-4s6 1.79 6 4v1" />
+                  </svg>
+                )}
               </button>
 
               {openMenu && (

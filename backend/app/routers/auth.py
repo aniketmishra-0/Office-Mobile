@@ -11,6 +11,8 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app.config import get_settings
 from app.services import form_store
 from app.services.session_context import OAUTH_SESSION_COOKIE, OAUTH_SESSION_MAX_AGE
+import base64
+import json
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -104,7 +106,32 @@ def _frontend_origin() -> str:
 def status(request: Request, response: Response) -> dict:
     session_key = _ensure_session_key(request, response)
     token = form_store.get_oauth_token(session_key)
-    return {"connected": token is not None, "session_key": session_key}
+    user: dict | None = None
+    if token and isinstance(token, dict):
+        idt = token.get("id_token") or token.get("idToken")
+        if idt:
+            try:
+                # Lightweight, non-verified JWT payload parsing. This is
+                # only used for UI display (email/name/avatar) and not for
+                # security decisions. If parsing fails, we ignore it.
+                parts = idt.split(".")
+                if len(parts) >= 2:
+                    payload = parts[1]
+                    # Base64url decode with padding
+                    rem = len(payload) % 4
+                    if rem:
+                        payload += "=" * (4 - rem)
+                    decoded = base64.urlsafe_b64decode(payload.encode())
+                    claims = json.loads(decoded.decode())
+                    user = {
+                        "email": claims.get("email"),
+                        "name": claims.get("name"),
+                        "picture": claims.get("picture"),
+                    }
+            except Exception:
+                user = None
+
+    return {"connected": token is not None, "session_key": session_key, "user": user}
 
 
 @router.post("/logout")

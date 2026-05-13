@@ -572,6 +572,11 @@ export default function Dashboard() {
                 </div>
                 {urlError && <p id="url-error" className="text-red-500 text-[13px] mt-1.5" role="alert">{urlError}</p>}
                 {!urlValid && !urlError && <p className="text-gray-400 text-[13px] mt-1.5">Paste any Google Sheets link or spreadsheet ID</p>}
+                {accessStatus === "none" && serviceAccountEmail && (
+                  <p className="text-[13px] mt-1.5 text-amber-700">
+                    No permission to access this sheet. Share the sheet (or Drive) with <strong>{serviceAccountEmail}</strong> or sign in with Google.
+                  </p>
+                )}
               </div>
 
               <div className="flex items-start gap-2 text-[12px] text-zinc-500">
