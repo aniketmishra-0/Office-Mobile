@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePrefs } from "@/lib/usePrefs";
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
 
@@ -20,6 +21,7 @@ type AuthState = "idle" | "loading" | "success" | "error" | "unauthorized";
 export default function WelcomeScreen({ onAuthenticated }: Props) {
   const [authState, setAuthState] = useState<AuthState>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const { copy } = usePrefs();
 
   function handleSignIn() {
     setAuthState("loading");
@@ -83,13 +85,19 @@ export default function WelcomeScreen({ onAuthenticated }: Props) {
           {/* Top zone — hero. Height is 55% of the column. */}
           <div className="om-welcome__top">
             <p className="om-welcome__kicker">Officemobile · v2</p>
-            <h1 className="om-welcome__hero om-display">
-              Your Spreadsheet.
-              <br />
-              Your <em>Form.</em>
+            <h1 className="om-welcome__hero om-display" style={{ whiteSpace: "pre-line" }}>
+              {copy.hero_title ? (
+                copy.hero_title
+              ) : (
+                <>
+                  Your Spreadsheet.
+                  <br />
+                  Your <em>Form.</em>
+                </>
+              )}
             </h1>
             <p className="om-welcome__sub om-meta">
-              {"// connect a google sheet. collect data. done."}
+              {copy.hero_sub ?? "// connect a google sheet. collect data. done."}
             </p>
           </div>
 

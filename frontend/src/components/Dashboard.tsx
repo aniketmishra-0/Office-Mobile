@@ -12,6 +12,7 @@ import FormBuilder from "@/components/FormBuilder";
 import MobileDropdown from "@/components/MobileDropdown";
 import SubmitButton from "@/components/SubmitButton";
 import { QRCodeCanvas } from "qrcode.react";
+import { usePrefs } from "@/lib/usePrefs";
 import {
   createSheet,
   previewSheet,
@@ -42,6 +43,7 @@ export default function Dashboard() {
   const router = useRouter();
   const qrRef = useRef<HTMLCanvasElement | null>(null);
   const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const { copy } = usePrefs();
   const [step, setStep] = useState<Step>("input");
   const [mode, setMode] = useState<"paste" | "create">("paste");
   const [mounted, setMounted] = useState(false);
@@ -376,33 +378,7 @@ export default function Dashboard() {
   if (step === "input") {
     return (
       <div className="flex flex-col min-h-screen">
-        <AppHeader
-          showLogo
-          rightAction={
-            <button
-              type="button"
-              onClick={handleSignOut}
-              aria-label="Sign out"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "6px 10px",
-                background: "transparent",
-                border: "1px solid var(--rule)",
-                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                fontWeight: 500,
-                fontSize: 10,
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                color: "var(--stone)",
-                cursor: "pointer",
-              }}
-            >
-              sign out
-            </button>
-          }
-        />
+        <AppHeader showLogo />
         {loadingPreview && <LoadingOverlay message="Reading your sheet..." />}
 
         <div className="flex-1 w-full max-w-[560px] mx-auto px-6 pt-10 pb-32 space-y-8">
@@ -430,11 +406,18 @@ export default function Dashboard() {
                 letterSpacing: "-0.01em",
                 color: "var(--ink)",
                 margin: 0,
+                whiteSpace: "pre-line",
               }}
             >
-              Your Spreadsheet.
-              <br />
-              Your <em style={{ fontStyle: "italic", fontWeight: 400 }}>Form.</em>
+              {copy.hero_title ? (
+                copy.hero_title
+              ) : (
+                <>
+                  Your Spreadsheet.
+                  <br />
+                  Your <em style={{ fontStyle: "italic", fontWeight: 400 }}>Form.</em>
+                </>
+              )}
             </h1>
             <p
               style={{
@@ -446,7 +429,7 @@ export default function Dashboard() {
                 margin: "18px 0 0 0",
               }}
             >
-              {"// connect a google sheet. collect data. done."}
+              {copy.hero_sub ?? "// connect a google sheet. collect data. done."}
             </p>
           </section>
 
@@ -581,7 +564,70 @@ export default function Dashboard() {
                     paste any google sheets link or spreadsheet id
                   </p>
                 )}
-                {accessStatus === "none" && serviceAccountEmail && (
+                {accessStatus === "checking" && (
+                  <p
+                    style={{
+                      margin: "10px 0 0 0",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontWeight: 400,
+                      fontSize: 10,
+                      letterSpacing: "0.04em",
+                      color: "var(--stone)",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 10,
+                        height: 10,
+                        border: "1.5px solid var(--rule)",
+                        borderTopColor: "var(--ink)",
+                        borderRadius: "50%",
+                        display: "inline-block",
+                        animation: "spin 0.8s linear infinite",
+                      }}
+                    />
+                    checking permissions…
+                  </p>
+                )}
+                {accessStatus === "edit" && (
+                  <p
+                    style={{
+                      margin: "10px 0 0 0",
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontWeight: 500,
+                      fontSize: 10,
+                      letterSpacing: "0.04em",
+                      color: "#047857",
+                    }}
+                  >
+                    ✓ edit access confirmed
+                  </p>
+                )}
+                {accessStatus === "read" && (
+                  <p
+                    style={{
+                      margin: "10px 0 0 0",
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontWeight: 400,
+                      fontSize: 10,
+                      letterSpacing: "0.04em",
+                      color: "#b45309",
+                    }}
+                  >
+                    <strong style={{ fontWeight: 500 }}>view only.</strong>{" "}
+                    we can read the sheet, but you must grant editor access{" "}
+                    {serviceAccountEmail ? (
+                      <>
+                        to <strong style={{ fontWeight: 500 }}>{serviceAccountEmail}</strong>{" "}
+                      </>
+                    ) : null}
+                    to collect responses.
+                  </p>
+                )}
+                {accessStatus === "none" && (
                   <p
                     style={{
                       margin: "10px 0 0 0",
@@ -592,9 +638,16 @@ export default function Dashboard() {
                       color: "var(--clay)",
                     }}
                   >
-                    no read access. share the sheet with{" "}
-                    <strong style={{ fontWeight: 500 }}>{serviceAccountEmail}</strong>{" "}
-                    or sign in with google.
+                    <strong style={{ fontWeight: 500 }}>no access.</strong>{" "}
+                    {serviceAccountEmail ? (
+                      <>
+                        share the sheet with{" "}
+                        <strong style={{ fontWeight: 500 }}>{serviceAccountEmail}</strong>{" "}
+                        or sign in with google.
+                      </>
+                    ) : (
+                      <>sign in with google or share the sheet with the app.</>
+                    )}
                   </p>
                 )}
               </div>
@@ -808,7 +861,7 @@ export default function Dashboard() {
         {/* Submit band — generate form */}
         {mode === "paste" && (
           <SubmitButton
-            label="Preview your form"
+            label={copy.submit_label ?? "Preview your form"}
             submitting={loadingPreview}
             onClick={handleGenerate}
             disabled={!sheetUrl.trim() || accessStatus === "none" || accessStatus === "read"}

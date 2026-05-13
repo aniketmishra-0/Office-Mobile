@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { usePrefs } from "@/lib/usePrefs";
 
 interface Props {
   label?: string;
@@ -24,7 +25,11 @@ export default function SubmitButton({
   form,
   disabled,
 }: Props) {
+  const { copy } = usePrefs();
   const [showDone, setShowDone] = useState(false);
+
+  // Resolve display label: caller wins, then user-customized copy, then default.
+  const resolved = label ?? copy.submit_label ?? "Submit";
 
   // When submitting flips true → false, briefly hold a "done" state so
   // users see the completion. The parent screen owns the page-level
@@ -51,7 +56,7 @@ export default function SubmitButton({
         disabled={submitting || disabled}
         onClick={onClick}
         className={`om-submit ${submitting ? "is-submitting" : ""}`}
-        aria-label={label ?? "Submit"}
+        aria-label={resolved}
       >
         <span className="om-submit__fill" aria-hidden />
         <span className="om-submit__label">
@@ -59,7 +64,7 @@ export default function SubmitButton({
             <>working</>
           ) : (
             <>
-              {(label ?? "Submit").toUpperCase()}
+              {resolved.toUpperCase()}
               <span className="om-submit__arrow" aria-hidden>→</span>
             </>
           )}

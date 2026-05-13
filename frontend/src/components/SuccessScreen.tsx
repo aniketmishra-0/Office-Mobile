@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { usePrefs } from "@/lib/usePrefs";
 
 interface Props {
   formTitle: string;
@@ -29,6 +30,7 @@ function formatStamp(): string {
  * single text link to start again. No other UI.
  */
 export default function SuccessScreen({ formTitle, onSubmitAnother }: Props) {
+  const { copy } = usePrefs();
   const [stamp, setStamp] = useState("");
 
   useEffect(() => {
@@ -38,7 +40,7 @@ export default function SuccessScreen({ formTitle, onSubmitAnother }: Props) {
   return (
     <div className="om-success" role="status" aria-live="polite">
       <span className="om-success__check" aria-hidden>✓</span>
-      <h1 className="om-success__title">entry recorded.</h1>
+      <h1 className="om-success__title">{copy.success_title ?? "entry recorded."}</h1>
       <p className="om-success__meta">
         sheet updated · {stamp}
         {formTitle ? <><br />form · {formTitle.toLowerCase()}</> : null}

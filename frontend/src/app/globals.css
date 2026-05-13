@@ -18,6 +18,28 @@
   --clay:      #C8623A;
   --clay-dark: #A84E2C;
   --error:     #B83A3A;
+  --on-clay:   #FFFFFF;
+  --on-ink:    #F7F3EE;
+  color-scheme: light;
+}
+
+/* ───── Dark theme ─────────────────────────────────────────────
+   Kept editorial, not pitch-black. Warm near-black base with the
+   same terracotta accent. The tokens flip so every surface-and-type
+   pair we painted with CSS vars inverts automatically. */
+[data-theme="dark"] {
+  --cream:     #1A1714;  /* base background */
+  --paper:     #242020;  /* hover / secondary */
+  --ink:       #F3ECE2;  /* primary text */
+  --charcoal:  #D9D1C6;  /* secondary text */
+  --stone:     #7F7A71;  /* muted */
+  --rule:      #35302B;  /* hairline dividers */
+  --clay:      #E07A50;  /* accent — slightly brighter for contrast */
+  --clay-dark: #C8623A;
+  --error:     #E66565;
+  --on-clay:   #1A1714;
+  --on-ink:    #1A1714;
+  color-scheme: dark;
 }
 
 /* Prevent iOS input zoom — all inputs must be at least 16px */
@@ -69,6 +91,19 @@ body {
     rgba(26, 23, 20, 0.012) 2px,
     rgba(26, 23, 20, 0.012) 4px
   );
+  transition: background-color 200ms ease-out, color 200ms ease-out;
+}
+
+/* In dark mode the grain flips to a faint white overlay so it stays
+   readable instead of disappearing into the near-black background. */
+[data-theme="dark"] body {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 2px,
+    rgba(243, 236, 226, 0.02) 2px,
+    rgba(243, 236, 226, 0.02) 4px
+  );
 }
 
 ::selection {
@@ -83,7 +118,7 @@ body {
    names working but snap them to the editorial system.
    ============================================================ */
 
-/* White surfaces become cream so they blend with the body. */
+/* White surfaces become the theme's base so they blend with the body. */
 .bg-white,
 [class*="bg-white/"] {
   background-color: var(--cream) !important;
@@ -92,6 +127,43 @@ body {
 /* Hover-white variations follow. */
 .hover\:bg-white:hover {
   background-color: var(--paper) !important;
+}
+
+/* Neutral/zinc backgrounds — snap them to paper so dark mode recolours
+   them correctly via the CSS variable rather than a hard hex. */
+.bg-zinc-50,
+.bg-zinc-100,
+.bg-neutral-50,
+.bg-neutral-100,
+.bg-gray-50,
+.bg-gray-100,
+.bg-stone-50,
+.bg-stone-100,
+.bg-slate-50,
+.bg-slate-100 {
+  background-color: var(--paper) !important;
+}
+
+/* Very common "zinc text" classes — map them to ink/charcoal/stone. */
+.text-zinc-950, .text-neutral-950, .text-gray-950, .text-slate-950,
+.text-zinc-900, .text-neutral-900, .text-gray-900, .text-slate-900 {
+  color: var(--ink) !important;
+}
+.text-zinc-800, .text-neutral-800, .text-gray-800, .text-slate-800,
+.text-zinc-700, .text-neutral-700, .text-gray-700, .text-slate-700 {
+  color: var(--charcoal) !important;
+}
+.text-zinc-600, .text-neutral-600, .text-gray-600, .text-slate-600,
+.text-zinc-500, .text-neutral-500, .text-gray-500, .text-slate-500,
+.text-zinc-400, .text-neutral-400, .text-gray-400, .text-slate-400 {
+  color: var(--stone) !important;
+}
+
+/* Borders in the same neutral family. */
+.border-zinc-200, .border-neutral-200, .border-gray-200, .border-slate-200,
+.border-zinc-300, .border-neutral-300, .border-gray-300, .border-slate-300,
+.border-zinc-100, .border-neutral-100, .border-gray-100, .border-slate-100 {
+  border-color: var(--rule) !important;
 }
 
 /* Flatten any stray shadows from third-party components. */
