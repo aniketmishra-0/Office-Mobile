@@ -1,4 +1,4 @@
-name: Auto Deploy to GCP
+name: Auto Deploy to GCP & Vercel
 
 on:
   push:
@@ -9,7 +9,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to GCP via SSH
+      - name: Deploy Backend to GCP via SSH
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.GCP_HOST }}
@@ -20,7 +20,14 @@ jobs:
             cd ~/Office-Mobile
             git pull origin main
 
-
-
             # ---- Backend: Restart ----
             pm2 restart backend
+
+      - name: Trigger Frontend Vercel Deployment
+        run: |
+          if [ -n "${{ secrets.VERCEL_DEPLOY_HOOK }}" ]; then
+            echo "Triggering Vercel deployment..."
+            curl -X POST ${{ secrets.VERCEL_DEPLOY_HOOK }}
+          else
+            echo "Vercel auto-deploys via GitHub. If you want to trigger it from here, add VERCEL_DEPLOY_HOOK in GitHub Secrets."
+          fi
