@@ -9,7 +9,6 @@ import SuccessScreen from "@/components/SuccessScreen";
 import DynamicForm from "@/components/DynamicForm";
 import SubmitButton from "@/components/SubmitButton";
 import { submitForm, getPublicForm, getFormSuggestions } from "@/lib/api";
-import { saveOfflineSubmission, getOfflineSubmissions, removeOfflineSubmission } from "@/lib/sync";
 import type { PublicFormResponse } from "@/types/field";
 
 export default function FillFormPage() {
@@ -24,56 +23,9 @@ export default function FillFormPage() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resetKey, setResetKey] = useState(0);
-  const [isOffline, setIsOffline] = useState(false);
-  const [syncing, setSyncing] = useState(false);
   // Track whether suggestions have been fetched. We defer this expensive
   // call (up to 10k sheet rows) until the user actually opens autofill.
   const suggestionsRequested = useRef(false);
-
-  const syncPendingSubmissions = useCallback(async () => {
-    if (syncing) return;
-    try {
-      setSyncing(true);
-      const pending = await getOfflineSubmissions();
-      if (pending.length === 0) return;
-      
-      for (const sub of pending) {
-        try {
-          await submitForm(sub.formId, sub.values);
-          await removeOfflineSubmission(sub.id);
-        } catch (err) {
-          console.error("Failed to sync offline submission", err);
-          // Keep in queue if it failed to submit
-        }
-      }
-    } finally {
-      setSyncing(false);
-    }
-  }, [syncing]);
-
-  useEffect(() => {
-    // Initial offline check
-    setIsOffline(!navigator.onLine);
-
-    const handleOnline = () => {
-      setIsOffline(false);
-      syncPendingSubmissions();
-    };
-    const handleOffline = () => setIsOffline(true);
-
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
-    // Initial sync check if online
-    if (navigator.onLine) {
-      syncPendingSubmissions();
-    }
-
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, [syncPendingSubmissions]);
 
   useEffect(() => {
     getPublicForm(id)
@@ -102,23 +54,10 @@ export default function FillFormPage() {
       setSubmitting(true);
       setError(null);
       try {
-        if (!navigator.onLine) {
-          // Save offline
-          await saveOfflineSubmission(id, values);
-          setSubmitted(true);
-          return;
-        }
-
         await submitForm(id, values);
         setSubmitted(true);
       } catch (e: any) {
-        // If it was a network error during fetch, save offline
-        if (e.message?.includes("Failed to fetch") || !navigator.onLine) {
-          await saveOfflineSubmission(id, values);
-          setSubmitted(true);
-        } else {
-          setError(e.message ?? "Submission failed. Please try again.");
-        }
+        setError(e.message ?? "Submission failed. Please try again.");
       } finally {
         setSubmitting(false);
       }
@@ -166,27 +105,6 @@ export default function FillFormPage() {
   return (
     <div className="flex flex-col min-h-screen bg-white">
       <AppHeader title={formData!.worksheet_name || formData!.form_title} showBack onBack={() => router.push("/")} />
-      
-      {/* Offline/Sync Banner */}
-      {(isOffline || syncing) && (
-        <div className={`px-4 py-2 flex items-center justify-center gap-2 text-[13px] font-medium transition-colors ${
-          isOffline ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700"
-        }`}>
-          {isOffline ? (
-            <>
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3l18 18M18.364 5.636a9 9 0 00-12.728 0M16 12a5 9 0 00-8 0" />
-              </svg>
-              You're offline. Submissions will be saved.
-            </>
-          ) : (
-            <>
-              <div className="w-3.5 h-3.5 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-              Syncing offline submissions...
-            </>
-          )}
-        </div>
-      )}
 
       <div className="flex-1 px-5 pt-6 pb-20 overflow-y-auto">
         <DynamicForm

@@ -12,7 +12,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: 'Office Mobile — Google Sheet to Mobile Form',
-  description: 'Turn any Google Sheet into a beautiful mobile data entry form. Fast, offline-ready, and free.',
+  description: 'Turn any Google Sheet into a beautiful mobile data entry form. Fast and free.',
   manifest: '/manifest.json',
   icons: {
     icon: [

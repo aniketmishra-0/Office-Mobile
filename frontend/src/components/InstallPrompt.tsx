@@ -52,7 +52,7 @@ export default function InstallPrompt() {
         Add to Home Screen
       </p>
       <p className="text-xs text-gray-500 mb-4">
-        Install Office Mobile for quick, offline access.
+        Install Office Mobile for quick access.
       </p>
 
       {isIOS ? (
