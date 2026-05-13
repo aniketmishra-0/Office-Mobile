@@ -55,6 +55,15 @@ export function setTheme(theme: Theme): void {
   try {
     window.localStorage.setItem(THEME_KEY, theme);
   } catch {}
+  // Flag the root for a brief universal color/bg transition so dark ↔ light
+  // doesn't snap. Removed after the animation settles.
+  if (typeof document !== "undefined") {
+    const root = document.documentElement;
+    root.classList.add("theme-transitioning");
+    window.setTimeout(() => {
+      root.classList.remove("theme-transitioning");
+    }, 320);
+  }
   applyTheme(theme);
   emitChange();
 }

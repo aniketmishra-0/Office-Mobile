@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import ErrorToast from "@/components/ErrorToast";
+import ClearButton from "@/components/ClearButton";
 import FormFieldEditor from "@/components/FormFieldEditor";
 import KeywordRulesEditor from "@/components/KeywordRulesEditor";
 import AutofillColumnSelector from "@/components/AutofillColumnSelector";
@@ -182,12 +183,15 @@ export default function EditFormPage() {
         {/* Form title */}
         <div>
           <label className="block text-[13px] font-semibold text-zinc-800 mb-2">Form title</label>
-          <input
-            type="text"
-            value={formTitle}
-            onChange={(e) => setFormTitle(e.target.value)}
-            className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-[15px] min-h-[48px] focus:outline-none focus:ring-2 focus:ring-zinc-900"
-          />
+          <div className="relative">
+            <input
+              type="text"
+              value={formTitle}
+              onChange={(e) => setFormTitle(e.target.value)}
+              className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 pr-10 text-[15px] min-h-[48px] focus:outline-none focus:ring-2 focus:ring-zinc-900"
+            />
+            {formTitle && <ClearButton onClick={() => setFormTitle("")} right={10} ariaLabel="Clear title" />}
+          </div>
         </div>
 
         {/* Field editor */}

@@ -252,20 +252,41 @@ function TextInput({
 }) {
   return (
     <>
-      <input
-        id={id}
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onFocus={onFocus}
-        onBlur={onBlur}
-        placeholder={placeholder}
-        required={required}
-        inputMode={inputMode}
-        autoComplete={autoComplete}
-        className="om-input"
-      />
+      <div className="om-input-wrap">
+        <input
+          id={id}
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          placeholder={placeholder}
+          required={required}
+          inputMode={inputMode}
+          autoComplete={autoComplete}
+          className="om-input"
+        />
+        {value && (
+          <button
+            type="button"
+            tabIndex={-1}
+            aria-label="Clear"
+            className="om-input-clear"
+            onMouseDown={(e) => {
+              // Prevent blur so the user stays in the field after clearing.
+              e.preventDefault();
+              onChange("");
+            }}
+          >
+            ×
+          </button>
+        )}
+      </div>
       <style jsx>{`
+        .om-input-wrap {
+          position: relative;
+          width: 100%;
+        }
         .om-input {
           width: 100%;
           font-family: var(--font-plex-mono), ui-monospace, monospace;
@@ -277,7 +298,7 @@ function TextInput({
           border: 0;
           border-bottom: 1px solid var(--rule);
           border-radius: 0;
-          padding: 6px 0;
+          padding: 6px 26px 6px 0;
           outline: none;
           transition: border-color 200ms ease-out, padding 200ms ease-out;
         }
@@ -291,6 +312,31 @@ function TextInput({
         }
         :global(.om-field.has-error) .om-input {
           border-bottom-color: var(--error) !important;
+        }
+        .om-input-clear {
+          position: absolute;
+          top: 50%;
+          right: 0;
+          transform: translateY(-50%);
+          width: 22px;
+          height: 22px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          background: transparent;
+          border: 0;
+          color: var(--stone);
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-size: 16px;
+          line-height: 1;
+          cursor: pointer;
+          padding: 0;
+          transition: color 200ms ease-out;
+        }
+        .om-input-clear:hover,
+        .om-input-clear:focus-visible {
+          color: var(--ink);
+          outline: none;
         }
       `}</style>
     </>
@@ -322,18 +368,38 @@ function TextareaControl({
 }) {
   return (
     <>
-      <textarea
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onFocus={onFocus}
-        onBlur={onBlur}
-        placeholder={placeholder}
-        required={required}
-        rows={3}
-        className={`om-textarea ${showError ? "has-error" : ""}`}
-      />
+      <div className="om-textarea-wrap">
+        <textarea
+          id={id}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          placeholder={placeholder}
+          required={required}
+          rows={3}
+          className={`om-textarea ${showError ? "has-error" : ""}`}
+        />
+        {value && (
+          <button
+            type="button"
+            tabIndex={-1}
+            aria-label="Clear"
+            className="om-textarea-clear"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              onChange("");
+            }}
+          >
+            ×
+          </button>
+        )}
+      </div>
       <style jsx>{`
+        .om-textarea-wrap {
+          position: relative;
+          width: 100%;
+        }
         .om-textarea {
           width: 100%;
           min-height: 72px;
@@ -348,7 +414,7 @@ function TextareaControl({
           border-left: 4px solid transparent;
           border-bottom: 1px solid var(--rule);
           border-radius: 0;
-          padding: 6px 0 6px 12px;
+          padding: 6px 26px 6px 12px;
           outline: none;
           transition: border-color 200ms ease-out;
         }
@@ -362,6 +428,30 @@ function TextareaControl({
         .om-textarea.has-error {
           border-left-color: var(--error);
           border-bottom-color: var(--error);
+        }
+        .om-textarea-clear {
+          position: absolute;
+          top: 8px;
+          right: 0;
+          width: 22px;
+          height: 22px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          background: transparent;
+          border: 0;
+          color: var(--stone);
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-size: 16px;
+          line-height: 1;
+          cursor: pointer;
+          padding: 0;
+          transition: color 200ms ease-out;
+        }
+        .om-textarea-clear:hover,
+        .om-textarea-clear:focus-visible {
+          color: var(--ink);
+          outline: none;
         }
       `}</style>
     </>

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { listFormLibrary, deleteForm, unauthorizeForm } from "@/lib/api";
 import type { FormLibraryItem } from "@/types/field";
+import ClearButton from "@/components/ClearButton";
 import {
   DEFAULT_COPY,
   getStoredCopy,
@@ -571,21 +572,40 @@ function TextSection({
           <label key={f.key} className="om-s-field">
             <span className="om-s-label">{f.label}</span>
             {f.multiline ? (
-              <textarea
-                value={copy[f.key] ?? ""}
-                onChange={(e) => onUpdate(f.key, e.target.value)}
-                placeholder={f.placeholder}
-                rows={2}
-                className="om-s-input om-s-input--multi"
-              />
+              <div className="om-s-input-wrap">
+                <textarea
+                  value={copy[f.key] ?? ""}
+                  onChange={(e) => onUpdate(f.key, e.target.value)}
+                  placeholder={f.placeholder}
+                  rows={2}
+                  className="om-s-input om-s-input--multi"
+                />
+                {copy[f.key] && (
+                  <ClearButton
+                    onClick={() => onUpdate(f.key, "")}
+                    top={18}
+                    right={6}
+                    ariaLabel={`Clear ${f.label}`}
+                  />
+                )}
+              </div>
             ) : (
-              <input
-                type="text"
-                value={copy[f.key] ?? ""}
-                onChange={(e) => onUpdate(f.key, e.target.value)}
-                placeholder={f.placeholder}
-                className="om-s-input"
-              />
+              <div className="om-s-input-wrap">
+                <input
+                  type="text"
+                  value={copy[f.key] ?? ""}
+                  onChange={(e) => onUpdate(f.key, e.target.value)}
+                  placeholder={f.placeholder}
+                  className="om-s-input"
+                />
+                {copy[f.key] && (
+                  <ClearButton
+                    onClick={() => onUpdate(f.key, "")}
+                    right={6}
+                    ariaLabel={`Clear ${f.label}`}
+                  />
+                )}
+              </div>
             )}
           </label>
         ))}
@@ -632,6 +652,10 @@ function TextSection({
           text-transform: uppercase;
           color: var(--stone);
         }
+        .om-s-input-wrap {
+          position: relative;
+          width: 100%;
+        }
         .om-s-input {
           width: 100%;
           font-family: var(--font-plex-mono), ui-monospace, monospace;
@@ -642,7 +666,7 @@ function TextSection({
           border: 0;
           border-bottom: 1px solid var(--rule);
           border-radius: 0;
-          padding: 6px 0;
+          padding: 6px 28px 6px 0;
           outline: none;
           transition: border-color 200ms ease-out;
         }

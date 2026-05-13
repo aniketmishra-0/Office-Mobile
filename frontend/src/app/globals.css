@@ -94,6 +94,35 @@ body {
   transition: background-color 200ms ease-out, color 200ms ease-out;
 }
 
+/* ============================================================
+   Theme swap — smooth cross-fade
+   When the user toggles light ↔ dark we briefly decorate <html>
+   with `theme-transitioning`. During that window every element
+   animates its colour, background, and borders so the flip reads
+   as a gentle fade rather than a hard snap. The class is removed
+   after ~300ms so the app's own interaction transitions stay snappy.
+   ============================================================ */
+.theme-transitioning,
+.theme-transitioning *,
+.theme-transitioning *::before,
+.theme-transitioning *::after {
+  transition: background-color 260ms ease-out,
+              color 260ms ease-out,
+              border-color 260ms ease-out,
+              fill 260ms ease-out,
+              stroke 260ms ease-out,
+              box-shadow 260ms ease-out !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-transitioning,
+  .theme-transitioning *,
+  .theme-transitioning *::before,
+  .theme-transitioning *::after {
+    transition: none !important;
+  }
+}
+
 /* In dark mode the grain flips to a faint white overlay so it stays
    readable instead of disappearing into the near-black background. */
 [data-theme="dark"] body {

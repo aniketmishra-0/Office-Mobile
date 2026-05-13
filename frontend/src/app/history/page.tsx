@@ -455,25 +455,45 @@ export default function HistoryPage() {
 
         {/* Step indicator */}
         <div className="mb-6">
-          <div className="flex items-center gap-4 text-[13px] text-gray-400">
-            <div className="flex items-center gap-1.5">
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold ${step >= 1 ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500"}`}>1</span>
-              <span className={step >= 1 ? "text-gray-700 font-medium" : ""}>Paste link</span>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-4 text-[13px] text-gray-400 min-w-0 overflow-x-auto">
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold ${step >= 1 ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500"}`}>1</span>
+                <span className={step >= 1 ? "text-gray-700 font-medium" : ""}>Paste link</span>
+              </div>
+              <svg className="w-3 h-3 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold ${step >= 2 ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500"}`}>2</span>
+                <span className={step >= 2 ? "text-gray-700 font-medium" : ""}>Pick tab</span>
+              </div>
+              <svg className="w-3 h-3 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold ${step >= 3 ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500"}`}>3</span>
+                <span className={step >= 3 ? "text-gray-700 font-medium" : ""}>Search</span>
+              </div>
             </div>
-            <svg className="w-3 h-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-            <div className="flex items-center gap-1.5">
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold ${step >= 2 ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500"}`}>2</span>
-              <span className={step >= 2 ? "text-gray-700 font-medium" : ""}>Pick tab</span>
-            </div>
-            <svg className="w-3 h-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-            <div className="flex items-center gap-1.5">
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold ${step >= 3 ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500"}`}>3</span>
-              <span className={step >= 3 ? "text-gray-700 font-medium" : ""}>Search</span>
-            </div>
+            {(formInput || availableTabs) && (
+              <button
+                type="button"
+                onClick={handleReset}
+                className="flex-shrink-0 text-[11px] font-medium uppercase tracking-[0.12em] text-stone hover:text-clay transition-colors"
+                style={{
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  color: "var(--stone)",
+                  background: "transparent",
+                  border: 0,
+                  padding: 0,
+                  cursor: "pointer",
+                }}
+                aria-label="Clear all fields and start over"
+              >
+                ✕ clear all
+              </button>
+            )}
           </div>
         </div>
 

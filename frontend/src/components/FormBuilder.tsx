@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { FieldSchema, FieldType } from "@/types/field";
+import ClearButton from "@/components/ClearButton";
 
 type DraftField = {
   id: string;
@@ -125,13 +126,16 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
         <label className="block text-[13px] font-semibold text-zinc-800 mb-2">
           Form title
         </label>
-        <input
-          type="text"
-          value={formTitle}
-          onChange={(e) => setFormTitle(e.target.value)}
-          className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-[16px] min-h-[48px] focus:outline-none focus:ring-2 focus:ring-zinc-900"
-          placeholder="Untitled Form"
-        />
+        <div className="relative">
+          <input
+            type="text"
+            value={formTitle}
+            onChange={(e) => setFormTitle(e.target.value)}
+            className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 pr-10 text-[16px] min-h-[48px] focus:outline-none focus:ring-2 focus:ring-zinc-900"
+            placeholder="Untitled Form"
+          />
+          {formTitle && <ClearButton onClick={() => setFormTitle("")} right={10} ariaLabel="Clear title" />}
+        </div>
       </div>
 
       <div className="space-y-3">
@@ -160,13 +164,22 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                   <label className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-1">
                     Field name
                   </label>
-                  <input
-                    type="text"
-                    value={field.name}
-                    onChange={(e) => updateField(field.id, { name: e.target.value })}
-                    className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-[14px] text-zinc-950 focus:outline-none focus:ring-2 focus:ring-zinc-900"
-                    placeholder="e.g. Customer name"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={field.name}
+                      onChange={(e) => updateField(field.id, { name: e.target.value })}
+                      className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 pr-9 text-[14px] text-zinc-950 focus:outline-none focus:ring-2 focus:ring-zinc-900"
+                      placeholder="e.g. Customer name"
+                    />
+                    {field.name && (
+                      <ClearButton
+                        onClick={() => updateField(field.id, { name: "" })}
+                        right={8}
+                        ariaLabel="Clear field name"
+                      />
+                    )}
+                  </div>
                 </div>
                 <button
                   type="button"
