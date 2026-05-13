@@ -186,14 +186,19 @@ def _build_auth_url(client_id: str, redirect_uri: str, state: str) -> str:
     return f"{GOOGLE_AUTH_BASE}?{urlencode(params)}"
 
 
-def _set_state_cookie(response: Response, state: str) -> None:
+def _set_state_cookie(response: Response, request: Request, state: str) -> None:
+    # Match the session cookie's Secure/SameSite so plain-HTTP localhost can
+    # actually store this cookie. Browsers drop `Secure` cookies on
+    # http://localhost in many cases, which would then fail state validation
+    # on the callback and abort sign-in with "Invalid OAuth state".
+    local = _is_local_request(request)
     response.set_cookie(
         key=_STATE_COOKIE_NAME,
         value=state,
         max_age=_STATE_COOKIE_MAX_AGE,
         httponly=True,
-        secure=True,
-        samesite="lax",
+        secure=not local,
+        samesite="lax" if local else "none",
         path="/api/auth",
     )
 
@@ -203,7 +208,7 @@ def google_start(request: Request) -> RedirectResponse:
     client_id, _secret, redirect_uri = _require_oauth_config()
     state = secrets.token_urlsafe(32)
     response = RedirectResponse(_build_auth_url(client_id, redirect_uri, state))
-    _set_state_cookie(response, state)
+    _set_state_cookie(response, request, state)
     _ensure_session_key(request, response)
     return response
 
@@ -213,7 +218,7 @@ def google_url(request: Request, response: Response) -> dict:
     """Return the OAuth URL so the frontend can open it directly in the browser."""
     client_id, _secret, redirect_uri = _require_oauth_config()
     state = secrets.token_urlsafe(32)
-    _set_state_cookie(response, state)
+    _set_state_cookie(response, request, state)
     _ensure_session_key(request, response)
     return {"url": _build_auth_url(client_id, redirect_uri, state)}
 
@@ -271,20 +276,30 @@ def google_callback(
 
     # Close the popup and notify the opener window. We pin the targetOrigin
     # to our frontend origin rather than using '*' so a malicious opener
-    # cannot intercept the message.
+    # cannot intercept the message. If there is no opener (popup blocked or
+    # same-tab flow on iOS/Safari), fall back to a direct redirect so the
+    # user lands back on the app instead of being stranded on the backend
+    # URL seeing "Sign-in successful".
     frontend_origin = _frontend_origin()
 
     html = (
         "<!doctype html><html><body>"
         "<script>"
-        "try { "
-        "if (window.opener) { "
-        f"window.opener.postMessage({{ type: 'oauth-success' }}, {frontend_origin!r});"
-        " } "
-        "} catch (e) {} "
-        "window.close();"
+        "(function(){"
+        "  try {"
+        "    if (window.opener && !window.opener.closed) {"
+        f"      window.opener.postMessage({{ type: 'oauth-success' }}, {frontend_origin!r});"
+        "      window.close();"
+        "      setTimeout(function(){"
+        f"        if (!window.closed) window.location.replace({frontend_origin!r});"
+        "      }, 300);"
+        "      return;"
+        "    }"
+        "  } catch (e) {}"
+        f"  window.location.replace({frontend_origin!r});"
+        "})();"
         "</script>"
-        "<p>Sign-in successful. You can close this window.</p>"
+        "<p>Sign-in successful. Redirecting…</p>"
         "</body></html>"
     )
 
