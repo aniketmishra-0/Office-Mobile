@@ -28,16 +28,8 @@ jobs:
           ENCODED_JSON=$(echo "$GCP_SA_JSON_B64" | base64 -w 0)
           gcloud compute ssh archana_tiwari@office-mobile-server \
             --zone=us-east1-c \
-            --command="cd ~/Office-Mobile && GOOGLE_SERVICE_ACCOUNT_JSON_B64='$ENCODED_JSON' bash scripts/deploy-backend.sh"
-
-      - name: Trigger Frontend Vercel Deployment
-        run: |
-          if [ -n "${{ secrets.VERCEL_DEPLOY_HOOK }}" ]; then
-            echo "Triggering Vercel deployment..."
-            curl -X POST ${{ secrets.VERCEL_DEPLOY_HOOK }}
-          else
-            echo "Vercel auto-deploys via GitHub. If you want to trigger it from here, add VERCEL_DEPLOY_HOOK in GitHub Secrets."
-          fi
+            --quiet \
+            --command="set -e; REPO=~/Office-Mobile; if [ ! -d \"$REPO\" ]; then git clone https://github.com/aniketmishra-0/Office-Mobile.git \"$REPO\"; fi; cd \"$REPO\"; GOOGLE_SERVICE_ACCOUNT_JSON_B64='$ENCODED_JSON' bash scripts/deploy-backend.sh"
 
       - name: Trigger Frontend Vercel Deployment
         run: |
