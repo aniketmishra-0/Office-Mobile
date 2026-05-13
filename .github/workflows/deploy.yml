@@ -20,12 +20,7 @@ jobs:
             cd ~/Office-Mobile
             git pull origin main
 
-            # ---- Frontend: Rebuild & Restart ----
-            cd frontend
-            npm install --production=false
-            npm run build
-            pm2 restart all || true
-            cd ..
+
 
             # ---- Backend: Kill old & Start new ----
             sudo pkill -f uvicorn || true
