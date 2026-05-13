@@ -87,6 +87,18 @@ def public_config() -> dict[str, str | None]:
     return {"service_account_email": settings.google_service_account_email}
 
 
+@router.get("/sheet/access")
+def get_sheet_access(sheet_url: str) -> dict:
+    try:
+        spreadsheet_id = extract_spreadsheet_id(sheet_url)
+    except InvalidGoogleSheetUrl as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    from app.services.sheets_client import check_sheet_access
+
+    return check_sheet_access(spreadsheet_id)
+
+
 @router.get("/sheet/worksheets")
 def list_worksheets(sheet_url: str) -> dict:
     try:

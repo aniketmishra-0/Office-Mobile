@@ -226,6 +226,31 @@ def read_headers_public(
 # ---------------------------------------------------------------------------
 
 
+def check_sheet_access(spreadsheet_id: str) -> dict[str, bool]:
+    """Check if we have read/edit access to the spreadsheet."""
+    if not _has_credentials():
+        return {"read": False, "edit": False}
+
+    client = get_client()
+    try:
+        spreadsheet = client.open_by_key(spreadsheet_id)
+    except PermissionError:
+        return {"read": False, "edit": False}
+    except Exception:
+        return {"read": False, "edit": False}
+
+    try:
+        # A batchUpdate with an empty list of requests requires write permission 
+        # but does not modify the sheet or update the "Last Modified" timestamp.
+        spreadsheet.batch_update({"requests": []})
+        return {"read": True, "edit": True}
+    except APIError as exc:
+        status_code = getattr(getattr(exc, "response", None), "status_code", None)
+        if status_code == 403:
+            return {"read": True, "edit": False}
+        return {"read": True, "edit": False}
+
+
 def _select_worksheet(spreadsheet: Any, worksheet_name: str | None = None) -> Any:
     if worksheet_name:
         return spreadsheet.worksheet(worksheet_name)

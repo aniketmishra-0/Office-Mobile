@@ -127,6 +127,18 @@ export async function listWorksheets(
 }
 
 /**
+ * GET /api/sheet/access?sheet_url=…
+ * Check if the user has read/edit access to the sheet.
+ */
+export async function checkSheetAccess(
+  sheetUrl: string,
+): Promise<{ read: boolean; edit: boolean }> {
+  return jsonGet<{ read: boolean; edit: boolean }>(
+    `/sheet/access?sheet_url=${encodeURIComponent(sheetUrl)}`,
+  );
+}
+
+/**
  * POST /api/sheet/preview
  * Fetch column headers from the sheet and infer field types.
  */
