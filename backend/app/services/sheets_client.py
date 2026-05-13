@@ -674,7 +674,7 @@ def read_sheet_rows(
     spreadsheet_id: str,
     worksheet_name: str | None,
     fields: list[FieldSchema],
-    max_rows: int = 10000,
+    max_rows: int = 100000,
 ) -> list[dict[str, str]]:
     """
     Read existing data rows from the Google Sheet and return them as a list

@@ -146,12 +146,25 @@ export default function HistoryPage() {
   const matches = useMemo(() => {
     if (!loaded || !loaded.rows.length) return [];
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return loaded.rows.slice(0, 100);
-    const filtered = loaded.rows.filter((row) =>
+    if (!query) return loaded.rows;
+    return loaded.rows.filter((row) =>
       loaded.fields.some((f) => (row[f.key] ?? "").toLowerCase().includes(query)),
     );
-    return filtered.slice(0, 100);
   }, [loaded, searchQuery]);
+
+  // Virtualized view: only render a page at a time so 10k+ rows don't choke the DOM
+  const ROWS_PER_PAGE = 200;
+  const [visibleCount, setVisibleCount] = useState(ROWS_PER_PAGE);
+
+  // Reset visible count when query or dataset changes
+  React.useEffect(() => {
+    setVisibleCount(ROWS_PER_PAGE);
+  }, [searchQuery, loaded]);
+
+  const visibleMatches = useMemo(
+    () => matches.slice(0, visibleCount),
+    [matches, visibleCount],
+  );
 
   const handleReset = useCallback(() => {
     setLoaded(null);
@@ -285,11 +298,12 @@ export default function HistoryPage() {
             <div>
               {searchQuery && (
                 <p className="text-[11px] font-medium text-gray-500 mb-2 px-1">
-                  {matches.length} {matches.length === 1 ? "match" : "matches"}{matches.length === 100 ? "+" : ""}
+                  {matches.length.toLocaleString()}{" "}
+                  {matches.length === 1 ? "match" : "matches"}
                 </p>
               )}
               <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden">
-                {matches.map((row, idx) => {
+                {visibleMatches.map((row, idx) => {
                   const parts: string[] = [];
                   for (const f of loaded.fields) {
                     if (parts.length >= 4) break;
@@ -315,6 +329,18 @@ export default function HistoryPage() {
                   );
                 })}
               </div>
+              {visibleCount < matches.length && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setVisibleCount((c) => Math.min(c + ROWS_PER_PAGE, matches.length))
+                  }
+                  className="mt-3 w-full py-2.5 rounded-lg border border-zinc-200 bg-white text-[12px] font-medium text-zinc-700 hover:bg-zinc-50"
+                >
+                  Show {Math.min(ROWS_PER_PAGE, matches.length - visibleCount)} more
+                  <span className="text-zinc-400"> · {(matches.length - visibleCount).toLocaleString()} remaining</span>
+                </button>
+              )}
             </div>
           )}
 

@@ -229,7 +229,7 @@ def create_form(payload: CreateFormRequest) -> CreateFormResponse:
 
 
 @router.get("/sheet/history")
-def get_sheet_history(sheet_url: str, worksheet_name: str | None = None, limit: int = Query(10000, ge=1, le=50000)) -> dict:
+def get_sheet_history(sheet_url: str, worksheet_name: str | None = None, limit: int = Query(100000, ge=1, le=200000)) -> dict:
     """
     Read history directly from any worksheet tab of a Google Sheet,
     even if no form has been created for it. Used by the Check History feature.
@@ -473,7 +473,7 @@ def list_submissions(form_id: str, token: str = Query(..., min_length=16)) -> di
 
 
 @router.get("/forms/{form_id}/suggestions")
-def get_form_suggestions(form_id: str, limit: int = Query(10000, ge=1, le=50000)) -> dict:
+def get_form_suggestions(form_id: str, limit: int = Query(100000, ge=1, le=200000)) -> dict:
     """
     Read existing rows from the backing Google Sheet and return them
     as autofill suggestions. Users can pick a matching row to auto-fill
