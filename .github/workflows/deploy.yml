@@ -9,19 +9,31 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy Backend to GCP via SSH
-        uses: appleboy/ssh-action@master
-        env:
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
         with:
-          host: ${{ secrets.GCP_HOST }}
-          username: ${{ secrets.GCP_USERNAME }}
-          key: ${{ secrets.GCP_SSH_KEY }}
-          envs: GOOGLE_SERVICE_ACCOUNT_JSON
-          command_timeout: 25m
-          script: |
-            cd ~/Office-Mobile
-            bash scripts/deploy-backend.sh
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy Backend to GCP
+        run: |
+          gcloud compute ssh archana_tiwari@office-mobile-server \
+            --zone=us-central1-a \
+            --command="cd ~/Office-Mobile && GOOGLE_SERVICE_ACCOUNT_JSON='${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}' bash scripts/deploy-backend.sh"
+
+      - name: Trigger Frontend Vercel Deployment
+        run: |
+          if [ -n "${{ secrets.VERCEL_DEPLOY_HOOK }}" ]; then
+            echo "Triggering Vercel deployment..."
+            curl -X POST ${{ secrets.VERCEL_DEPLOY_HOOK }}
+          else
+            echo "Vercel auto-deploys via GitHub. If you want to trigger it from here, add VERCEL_DEPLOY_HOOK in GitHub Secrets."
+          fi
 
       - name: Trigger Frontend Vercel Deployment
         run: |
