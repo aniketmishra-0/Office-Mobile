@@ -201,7 +201,7 @@ export default function WelcomeScreen({ onAuthenticated }: Props) {
       {/* Footer */}
       <footer className="login-footer flex flex-col items-center gap-3">
         <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
-          <span>Made with ❤️ by Aniket</span>
+          <span>Built by Aniket</span>
         </div>
         <div className="flex items-center justify-center gap-3 text-xs text-gray-400">
           <a href="/privacy" className="hover:text-gray-600 transition-colors">Privacy</a>

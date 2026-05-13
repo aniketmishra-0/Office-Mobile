@@ -76,18 +76,18 @@ export default function FillFormPage() {
 
   if (!formData && !loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-8 text-center bg-white">
+      <div className="min-h-screen flex flex-col items-center justify-center px-8 text-center bg-zinc-100">
         <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mb-4">
           <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
           </svg>
         </div>
-        <h1 className="text-base font-semibold text-gray-900 mb-1.5">Form not found</h1>
-        <p className="text-[13px] text-gray-500 mb-6 max-w-[240px]">
+        <h1 className="text-base font-semibold text-zinc-950 mb-1.5">Form not found</h1>
+        <p className="text-[13px] text-zinc-600 mb-6 max-w-[240px]">
           {error ?? "This form doesn't exist or has been removed."}
         </p>
-        <a href="/" className="text-accent-600 text-[13px] font-medium">
-          Go to Office Mobile →
+        <a href="/" className="text-zinc-900 text-[13px] font-medium">
+          Go to Office Mobile
         </a>
       </div>
     );
@@ -103,10 +103,10 @@ export default function FillFormPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-white">
+    <div className="flex flex-col min-h-screen bg-zinc-100">
       <AppHeader title={formData!.worksheet_name || formData!.form_title} showBack onBack={() => router.push("/")} />
 
-      <div className="flex-1 px-5 pt-6 pb-20 overflow-y-auto">
+      <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-6 pb-20 overflow-y-auto">
         <DynamicForm
           fields={formData!.fields}
           onSubmit={handleSubmit}

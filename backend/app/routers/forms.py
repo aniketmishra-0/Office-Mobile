@@ -19,6 +19,7 @@ from app.models.form import (
     UpdateFormResponse,
 )
 from app.services import form_store
+from app.services.session_context import DEFAULT_OAUTH_KEY, get_current_oauth_session_key, oauth_session_context
 from app.services.sheets_client import (
     _has_credentials,
     append_form_row,
@@ -150,6 +151,8 @@ def create_form(payload: CreateFormRequest) -> CreateFormResponse:
     _validate_sheet_url_matches(payload.sheet_url, payload.spreadsheet_id)
     _ensure_fields(payload.fields)
 
+    oauth_key = get_current_oauth_session_key()
+
     record = form_store.create_form(
         sheet_url=payload.sheet_url,
         spreadsheet_id=payload.spreadsheet_id,
@@ -158,6 +161,7 @@ def create_form(payload: CreateFormRequest) -> CreateFormResponse:
         fields=payload.fields,
         custom_keywords=payload.custom_keywords,
         autofill_columns=payload.autofill_columns,
+        oauth_key=oauth_key,
     )
 
     form_url = f"/f/{record['id']}"
@@ -367,12 +371,14 @@ def get_form_suggestions(form_id: str, limit: int = Query(10000, ge=1, le=50000)
     """
     record = _get_record_or_404(form_id)
 
-    rows = read_sheet_rows(
-        spreadsheet_id=record["spreadsheet_id"],
-        worksheet_name=record["worksheet_name"],
-        fields=record["fields"],
-        max_rows=limit,
-    )
+    oauth_key = record.get("oauth_key") or DEFAULT_OAUTH_KEY
+    with oauth_session_context(oauth_key):
+        rows = read_sheet_rows(
+            spreadsheet_id=record["spreadsheet_id"],
+            worksheet_name=record["worksheet_name"],
+            fields=record["fields"],
+            max_rows=limit,
+        )
 
     return {"rows": rows}
 
@@ -389,17 +395,20 @@ def submit_form(form_id: str, payload: SubmitFormRequest) -> SubmitFormResponse:
 
     # Try to append to Google Sheets (skipped automatically if no credentials).
     updated_range: str | None = None
+    oauth_key = record.get("oauth_key") or DEFAULT_OAUTH_KEY
     try:
-        updated_range = append_form_row(
-            spreadsheet_id=record["spreadsheet_id"],
-            worksheet_name=record["worksheet_name"],
-            fields=record["fields"],
-            values=complete_values,
-        )
+        with oauth_session_context(oauth_key):
+            updated_range = append_form_row(
+                spreadsheet_id=record["spreadsheet_id"],
+                worksheet_name=record["worksheet_name"],
+                fields=record["fields"],
+                values=complete_values,
+            )
     except Exception as exc:
         # If credentials are configured but Sheets write fails, surface the error.
-        if _has_credentials():
-            raise _sheet_error(exc) from exc
+        with oauth_session_context(oauth_key):
+            if _has_credentials():
+                raise _sheet_error(exc) from exc
         # No credentials — Sheets write was skipped; fall through to SQLite save.
 
     # Always persist the submission locally in SQLite.

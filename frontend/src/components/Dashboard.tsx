@@ -262,12 +262,12 @@ export default function Dashboard() {
 
   // ─── STEP: input ─────────────────────────────────────────────────────────────
   if (!mounted) {
-    return <div className="min-h-screen bg-white" />; // Prevent flicker
+    return <div className="min-h-screen bg-zinc-100" />; // Prevent flicker
   }
 
   if (step === "input") {
     return (
-      <div className="flex flex-col min-h-screen bg-white">
+      <div className="flex flex-col min-h-screen bg-zinc-100">
         <AppHeader
           showLogo
           rightAction={
@@ -275,7 +275,7 @@ export default function Dashboard() {
               type="button"
               onClick={handleSignOut}
               aria-label="Sign out"
-              className="flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-colors"
+              className="flex items-center justify-center w-9 h-9 rounded-lg border border-zinc-200 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 transition-colors"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
@@ -285,15 +285,15 @@ export default function Dashboard() {
         />
         {loadingPreview && <LoadingOverlay message="Reading your sheet..." />}
 
-        <div className="flex-1 px-5 pt-8 pb-32">
+        <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-32">
           {/* Hero */}
           <div className="mb-8">
-            <h1 className="text-[22px] font-bold text-gray-900 leading-tight tracking-tight">
+            <h1 className="text-[26px] font-bold text-zinc-950 leading-tight tracking-tight">
               Turn any Google Sheet
               <br />
               into a mobile form
             </h1>
-            <p className="text-[15px] text-gray-500 mt-2.5 leading-relaxed">
+            <p className="text-[15px] text-zinc-600 mt-2.5 leading-relaxed">
               Paste your sheet link. Get a shareable form in seconds.
               Responses go straight back to your Sheet.
             </p>
@@ -303,7 +303,7 @@ export default function Dashboard() {
           <div className="mb-6">
             <label
               htmlFor="sheet-url"
-              className="block text-[13px] font-medium text-gray-700 mb-2"
+              className="block text-[13px] font-semibold text-zinc-800 mb-2"
             >
               Google Sheet URL
             </label>
@@ -318,12 +318,12 @@ export default function Dashboard() {
                 placeholder="https://docs.google.com/spreadsheets/d/..."
                 aria-invalid={!!urlError}
                 aria-describedby={urlError ? "url-error" : urlValid ? "url-success" : undefined}
-                className={`w-full rounded-xl border px-4 py-3.5 text-[16px] min-h-[52px] pr-10 focus:outline-none focus:ring-2 transition-all ${
+                className={`w-full rounded-lg border px-4 py-3.5 text-[16px] min-h-[52px] pr-10 focus:outline-none focus:ring-2 transition-all ${
                   urlError
                     ? "border-red-300 bg-red-50/50 focus:ring-red-500"
                     : urlValid
                     ? "border-emerald-300 bg-emerald-50/30 focus:ring-emerald-500"
-                    : "border-gray-200 bg-white focus:ring-accent-500"
+                    : "border-zinc-300 bg-white focus:ring-zinc-900"
                 }`}
               />
               {/* Validation icon */}
@@ -358,7 +358,7 @@ export default function Dashboard() {
                     <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                     </svg>
-                    <span><strong>No Access.</strong> Please make sure this Google Sheet is shared with the logged-in account.</span>
+                    <span><strong>No access.</strong> Please make sure this Google Sheet is shared with the logged-in account.</span>
                   </p>
                 )}
                 {accessStatus === "read" && (
@@ -366,7 +366,7 @@ export default function Dashboard() {
                     <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                     </svg>
-                    <span><strong>View Only.</strong> We can read the sheet, but you must grant Editor access to collect responses.</span>
+                    <span><strong>View only.</strong> We can read the sheet, but you must grant Editor access to collect responses.</span>
                   </p>
                 )}
                 {accessStatus === "edit" && (
@@ -374,7 +374,7 @@ export default function Dashboard() {
                     <svg className="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
-                    Valid Google Sheet (Edit Access Confirmed)
+                Valid Google Sheet (edit access confirmed)
                   </p>
                 )}
               </div>
@@ -416,11 +416,11 @@ export default function Dashboard() {
           <button
             type="button"
             onClick={() => router.push("/history")}
-            className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300 transition-all duration-150 mb-6"
+            className="w-full flex items-center gap-3 px-4 py-3.5 rounded-lg border border-zinc-200 bg-white hover:bg-zinc-50 hover:border-zinc-300 transition-all duration-150 mb-6"
           >
-            <div className="w-9 h-9 rounded-xl bg-accent-50 flex items-center justify-center flex-shrink-0">
+            <div className="w-9 h-9 rounded-lg bg-zinc-100 flex items-center justify-center flex-shrink-0">
               <svg
-                className="w-4 h-4 text-accent-600"
+                className="w-4 h-4 text-zinc-700"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -434,10 +434,10 @@ export default function Dashboard() {
               </svg>
             </div>
             <div className="flex-1 text-left">
-              <span className="text-[14px] font-semibold text-gray-800 block">
+                <span className="text-[14px] font-semibold text-zinc-900 block">
                 Check history
               </span>
-              <span className="text-[12px] text-gray-500">
+              <span className="text-[12px] text-zinc-500">
                 Search previously submitted data
               </span>
             </div>
@@ -455,8 +455,8 @@ export default function Dashboard() {
           {/* Recently Used Sheets */}
           {recentSheets.length > 0 && (
             <div className="mb-6 animate-fade-in">
-              <h3 className="text-[12px] font-bold text-gray-400 mb-3 uppercase tracking-wider px-1">
-                Recently Used Sheets
+              <h3 className="text-[12px] font-bold text-zinc-500 mb-3 uppercase tracking-wider px-1">
+                Recently used sheets
               </h3>
               <div className="space-y-2.5">
                 {recentSheets.map((sheet, idx) => (
@@ -467,7 +467,7 @@ export default function Dashboard() {
                       setSheetUrl(sheet.url);
                       validateUrl(sheet.url);
                     }}
-                    className="w-full text-left p-3.5 rounded-xl border border-gray-150 bg-white hover:border-accent-300 hover:bg-accent-50/30 transition-all duration-200 flex items-center gap-3.5 group shadow-sm hover:shadow"
+                    className="w-full text-left p-3.5 rounded-lg border border-zinc-200 bg-white hover:border-zinc-400 hover:bg-zinc-50 transition-all duration-200 flex items-center gap-3.5 group"
                   >
                     <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0 border border-emerald-100 group-hover:bg-emerald-100 group-hover:border-emerald-200 transition-colors">
                       <svg className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -475,10 +475,10 @@ export default function Dashboard() {
                       </svg>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[14px] font-semibold text-gray-900 truncate group-hover:text-accent-700 transition-colors">
+                      <p className="text-[14px] font-semibold text-zinc-950 truncate transition-colors">
                         {sheet.title}
                       </p>
-                      <p className="text-[12px] text-gray-400 truncate mt-0.5">
+                      <p className="text-[12px] text-zinc-500 truncate mt-0.5">
                         {sheet.url.replace("https://docs.google.com/spreadsheets/d/", "...")}
                       </p>
                     </div>
@@ -494,7 +494,7 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={() => setShowSetup(!showSetup)}
-                className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors flex items-center gap-1.5"
+                className="text-[13px] text-zinc-500 hover:text-zinc-800 transition-colors flex items-center gap-1.5"
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
@@ -502,21 +502,21 @@ export default function Dashboard() {
                 Need to set up sheet access?
               </button>
               {showSetup && (
-                <div className="mt-3 rounded-xl border border-gray-150 p-4 animate-fade-in">
-                  <p className="text-[13px] text-gray-600 mb-2">
+                <div className="mt-3 rounded-lg border border-zinc-200 bg-white p-4 animate-fade-in">
+                  <p className="text-[13px] text-zinc-600 mb-2">
                     Share your Google Sheet with this email (Editor access):
                   </p>
                   <div className="flex gap-2">
                     <input
                       readOnly
                       value={serviceAccountEmail}
-                      className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-[16px] text-gray-700 font-mono select-all"
+                      className="flex-1 bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 text-[16px] text-zinc-700 font-mono select-all"
                       onFocus={(e) => e.target.select()}
                     />
                     <button
                       type="button"
                       onClick={() => navigator.clipboard.writeText(serviceAccountEmail)}
-                      className="px-3 py-2 rounded-lg bg-gray-900 text-white text-xs font-medium min-h-[36px]"
+                      className="px-3 py-2 rounded-lg bg-zinc-950 text-white text-xs font-medium min-h-[36px]"
                     >
                       Copy
                     </button>
@@ -527,7 +527,7 @@ export default function Dashboard() {
           )}
 
           {/* Trust note */}
-          <div className="flex items-start gap-2 text-[12px] text-gray-400">
+          <div className="flex items-start gap-2 text-[12px] text-zinc-500">
             <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
             </svg>
@@ -537,13 +537,13 @@ export default function Dashboard() {
 
         {/* Sticky CTA */}
         <div
-          className="fixed bottom-0 left-0 right-0 max-w-[480px] mx-auto px-5 pt-3 pb-3 bg-white/95 backdrop-blur-md border-t border-gray-100 shadow-sticky z-40"
+          className="fixed bottom-0 left-0 right-0 max-w-[560px] mx-auto px-5 pt-3 pb-3 bg-white border-t border-zinc-200 shadow-sticky z-40"
           style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
         >
           <button
             onClick={handleGenerate}
             disabled={loadingPreview || !sheetUrl.trim() || accessStatus === "none" || accessStatus === "read"}
-            className="w-full bg-gray-900 hover:bg-gray-800 active:bg-gray-950 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold text-[15px] rounded-xl h-[52px] flex items-center justify-center gap-2 transition-all duration-150"
+            className="w-full bg-zinc-950 hover:bg-zinc-800 active:bg-black disabled:bg-zinc-200 disabled:text-zinc-500 text-white font-semibold text-[15px] rounded-lg h-[52px] flex items-center justify-center gap-2 transition-all duration-150"
           >
             {loadingPreview ? (
               <>
@@ -564,21 +564,21 @@ export default function Dashboard() {
   // ─── STEP: preview ────────────────────────────────────────────────────────────
   if (step === "preview") {
     return (
-      <div className="flex flex-col min-h-screen bg-white">
+      <div className="flex flex-col min-h-screen bg-zinc-100">
         <AppHeader
           title="Customize"
           showBack
           onBack={() => setStep("input")}
           rightAction={
-            <span className="text-[11px] font-medium text-gray-400">2 of 3</span>
+            <span className="text-[11px] font-medium text-zinc-500">2 of 3</span>
           }
         />
         {reapplying && <LoadingOverlay message="Updating fields..." />}
 
-        <div className="flex-1 px-5 pt-5 pb-32 space-y-5">
+        <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-5 pb-32 space-y-5">
           {/* Warnings */}
           {warnings.length > 0 && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3.5">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5">
               <p className="text-[13px] font-medium text-amber-800 mb-1">Heads up</p>
               {warnings.map((w, i) => (
                 <p key={i} className="text-[12px] text-amber-600">{w}</p>
@@ -589,7 +589,7 @@ export default function Dashboard() {
           {/* Worksheet selector */}
           {worksheets.length > 1 && (
             <div>
-              <label className="block text-[13px] font-medium text-gray-700 mb-2">
+              <label className="block text-[13px] font-semibold text-zinc-800 mb-2">
                 Sheet tab
               </label>
               <MobileDropdown
@@ -618,14 +618,14 @@ export default function Dashboard() {
 
           {/* Form title */}
           <div>
-            <label className="block text-[13px] font-medium text-gray-700 mb-2">
+            <label className="block text-[13px] font-semibold text-zinc-800 mb-2">
               Form title
             </label>
             <input
               type="text"
               value={formTitle}
               onChange={(e) => setFormTitle(e.target.value)}
-              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-[16px] min-h-[48px] focus:outline-none focus:ring-2 focus:ring-accent-500"
+              className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-[16px] min-h-[48px] focus:outline-none focus:ring-2 focus:ring-zinc-900"
             />
           </div>
 
@@ -645,7 +645,7 @@ export default function Dashboard() {
                 type="button"
                 onClick={handleReapplyRules}
                 disabled={reapplying}
-                className="w-full flex items-center justify-center gap-1.5 border border-gray-200 text-gray-600 rounded-xl py-2.5 text-[13px] font-medium hover:bg-gray-50 transition-colors min-h-[40px] disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-1.5 border border-zinc-200 bg-white text-zinc-700 rounded-lg py-2.5 text-[13px] font-medium hover:bg-zinc-50 transition-colors min-h-[40px] disabled:opacity-50"
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
@@ -672,17 +672,17 @@ export default function Dashboard() {
   const fullEditUrl = origin + (createdForm?.edit_url ?? "");
 
   return (
-    <div className="flex flex-col min-h-screen bg-white">
+    <div className="flex flex-col min-h-screen bg-zinc-100">
       <AppHeader
         showLogo
         showBack
         onBack={() => setStep("input")}
         rightAction={
-          <span className="text-[11px] font-medium text-gray-400">3 of 3</span>
+          <span className="text-[11px] font-medium text-zinc-500">3 of 3</span>
         }
       />
 
-      <div className="flex-1 px-5 pt-6 pb-10 stagger-children">
+      <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-6 pb-10 stagger-children">
         {/* Success header */}
         <div className="flex flex-col items-center pt-4 pb-6">
           <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center border-2 border-emerald-100">
@@ -690,35 +690,35 @@ export default function Dashboard() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h1 className="text-lg font-bold text-gray-900 mt-4">
+          <h1 className="text-lg font-bold text-zinc-950 mt-4">
             Your form is live
           </h1>
-          <p className="text-[13px] text-gray-500 mt-1 text-center">
+          <p className="text-[13px] text-zinc-600 mt-1 text-center">
             Share the link below to start collecting responses.
           </p>
         </div>
 
         {/* Form link */}
-        <div className="rounded-xl border border-gray-150 p-4 mb-3">
+        <div className="rounded-lg border border-zinc-200 bg-white p-4 mb-3">
           <div className="flex items-center gap-2 mb-3">
             <div className="w-6 h-6 rounded-md bg-accent-50 flex items-center justify-center">
-              <svg className="w-3.5 h-3.5 text-accent-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="w-3.5 h-3.5 text-zinc-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.86-2.54a4.5 4.5 0 00-1.242-7.244l-4.5-4.5a4.5 4.5 0 00-6.364 6.364L4.757 8.25" />
               </svg>
             </div>
-            <span className="text-[13px] font-semibold text-gray-900">Share link</span>
+            <span className="text-[13px] font-semibold text-zinc-950">Share link</span>
           </div>
           <div className="flex gap-2 mb-3">
             <input
               readOnly
               value={fullFormUrl}
-              className="flex-1 border border-gray-200 rounded-lg px-3 py-2.5 text-[13px] text-gray-600 bg-gray-50 font-mono"
+              className="flex-1 border border-zinc-200 rounded-lg px-3 py-2.5 text-[13px] text-zinc-600 bg-zinc-50 font-mono"
               onFocus={(e) => e.target.select()}
             />
             <button
               type="button"
               onClick={() => handleCopy(fullFormUrl, "form")}
-              className="px-4 py-2.5 rounded-lg bg-gray-900 text-white text-[13px] font-medium min-h-[40px] min-w-[60px]"
+              className="px-4 py-2.5 rounded-lg bg-zinc-950 text-white text-[13px] font-medium min-h-[40px] min-w-[60px]"
             >
               {copiedForm ? "Copied" : "Copy"}
             </button>
@@ -726,37 +726,37 @@ export default function Dashboard() {
           <button
             type="button"
             onClick={() => router.push(createdForm?.form_url ?? "/")}
-            className="block w-full text-center bg-gray-900 hover:bg-gray-800 text-white text-[13px] font-medium py-2.5 rounded-lg transition-colors"
+            className="block w-full text-center bg-zinc-950 hover:bg-zinc-800 text-white text-[13px] font-medium py-2.5 rounded-lg transition-colors"
           >
             Open in this App
           </button>
         </div>
 
         {/* Edit link */}
-        <div className="rounded-xl border border-gray-150 p-4 mb-6">
+        <div className="rounded-lg border border-zinc-200 bg-white p-4 mb-6">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center">
               <svg className="w-3.5 h-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
               </svg>
             </div>
-            <span className="text-[13px] font-semibold text-gray-900">Edit link</span>
-            <span className="text-[11px] text-gray-400 ml-auto">Private</span>
+            <span className="text-[13px] font-semibold text-zinc-950">Edit link</span>
+            <span className="text-[11px] text-zinc-500 ml-auto">Private</span>
           </div>
-          <p className="text-[11px] text-gray-400 mb-3">
+          <p className="text-[11px] text-zinc-500 mb-3">
             Keep this safe. Anyone with this link can edit your form.
           </p>
           <div className="flex gap-2">
             <input
               readOnly
               value={fullEditUrl}
-              className="flex-1 border border-gray-200 rounded-lg px-3 py-2.5 text-[13px] text-gray-600 bg-gray-50 font-mono"
+              className="flex-1 border border-zinc-200 rounded-lg px-3 py-2.5 text-[13px] text-zinc-600 bg-zinc-50 font-mono"
               onFocus={(e) => e.target.select()}
             />
             <button
               type="button"
               onClick={() => handleCopy(fullEditUrl, "edit")}
-              className="px-4 py-2.5 rounded-lg border border-gray-200 text-gray-700 text-[13px] font-medium min-h-[40px] min-w-[60px] hover:bg-gray-50"
+              className="px-4 py-2.5 rounded-lg border border-zinc-200 bg-white text-zinc-700 text-[13px] font-medium min-h-[40px] min-w-[60px] hover:bg-zinc-50"
             >
               {copiedEdit ? "Copied" : "Copy"}
             </button>
@@ -774,7 +774,7 @@ export default function Dashboard() {
             setCreatedForm(null);
             setAutofillColumns([]);
           }}
-          className="w-full text-[13px] text-gray-500 font-medium py-3 hover:text-gray-700 transition-colors"
+          className="w-full text-[13px] text-zinc-600 font-medium py-3 hover:text-zinc-900 transition-colors"
         >
           + Create another form
         </button>

@@ -115,16 +115,16 @@ export default function DynamicForm({
       {/* Progress bar */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[12px] font-medium text-gray-400">
+          <span className="text-[12px] font-medium text-zinc-500">
             {filledCount} of {totalCount} filled
           </span>
-          <span className="text-[12px] font-medium text-gray-400">
+          <span className="text-[12px] font-medium text-zinc-500">
             {Math.round(progress)}%
           </span>
         </div>
-        <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+        <div className="h-1 bg-zinc-200 rounded-full overflow-hidden">
           <div
-            className="h-full bg-gray-900 rounded-full transition-all duration-500 ease-out"
+            className="h-full bg-zinc-950 rounded-full transition-all duration-500 ease-out"
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -144,7 +144,7 @@ export default function DynamicForm({
 
       {/* Autofill notice */}
       {autofilled && (
-        <div className="mb-4 px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 animate-in">
+        <div className="mb-4 px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2 animate-in">
           <svg
             className="w-4 h-4 text-emerald-600 flex-shrink-0"
             fill="none"

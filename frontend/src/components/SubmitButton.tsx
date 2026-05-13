@@ -19,7 +19,7 @@ export default function SubmitButton({
 }: Props) {
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 max-w-[480px] mx-auto px-5 pt-3 pb-3 bg-white/95 backdrop-blur-md border-t border-gray-100 shadow-sticky z-40"
+      className="fixed bottom-0 left-0 right-0 max-w-[560px] mx-auto px-5 pt-3 pb-3 bg-white border-t border-zinc-200 shadow-sticky z-40"
       style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
     >
       <button
@@ -27,7 +27,7 @@ export default function SubmitButton({
         form={form}
         disabled={submitting || disabled}
         onClick={onClick}
-        className="w-full bg-gray-900 hover:bg-gray-800 active:bg-gray-950 disabled:bg-gray-300 disabled:text-gray-500 text-white font-semibold text-[15px] rounded-xl h-[52px] flex items-center justify-center gap-2 transition-all duration-150"
+        className="w-full bg-zinc-950 hover:bg-zinc-800 active:bg-black disabled:bg-zinc-200 disabled:text-zinc-500 text-white font-semibold text-[15px] rounded-lg h-[52px] flex items-center justify-center gap-2 transition-all duration-150"
       >
         {submitting ? (
           <>

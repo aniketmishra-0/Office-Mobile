@@ -10,11 +10,13 @@ from uuid import uuid4
 
 from app.config import get_settings
 from app.models.field import CustomKeywordRule, FieldSchema
+from app.services import session_context
 
 CREATE_FORMS_SQL = """
 CREATE TABLE IF NOT EXISTS forms (
     id TEXT PRIMARY KEY,
     edit_token TEXT NOT NULL,
+    oauth_key TEXT,
     sheet_url TEXT NOT NULL,
     spreadsheet_id TEXT NOT NULL,
     worksheet_name TEXT,
@@ -84,6 +86,12 @@ def init_db() -> None:
         except Exception:
             pass  # Column already exists
 
+        # Migrate: add oauth_key for per-session OAuth association
+        try:
+            conn.execute("ALTER TABLE forms ADD COLUMN oauth_key TEXT")
+        except Exception:
+            pass  # Column already exists
+
         # Indexes — idempotent, safe to run every start.
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_forms_spreadsheet_id ON forms(spreadsheet_id)"
@@ -119,9 +127,15 @@ def _row_to_record(row: sqlite3.Row | None) -> dict[str, Any] | None:
         autofill_raw = row["autofill_columns_json"]
     except (IndexError, KeyError):
         autofill_raw = "[]"
+    oauth_key = None
+    try:
+        oauth_key = row["oauth_key"]
+    except (IndexError, KeyError):
+        oauth_key = None
     return {
         "id": row["id"],
         "edit_token": row["edit_token"],
+        "oauth_key": oauth_key,
         "sheet_url": row["sheet_url"],
         "spreadsheet_id": row["spreadsheet_id"],
         "worksheet_name": row["worksheet_name"],
@@ -143,6 +157,7 @@ def create_form(
     fields: list[FieldSchema],
     custom_keywords: list[CustomKeywordRule],
     autofill_columns: list[str] | None = None,
+    oauth_key: str | None = None,
 ) -> dict[str, Any]:
     form_id = uuid4().hex[:12]
     edit_token = secrets.token_urlsafe(24)
@@ -152,14 +167,15 @@ def create_form(
         conn.execute(
             """
             INSERT INTO forms (
-                id, edit_token, sheet_url, spreadsheet_id, worksheet_name,
+                id, edit_token, oauth_key, sheet_url, spreadsheet_id, worksheet_name,
                 form_title, fields_json, custom_keywords_json, autofill_columns_json,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 form_id,
                 edit_token,
+                oauth_key,
                 sheet_url,
                 spreadsheet_id,
                 worksheet_name,
@@ -258,11 +274,25 @@ def list_submissions(*, form_id: str, limit: int = 200) -> list[dict[str, Any]]:
     return items
 
 
-def get_oauth_token(key: str = "default") -> dict[str, Any] | None:
+def _resolve_oauth_key(key: str | None) -> str | None:
+    if key is not None:
+        return key
+    raw = session_context.get_oauth_session_key_raw()
+    if raw is session_context.UNSET:
+        return session_context.DEFAULT_OAUTH_KEY
+    if not raw:
+        return None
+    return str(raw)
+
+
+def get_oauth_token(key: str | None = None) -> dict[str, Any] | None:
+    resolved = _resolve_oauth_key(key)
+    if not resolved:
+        return None
     with _connect() as conn:
         row = conn.execute(
             "SELECT token_json FROM oauth_tokens WHERE key = ?",
-            (key,),
+            (resolved,),
         ).fetchone()
     if not row:
         return None
@@ -272,7 +302,10 @@ def get_oauth_token(key: str = "default") -> dict[str, Any] | None:
         return None
 
 
-def set_oauth_token(token: dict[str, Any], key: str = "default") -> None:
+def set_oauth_token(token: dict[str, Any], key: str | None = None) -> None:
+    resolved = _resolve_oauth_key(key)
+    if not resolved:
+        return
     now = _utc_now()
     with _connect() as conn:
         conn.execute(
@@ -281,14 +314,17 @@ def set_oauth_token(token: dict[str, Any], key: str = "default") -> None:
             VALUES (?, ?, ?)
             ON CONFLICT(key) DO UPDATE SET token_json = excluded.token_json, updated_at = excluded.updated_at
             """,
-            (key, json.dumps(token), now),
+            (resolved, json.dumps(token), now),
         )
         conn.commit()
 
 
-def clear_oauth_token(key: str = "default") -> None:
+def clear_oauth_token(key: str | None = None) -> None:
+    resolved = _resolve_oauth_key(key)
+    if not resolved:
+        return
     with _connect() as conn:
-        conn.execute("DELETE FROM oauth_tokens WHERE key = ?", (key,))
+        conn.execute("DELETE FROM oauth_tokens WHERE key = ?", (resolved,))
         conn.commit()
 
 

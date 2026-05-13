@@ -17,7 +17,7 @@ export default function SuccessScreen({ formTitle, onSubmitAnother }: Props) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6">
+    <div className="min-h-screen bg-zinc-100 flex flex-col items-center justify-center px-6">
       {/* Checkmark */}
       <div
         className={`transition-all duration-500 ease-out ${
@@ -52,10 +52,10 @@ export default function SuccessScreen({ formTitle, onSubmitAnother }: Props) {
           show ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
         }`}
       >
-        <h1 className="text-xl font-bold text-gray-900">Response recorded</h1>
-        <p className="text-gray-500 mt-2 text-sm max-w-[260px]">
+        <h1 className="text-xl font-bold text-zinc-950">Response recorded</h1>
+        <p className="text-zinc-600 mt-2 text-sm max-w-[260px]">
           Your data has been saved to{" "}
-          <span className="font-medium text-gray-700">{formTitle}</span>
+          <span className="font-medium text-zinc-800">{formTitle}</span>
         </p>
       </div>
 
@@ -68,7 +68,7 @@ export default function SuccessScreen({ formTitle, onSubmitAnother }: Props) {
         <button
           type="button"
           onClick={onSubmitAnother}
-          className="w-full bg-gray-900 hover:bg-gray-800 text-white h-12 rounded-xl text-sm font-semibold transition-colors"
+          className="w-full bg-zinc-950 hover:bg-zinc-800 text-white h-12 rounded-lg text-sm font-semibold transition-colors"
         >
           Submit another response
         </button>

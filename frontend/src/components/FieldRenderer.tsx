@@ -13,9 +13,9 @@ interface Props {
 }
 
 const BASE =
-  "w-full rounded-xl border px-4 py-3.5 text-[16px] focus:outline-none focus:ring-2 focus:border-transparent min-h-[52px] transition-all duration-150 placeholder:text-gray-300";
-const NORMAL = "border-gray-200 bg-white focus:ring-accent-500";
-const FILLED = "border-gray-300 bg-white focus:ring-accent-500";
+  "w-full rounded-lg border px-4 py-3.5 text-[16px] focus:outline-none focus:ring-2 focus:border-transparent min-h-[52px] transition-all duration-150 placeholder:text-zinc-300";
+const NORMAL = "border-zinc-300 bg-white focus:ring-zinc-900";
+const FILLED = "border-zinc-400 bg-white focus:ring-zinc-900";
 const ERROR = "border-red-300 bg-red-50/30 focus:ring-red-500";
 
 export default function FieldRenderer({
@@ -105,7 +105,7 @@ export default function FieldRenderer({
         return (
           <div className="relative">
             {value ? (
-              <div className="flex items-center gap-3 w-full rounded-xl border border-emerald-300 bg-emerald-50/30 px-4 py-3 min-h-[52px]">
+              <div className="flex items-center gap-3 w-full rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 min-h-[52px]">
                 <svg className="w-5 h-5 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
@@ -124,13 +124,13 @@ export default function FieldRenderer({
                 </button>
               </div>
             ) : (
-              <div className={`relative flex items-center justify-center w-full rounded-xl border-2 border-dashed px-4 py-6 transition-colors ${
-                uploadError ? "border-red-300 bg-red-50" : "border-gray-200 hover:border-accent-400 bg-gray-50/50 hover:bg-accent-50/30"
+              <div className={`relative flex items-center justify-center w-full rounded-lg border-2 border-dashed px-4 py-6 transition-colors ${
+                uploadError ? "border-red-300 bg-red-50" : "border-zinc-300 hover:border-zinc-500 bg-zinc-50 hover:bg-white"
               }`}>
                 {uploading ? (
                   <div className="flex flex-col items-center gap-3">
-                    <div className="w-6 h-6 border-2 border-accent-200 border-t-accent-600 rounded-full animate-spin" />
-                    <span className="text-[13px] text-gray-500 font-medium">Uploading...</span>
+                    <div className="w-6 h-6 border-2 border-zinc-200 border-t-zinc-900 rounded-full animate-spin" />
+                    <span className="text-[13px] text-zinc-500 font-medium">Uploading...</span>
                   </div>
                 ) : (
                   <>
@@ -144,12 +144,12 @@ export default function FieldRenderer({
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     />
                     <div className="flex flex-col items-center gap-2 pointer-events-none">
-                      <div className="w-10 h-10 rounded-full bg-white shadow-sm border border-gray-100 flex items-center justify-center">
-                        <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <div className="w-10 h-10 rounded-lg bg-white border border-zinc-200 flex items-center justify-center">
+                        <svg className="w-5 h-5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
                         </svg>
                       </div>
-                      <span className="text-[14px] font-medium text-gray-700">
+                      <span className="text-[14px] font-medium text-zinc-800">
                         Tap to upload or take a photo
                       </span>
                     </div>
@@ -176,7 +176,7 @@ export default function FieldRenderer({
     <div className="mb-5">
       <label
         htmlFor={id}
-        className="block text-[13px] font-medium text-gray-700 mb-1.5"
+        className="block text-[13px] font-semibold text-zinc-800 mb-1.5"
       >
         {field.label}
         {field.required && (

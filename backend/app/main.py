@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.routers import auth, forms, health, upload
+from app.services.session_context import OAUTH_SESSION_COOKIE, reset_oauth_session_key, set_oauth_session_key
 from app.services.form_store import init_db
 
 
@@ -59,6 +60,16 @@ async def limit_request_size(request: Request, call_next):
                 content={"detail": "Payload too large"},
             )
     return await call_next(request)
+
+
+@app.middleware("http")
+async def attach_oauth_session(request: Request, call_next):
+    token = set_oauth_session_key(request.cookies.get(OAUTH_SESSION_COOKIE))
+    try:
+        response = await call_next(request)
+    finally:
+        reset_oauth_session_key(token)
+    return response
 
 
 @app.middleware("http")

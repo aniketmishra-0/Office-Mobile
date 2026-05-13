@@ -20,7 +20,7 @@ const TYPE_LABELS: Record<FieldType, string> = {
   number: "Number",
   textarea: "Long Text",
   url: "URL",
-  file: "📎 File Upload",
+  file: "File Upload",
 };
 
 export default function FormFieldEditor({ fields, onChange, autofillColumns = [], onAutofillChange }: Props) {
@@ -33,8 +33,8 @@ export default function FormFieldEditor({ fields, onChange, autofillColumns = []
     <div>
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h2 className="text-sm font-semibold text-gray-900">Form Fields</h2>
-          <p className="text-xs text-gray-400 mt-0.5">
+          <h2 className="text-sm font-semibold text-zinc-950">Form fields</h2>
+          <p className="text-xs text-zinc-500 mt-0.5">
             {fields.length} fields detected
             {onAutofillChange && autofillColumns.length > 0 && (
               <span className="text-blue-500"> · {autofillColumns.length} filter{autofillColumns.length > 1 ? "s" : ""} selected</span>
@@ -49,7 +49,7 @@ export default function FormFieldEditor({ fields, onChange, autofillColumns = []
           return (
             <div
               key={field.key}
-              className="rounded-xl border border-gray-150 p-3.5 hover:border-gray-200 transition-colors"
+              className="rounded-lg border border-zinc-200 bg-white p-3.5 hover:border-zinc-300 transition-colors"
             >
               {/* Header row: label + source */}
               <div className="flex items-start justify-between gap-2 mb-3">
@@ -61,10 +61,10 @@ export default function FormFieldEditor({ fields, onChange, autofillColumns = []
                     updated[fieldIndex] = { ...updated[fieldIndex], label: e.target.value };
                     onChange(updated);
                   }}
-                  className="flex-1 text-sm font-medium text-gray-900 bg-transparent border-0 p-0 focus:outline-none focus:ring-0 placeholder:text-gray-300"
+                  className="flex-1 text-sm font-medium text-zinc-950 bg-transparent border-0 p-0 focus:outline-none focus:ring-0 placeholder:text-zinc-300"
                   placeholder="Field label"
                 />
-                <span className="text-[10px] bg-gray-50 text-gray-400 px-1.5 py-0.5 rounded font-mono flex-shrink-0">
+                <span className="text-[10px] bg-zinc-100 text-zinc-500 px-1.5 py-0.5 rounded font-mono flex-shrink-0">
                   {field.source_header}
                 </span>
               </div>
@@ -94,15 +94,15 @@ export default function FormFieldEditor({ fields, onChange, autofillColumns = []
                   }}
                   className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors min-h-[36px] ${
                     field.required
-                      ? "bg-accent-50 text-accent-700 border border-accent-200"
-                      : "bg-gray-50 text-gray-400 border border-gray-150 hover:text-gray-600"
+                      ? "bg-zinc-950 text-white border border-zinc-950"
+                      : "bg-zinc-50 text-zinc-500 border border-zinc-200 hover:text-zinc-800"
                   }`}
                 >
                   <div className={`w-3 h-3 rounded-sm border-2 flex items-center justify-center transition-colors ${
-                    field.required ? "border-accent-600 bg-accent-600" : "border-gray-300"
+                    field.required ? "border-white bg-white" : "border-zinc-300"
                   }`}>
                     {field.required && (
-                      <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <svg className="w-2 h-2 text-zinc-950" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
                     )}
@@ -127,8 +127,8 @@ export default function FormFieldEditor({ fields, onChange, autofillColumns = []
                     title={autofillColumns.includes(field.key) ? "Remove from autofill filters" : "Add as autofill filter"}
                     className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors min-h-[36px] ${
                       autofillColumns.includes(field.key)
-                        ? "bg-blue-50 text-blue-700 border border-blue-200"
-                        : "bg-gray-50 text-gray-400 border border-gray-150 hover:text-gray-600"
+                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        : "bg-zinc-50 text-zinc-500 border border-zinc-200 hover:text-zinc-800"
                     }`}
                   >
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

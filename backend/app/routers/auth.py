@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.config import get_settings
 from app.services import form_store
+from app.services.session_context import OAUTH_SESSION_COOKIE, OAUTH_SESSION_MAX_AGE
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -25,6 +26,51 @@ SCOPES = [
 # callback. Short-lived; HttpOnly so it cannot be read from JS.
 _STATE_COOKIE_NAME = "oauth_state"
 _STATE_COOKIE_MAX_AGE = 600  # 10 minutes is plenty for an OAuth round trip
+
+
+def _is_local_request(request: Request) -> bool:
+    origin = (request.headers.get("origin") or "").lower()
+    host = (request.url.hostname or "").lower()
+    if origin.startswith("http://localhost") or origin.startswith("http://127.0.0.1"):
+        return True
+    return host in ("localhost", "127.0.0.1")
+
+
+def _session_cookie_attrs(request: Request) -> dict[str, object]:
+    if _is_local_request(request):
+        return {"secure": False, "samesite": "lax"}
+    return {"secure": True, "samesite": "none"}
+
+
+def _set_session_cookie(response: Response, request: Request, session_key: str) -> None:
+    attrs = _session_cookie_attrs(request)
+    response.set_cookie(
+        key=OAUTH_SESSION_COOKIE,
+        value=session_key,
+        max_age=OAUTH_SESSION_MAX_AGE,
+        httponly=True,
+        secure=bool(attrs["secure"]),
+        samesite=str(attrs["samesite"]),
+        path="/",
+    )
+
+
+def _clear_session_cookie(response: Response, request: Request) -> None:
+    attrs = _session_cookie_attrs(request)
+    response.delete_cookie(
+        OAUTH_SESSION_COOKIE,
+        path="/",
+        secure=bool(attrs["secure"]),
+        samesite=str(attrs["samesite"]),
+    )
+
+
+def _ensure_session_key(request: Request, response: Response) -> str:
+    session_key = request.cookies.get(OAUTH_SESSION_COOKIE)
+    if not session_key:
+        session_key = secrets.token_urlsafe(32)
+        _set_session_cookie(response, request, session_key)
+    return session_key
 
 
 def _require_oauth_config() -> tuple[str, str, str]:
@@ -52,14 +98,18 @@ def _frontend_origin() -> str:
 
 
 @router.get("/status")
-def status() -> dict:
-    token = form_store.get_oauth_token()
+def status(request: Request, response: Response) -> dict:
+    session_key = _ensure_session_key(request, response)
+    token = form_store.get_oauth_token(session_key)
     return {"connected": token is not None}
 
 
 @router.post("/logout")
-def logout() -> dict:
-    form_store.clear_oauth_token()
+def logout(request: Request, response: Response) -> dict:
+    session_key = request.cookies.get(OAUTH_SESSION_COOKIE)
+    if session_key:
+        form_store.clear_oauth_token(session_key)
+    _clear_session_cookie(response, request)
     return {"success": True}
 
 
@@ -90,20 +140,22 @@ def _set_state_cookie(response: Response, state: str) -> None:
 
 
 @router.get("/google/start")
-def google_start() -> RedirectResponse:
+def google_start(request: Request) -> RedirectResponse:
     client_id, _secret, redirect_uri = _require_oauth_config()
     state = secrets.token_urlsafe(32)
     response = RedirectResponse(_build_auth_url(client_id, redirect_uri, state))
     _set_state_cookie(response, state)
+    _ensure_session_key(request, response)
     return response
 
 
 @router.get("/google/url")
-def google_url(response: Response) -> dict:
+def google_url(request: Request, response: Response) -> dict:
     """Return the OAuth URL so the frontend can open it directly in the browser."""
     client_id, _secret, redirect_uri = _require_oauth_config()
     state = secrets.token_urlsafe(32)
     _set_state_cookie(response, state)
+    _ensure_session_key(request, response)
     return {"url": _build_auth_url(client_id, redirect_uri, state)}
 
 
@@ -155,7 +207,8 @@ def google_callback(
 
     token = res.json()
     token["obtained_at"] = int(time.time())
-    form_store.set_oauth_token(token)
+    session_key = request.cookies.get(OAUTH_SESSION_COOKIE) or secrets.token_urlsafe(32)
+    form_store.set_oauth_token(token, key=session_key)
 
     # Close the popup and notify the opener window. We pin the targetOrigin
     # to our frontend origin rather than using '*' so a malicious opener
@@ -177,6 +230,7 @@ def google_callback(
     )
 
     response = HTMLResponse(html)
+    _set_session_cookie(response, request, session_key)
     # Clear the state cookie now that the flow is complete.
     response.delete_cookie(_STATE_COOKIE_NAME, path="/api/auth")
     return response

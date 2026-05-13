@@ -192,26 +192,26 @@ export default function HistoryPage() {
   // ═══════════════════════ Detail view ═══════════════════════
   if (selectedRow && loaded) {
     return (
-      <div className="flex flex-col min-h-screen bg-white">
+      <div className="flex flex-col min-h-screen bg-zinc-100">
         <AppHeader title="Entry details" showBack onBack={() => setSelectedRow(null)} />
-        <div className="flex-1 px-5 pt-5 pb-10">
+        <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-5 pb-10">
           <div className="mb-4">
-            <h2 className="text-[16px] font-bold text-gray-900">
+            <h2 className="text-[16px] font-bold text-zinc-950">
               {loaded.worksheet_name}
             </h2>
-            <p className="text-[12px] text-gray-500">Full entry</p>
+            <p className="text-[12px] text-zinc-500">Full entry</p>
           </div>
-          <div className="rounded-xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+          <div className="rounded-lg border border-zinc-200 bg-white divide-y divide-zinc-100 overflow-hidden">
             {[...loaded.fields]
               .sort((a, b) => a.order - b.order)
               .map((field) => {
                 const val = selectedRow[field.key] ?? "";
                 return (
                   <div key={field.key} className="px-4 py-3">
-                    <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-0.5">
+                    <p className="text-[11px] font-medium text-zinc-500 uppercase tracking-wide mb-0.5">
                       {field.label}
                     </p>
-                    <p className={`text-[15px] ${val ? "text-gray-900 font-medium" : "text-gray-300 italic"}`}>
+                    <p className={`text-[15px] ${val ? "text-zinc-950 font-medium" : "text-zinc-300 italic"}`}>
                       {val || "—"}
                     </p>
                   </div>
@@ -226,24 +226,24 @@ export default function HistoryPage() {
   // ═══════════════════════ Search + results view ═══════════════════════
   if (loaded) {
     return (
-      <div className="flex flex-col min-h-screen bg-white">
+      <div className="flex flex-col min-h-screen bg-zinc-100">
         <AppHeader title="Check history" showBack onBack={handleBackToTabs} />
         {loading && <LoadingOverlay message="Loading entries..." />}
 
-        <div className="flex-1 px-5 pt-5 pb-10">
+        <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-5 pb-10">
           <div className="flex items-center justify-between mb-4">
             <div className="min-w-0 flex-1">
-              <h2 className="text-[16px] font-bold text-gray-900 truncate">
+              <h2 className="text-[16px] font-bold text-zinc-950 truncate">
                 {loaded.worksheet_name}
               </h2>
-              <p className="text-[12px] text-gray-500">
+              <p className="text-[12px] text-zinc-500">
                 {loaded.rows.length.toLocaleString()} entries
               </p>
             </div>
             <button
               type="button"
               onClick={handleReset}
-              className="text-[12px] font-medium text-gray-500 hover:text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100 flex-shrink-0"
+              className="text-[12px] font-medium text-zinc-600 hover:text-zinc-900 px-3 py-1.5 rounded-lg hover:bg-zinc-200 flex-shrink-0"
             >
               Change
             </button>
@@ -259,7 +259,7 @@ export default function HistoryPage() {
               onChange={(e) => { setSearchQuery(e.target.value); setSelectedRow(null); }}
               placeholder="Search any column..."
               autoFocus
-              className="w-full rounded-xl border border-gray-200 pl-11 pr-11 py-3 text-[14px] focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent min-h-[48px] placeholder:text-gray-300"
+              className="w-full rounded-lg border border-zinc-300 bg-white pl-11 pr-11 py-3 text-[14px] focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent min-h-[48px] placeholder:text-zinc-300"
             />
             {searchQuery && (
               <button
@@ -288,7 +288,7 @@ export default function HistoryPage() {
                   {matches.length} {matches.length === 1 ? "match" : "matches"}{matches.length === 100 ? "+" : ""}
                 </p>
               )}
-              <div className="rounded-xl border border-gray-200 overflow-hidden">
+              <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden">
                 {matches.map((row, idx) => {
                   const parts: string[] = [];
                   for (const f of loaded.fields) {
@@ -301,13 +301,13 @@ export default function HistoryPage() {
                       key={idx}
                       type="button"
                       onClick={() => setSelectedRow(row)}
-                      className="w-full text-left px-4 py-3 text-[13px] border-b border-gray-100 last:border-b-0 transition-colors hover:bg-accent-50/40 active:bg-accent-50 group"
+                      className="w-full text-left px-4 py-3 text-[13px] border-b border-zinc-100 last:border-b-0 transition-colors hover:bg-zinc-50 active:bg-zinc-100 group"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-gray-800 font-medium">
+                        <span className="truncate text-zinc-800 font-medium">
                           {parts.join(" · ")}
                         </span>
-                        <svg className="w-3.5 h-3.5 text-gray-300 group-hover:text-accent-500 flex-shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <svg className="w-3.5 h-3.5 text-zinc-300 group-hover:text-zinc-700 flex-shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                         </svg>
                       </div>
@@ -333,19 +333,19 @@ export default function HistoryPage() {
 
   // ═══════════════════════ Initial / Tab picker ═══════════════════════
   return (
-    <div className="flex flex-col min-h-screen bg-white">
+    <div className="flex flex-col min-h-screen bg-zinc-100">
       <AppHeader title="Check history" showBack />
       {loading && <LoadingOverlay message="Loading sheet..." />}
 
-      <div className="flex-1 px-5 pt-8 pb-32">
+      <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-32">
         {/* Hero */}
         <div className="mb-8">
-          <h1 className="text-[22px] font-bold text-gray-900 leading-tight tracking-tight">
+          <h1 className="text-[26px] font-bold text-zinc-950 leading-tight tracking-tight">
             Search your
             <br />
             submission history
           </h1>
-          <p className="text-[15px] text-gray-500 mt-2.5 leading-relaxed">
+          <p className="text-[15px] text-zinc-600 mt-2.5 leading-relaxed">
             Paste your sheet link. Find any past entry in seconds by searching across all columns.
           </p>
         </div>
@@ -354,7 +354,7 @@ export default function HistoryPage() {
         <div className="mb-6">
           <label
             htmlFor="history-url"
-            className="block text-[13px] font-medium text-gray-700 mb-2"
+            className="block text-[13px] font-semibold text-zinc-800 mb-2"
           >
             Google Sheet URL
           </label>
@@ -369,12 +369,12 @@ export default function HistoryPage() {
               onKeyDown={(e) => e.key === "Enter" && handleLoadSheet()}
               placeholder="https://docs.google.com/spreadsheets/d/..."
               aria-invalid={!!urlError}
-              className={`w-full rounded-xl border px-4 py-3.5 text-[15px] min-h-[52px] pr-10 focus:outline-none focus:ring-2 transition-all ${
+              className={`w-full rounded-lg border px-4 py-3.5 text-[15px] min-h-[52px] pr-10 focus:outline-none focus:ring-2 transition-all ${
                 urlError
                   ? "border-red-300 bg-red-50/50 focus:ring-red-500"
                   : urlValid
                   ? "border-emerald-300 bg-emerald-50/30 focus:ring-emerald-500"
-                  : "border-gray-200 bg-white focus:ring-accent-500"
+                  : "border-zinc-300 bg-white focus:ring-zinc-900"
               }`}
             />
             {urlValid && !urlError && (
@@ -438,7 +438,7 @@ export default function HistoryPage() {
                   key={`${tab.worksheet_name}-${idx}`}
                   type="button"
                   onClick={() => selectTab(tab)}
-                  className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white hover:border-accent-300 hover:bg-accent-50/30 transition-all text-left group"
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-zinc-200 bg-white hover:border-zinc-400 hover:bg-zinc-50 transition-all text-left group"
                 >
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${tab.has_form ? "bg-emerald-50" : "bg-gray-100"}`}>
@@ -457,7 +457,7 @@ export default function HistoryPage() {
                       </p>
                     </div>
                   </div>
-                  <svg className="w-4 h-4 text-gray-300 group-hover:text-accent-500 flex-shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="w-4 h-4 text-zinc-300 group-hover:text-zinc-700 flex-shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                   </svg>
                 </button>
@@ -479,13 +479,13 @@ export default function HistoryPage() {
       {/* Sticky CTA */}
       {!availableTabs && (
         <div
-          className="fixed bottom-0 left-0 right-0 max-w-[480px] mx-auto px-5 pt-3 pb-3 bg-white/95 backdrop-blur-md border-t border-gray-100 shadow-sticky z-40"
+          className="fixed bottom-0 left-0 right-0 max-w-[560px] mx-auto px-5 pt-3 pb-3 bg-white border-t border-zinc-200 shadow-sticky z-40"
           style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
         >
           <button
             onClick={handleLoadSheet}
             disabled={loading || !formInput.trim()}
-            className="w-full bg-gray-900 hover:bg-gray-800 active:bg-gray-950 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold text-[15px] rounded-xl h-[52px] flex items-center justify-center gap-2 transition-all duration-150"
+            className="w-full bg-zinc-950 hover:bg-zinc-800 active:bg-black disabled:bg-zinc-200 disabled:text-zinc-500 text-white font-semibold text-[15px] rounded-lg h-[52px] flex items-center justify-center gap-2 transition-all duration-150"
           >
             {loading ? (
               <>
