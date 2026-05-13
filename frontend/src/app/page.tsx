@@ -11,7 +11,9 @@ export default function HomePage() {
 
   async function checkStatus() {
     try {
-      const res = await fetch(`${API_BASE}/auth/status`);
+      const res = await fetch(`${API_BASE}/api/auth/status`, {
+        credentials: "include",
+      });
       const data = await res.json();
       setConnected(Boolean(data.connected));
     } catch {

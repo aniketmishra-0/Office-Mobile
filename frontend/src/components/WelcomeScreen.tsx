@@ -24,7 +24,7 @@ export default function WelcomeScreen({ onAuthenticated }: Props) {
     const left = window.screenX + (window.outerWidth - width) / 2;
     const top = window.screenY + (window.outerHeight - height) / 2;
     const popup = window.open(
-      `${API_BASE}/auth/google/start`,
+      `${API_BASE}/api/auth/google/start`,
       "google-oauth",
       `width=${width},height=${height},left=${left},top=${top},popup=yes`
     );
@@ -47,7 +47,9 @@ export default function WelcomeScreen({ onAuthenticated }: Props) {
         clearInterval(interval);
         // Check if auth succeeded
         try {
-          const res = await fetch(`${API_BASE}/auth/status`);
+          const res = await fetch(`${API_BASE}/api/auth/status`, {
+            credentials: "include",
+          });
           const data = await res.json();
           if (data.connected) {
             setAuthState("success");

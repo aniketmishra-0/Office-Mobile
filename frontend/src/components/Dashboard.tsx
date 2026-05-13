@@ -222,7 +222,10 @@ export default function Dashboard() {
   }
 
   function handleSignOut() {
-    fetch(`${API_BASE}/auth/logout`, { method: "POST" })
+    fetch(`${API_BASE}/api/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+    })
       .then(() => {
         window.location.reload();
       })

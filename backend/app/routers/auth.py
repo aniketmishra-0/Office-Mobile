@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app.config import get_settings
 from app.services import form_store
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 GOOGLE_AUTH_BASE = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -33,7 +33,7 @@ def _require_oauth_config() -> tuple[str, str, str]:
         raise HTTPException(status_code=500, detail="OAuth is not configured")
     redirect_uri = (
         settings.google_oauth_redirect_uri
-        or "http://localhost:8000/auth/google/callback"
+        or "http://localhost:8000/api/auth/google/callback"
     )
     return (
         settings.google_oauth_client_id,
@@ -85,7 +85,7 @@ def _set_state_cookie(response: Response, state: str) -> None:
         httponly=True,
         secure=True,
         samesite="lax",
-        path="/auth",
+        path="/api/auth",
     )
 
 
@@ -178,5 +178,5 @@ def google_callback(
 
     response = HTMLResponse(html)
     # Clear the state cookie now that the flow is complete.
-    response.delete_cookie(_STATE_COOKIE_NAME, path="/auth")
+    response.delete_cookie(_STATE_COOKIE_NAME, path="/api/auth")
     return response
