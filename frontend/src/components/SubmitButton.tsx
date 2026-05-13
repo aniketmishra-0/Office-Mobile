@@ -87,14 +87,14 @@ export default function SubmitButton({
           align-items: center;
           justify-content: center;
           width: 100%;
-          height: 56px;
+          height: 48px;
           overflow: hidden;
           background: var(--ink);
-          color: #ffffff;
+          color: var(--on-ink);
           font-family: var(--font-plex-mono), ui-monospace, monospace;
           font-weight: 500;
-          font-size: 12px;
-          letter-spacing: 0.22em;
+          font-size: 11px;
+          letter-spacing: 0.2em;
           text-transform: uppercase;
           border: 0;
           border-radius: 0;
@@ -120,7 +120,7 @@ export default function SubmitButton({
           z-index: 1;
           display: inline-flex;
           align-items: center;
-          gap: 14px;
+          gap: 12px;
         }
         .om-submit__arrow {
           display: inline-block;

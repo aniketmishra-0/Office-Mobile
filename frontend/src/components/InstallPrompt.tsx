@@ -146,7 +146,7 @@ export default function InstallPrompt() {
         .om-install__btn--solid {
           background: var(--ink);
           border-color: var(--ink);
-          color: #ffffff;
+          color: var(--on-ink);
         }
         .om-install__btn--solid:hover {
           background: var(--clay);

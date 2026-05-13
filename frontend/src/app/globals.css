@@ -322,7 +322,7 @@ button:active:not(:disabled) {
   align-items: center;
   justify-content: center;
   background: var(--ink);
-  color: #ffffff;
+  color: var(--on-ink);
   font-family: var(--font-plex-mono), ui-monospace, monospace;
   font-weight: 500;
   font-size: 12px;

@@ -285,7 +285,7 @@ export default function WelcomeScreen({ onAuthenticated }: Props) {
           justify-content: center;
           gap: 12px;
           background: var(--ink);
-          color: #ffffff;
+          color: var(--on-ink);
           border: 0;
           border-radius: 0;
           font-family: var(--font-plex-mono), ui-monospace, monospace;

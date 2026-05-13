@@ -11,6 +11,7 @@ import FormFieldEditor from "@/components/FormFieldEditor";
 import FormBuilder from "@/components/FormBuilder";
 import MobileDropdown from "@/components/MobileDropdown";
 import SubmitButton from "@/components/SubmitButton";
+import ClearButton from "@/components/ClearButton";
 import { QRCodeCanvas } from "qrcode.react";
 import { usePrefs } from "@/lib/usePrefs";
 import {
@@ -450,7 +451,7 @@ export default function Dashboard() {
               style={{
                 padding: "12px 16px",
                 background: mode === "paste" ? "var(--ink)" : "transparent",
-                color: mode === "paste" ? "#ffffff" : "var(--ink)",
+                color: mode === "paste" ? "var(--on-ink)" : "var(--ink)",
                 border: 0,
                 fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
                 fontWeight: 500,
@@ -469,7 +470,7 @@ export default function Dashboard() {
               style={{
                 padding: "12px 16px",
                 background: mode === "create" ? "var(--ink)" : "transparent",
-                color: mode === "create" ? "#ffffff" : "var(--ink)",
+                color: mode === "create" ? "var(--on-ink)" : "var(--ink)",
                 border: 0,
                 borderLeft: "1px solid var(--rule)",
                 fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
@@ -509,34 +510,47 @@ export default function Dashboard() {
                 >
                   Sheet URL
                 </label>
-                <input
-                  id="sheet-url"
-                  type="url"
-                  inputMode="url"
-                  value={sheetUrl}
-                  onChange={(e) => handleUrlChange(e.target.value)}
-                  onBlur={() => sheetUrl && validateUrl(sheetUrl)}
-                  placeholder="https://docs.google.com/spreadsheets/..."
-                  aria-invalid={!!urlError}
-                  style={{
-                    width: "100%",
-                    fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                    fontWeight: 400,
-                    fontSize: 14,
-                    color: "var(--ink)",
-                    background: "transparent",
-                    border: 0,
-                    borderBottom: `2px solid ${urlError ? "var(--error)" : "var(--ink)"}`,
-                    borderRadius: 0,
-                    padding: "8px 0",
-                    outline: "none",
-                    transition: "border-color 200ms ease-out",
-                  }}
-                  onFocus={(e) => {
-                    if (!urlError) e.currentTarget.style.borderBottomColor = "var(--clay)";
-                  }}
-                />
-                {urlError && (
+                <div style={{ position: "relative" }}>
+                  <input
+                    id="sheet-url"
+                    type="url"
+                    inputMode="url"
+                    value={sheetUrl}
+                    onChange={(e) => handleUrlChange(e.target.value)}
+                    onBlur={() => sheetUrl && validateUrl(sheetUrl)}
+                    placeholder="https://docs.google.com/spreadsheets/..."
+                    aria-invalid={!!urlError}
+                    style={{
+                      width: "100%",
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontWeight: 400,
+                      fontSize: 14,
+                      color: "var(--ink)",
+                      background: "transparent",
+                      border: 0,
+                      borderBottom: `2px solid ${urlError ? "var(--error)" : "var(--ink)"}`,
+                      borderRadius: 0,
+                      padding: "8px 28px 8px 0",
+                      outline: "none",
+                      transition: "border-color 200ms ease-out",
+                    }}
+                    onFocus={(e) => {
+                      if (!urlError) e.currentTarget.style.borderBottomColor = "var(--clay)";
+                    }}
+                  />
+                  {sheetUrl && (
+                    <ClearButton
+                      onClick={() => {
+                        setSheetUrl("");
+                        setUrlValid(false);
+                        setUrlError("");
+                        setAccessStatus(null);
+                      }}
+                      ariaLabel="Clear sheet URL"
+                      top="calc(50% - 2px)"
+                    />
+                  )}
+                </div>                {urlError && (
                   <p
                     style={{
                       margin: "8px 0 0 0",
@@ -726,7 +740,7 @@ export default function Dashboard() {
                 </button>
               </div>
 
-              <div style={{ marginBottom: 16 }}>
+              <div style={{ marginBottom: 16, position: "relative" }}>
                 <input
                   type="search"
                   value={libraryQuery}
@@ -741,10 +755,17 @@ export default function Dashboard() {
                     border: 0,
                     borderBottom: "1px solid var(--rule)",
                     borderRadius: 0,
-                    padding: "8px 0",
+                    padding: "8px 28px 8px 0",
                     outline: "none",
                   }}
                 />
+                {libraryQuery && (
+                  <ClearButton
+                    onClick={() => setLibraryQuery("")}
+                    ariaLabel="Clear search"
+                    top="calc(50% - 2px)"
+                  />
+                )}
               </div>
 
               <div style={{ borderTop: "1px solid var(--rule)" }}>

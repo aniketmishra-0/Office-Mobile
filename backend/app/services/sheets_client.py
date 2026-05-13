@@ -22,6 +22,9 @@ from app.services import form_store
 logger = logging.getLogger(__name__)
 
 SCOPES = [
+    "openid",
+    "email",
+    "profile",
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive.file",
 ]

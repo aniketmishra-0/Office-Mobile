@@ -94,14 +94,16 @@ export default function AppHeader({
     setTheme(next);
   }
 
-  const displayName = user?.name || user?.email || "Signed in";
+  const displayName = user?.name || user?.email || "Account";
   const displayEmail = user?.email || "";
   const initials = (() => {
-    const src = user?.name || user?.email || "O";
-    const parts = src.trim().split(/\s+/);
-    const first = parts[0]?.[0] || "O";
+    const src = (user?.name || user?.email || "").trim();
+    if (!src) return "OM"; // Office Mobile default — never looks like "0"
+    const parts = src.split(/\s+/);
+    const first = parts[0]?.[0] || "";
     const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
-    return (first + last).toUpperCase().slice(0, 2);
+    const out = (first + last).toUpperCase().slice(0, 2);
+    return out || "OM";
   })();
 
   return (
