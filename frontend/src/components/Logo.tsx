@@ -8,40 +8,65 @@ interface LogoProps {
   stacked?: boolean;
 }
 
+/**
+ * Logo — editorial wordmark.
+ *
+ * A small 1px-ink square anchors the wordmark set in Newsreader. No
+ * gradients, no rounded corners, no shadow. Consistent with the "Ink on
+ * Rice Paper" palette.
+ */
 export default function Logo({ size = "md", showText = true, stacked = false }: LogoProps) {
-  const dimensions = {
-    sm: { box: "w-7 h-7", icon: 16, text: "text-sm" },
-    md: { box: "w-8 h-8", icon: 18, text: "text-base" },
-    lg: { box: "w-14 h-14", icon: 32, text: "text-2xl" }, // slightly bigger for lg to look better
-  };
+  const mark = {
+    sm: 14,
+    md: 18,
+    lg: 28,
+  }[size];
 
-  const d = dimensions[size];
+  const wordSize = {
+    sm: 14,
+    md: 18,
+    lg: 26,
+  }[size];
 
   return (
-    <div className={`flex items-center ${stacked ? "flex-col justify-center gap-3" : "gap-2"}`}>
-      <div
-        className={`${d.box} rounded-xl bg-gray-900 flex items-center justify-center flex-shrink-0`}
+    <div
+      className="inline-flex items-center"
+      style={{
+        gap: stacked ? 8 : 10,
+        flexDirection: stacked ? "column" : "row",
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: mark,
+          height: mark,
+          background: "var(--ink)",
+          color: "var(--cream)",
+          fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+          fontSize: mark * 0.58,
+          fontWeight: 500,
+          letterSpacing: 0,
+          lineHeight: 1,
+        }}
       >
-        <svg
-          width={d.icon}
-          height={d.icon}
-          viewBox="0 0 24 24"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <rect x="3" y="4" width="11" height="16" rx="2" fill="white" opacity="0.9" />
-          <rect x="10" y="6" width="11" height="14" rx="2" fill="white" opacity="0.55" />
-          <path
-            d="M6 9h4M6 12h4M6 15h2"
-            stroke="#111827"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-        </svg>
-      </div>
+        OM
+      </span>
       {showText && (
-        <span className={`${d.text} font-bold text-gray-900 tracking-tight`}>
-          Office Mobile
+        <span
+          style={{
+            fontFamily: "var(--font-newsreader), Georgia, serif",
+            fontWeight: 400,
+            fontSize: wordSize,
+            lineHeight: 1,
+            color: "var(--ink)",
+            letterSpacing: "-0.005em",
+          }}
+        >
+          Office <em style={{ fontWeight: 400 }}>Mobile</em>
         </span>
       )}
     </div>

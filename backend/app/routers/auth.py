@@ -19,7 +19,12 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 GOOGLE_AUTH_BASE = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+# `openid`, `email`, and `profile` are required so Google returns an
+# id_token with the user's email/name/picture claims used for the UI.
 SCOPES = [
+    "openid",
+    "email",
+    "profile",
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive.file",
 ]
@@ -130,6 +135,28 @@ def status(request: Request, response: Response) -> dict:
                     }
             except Exception:
                 user = None
+
+        # Fallback — no id_token (older sessions or missing openid scope).
+        # Use the access token against Google's userinfo endpoint so the
+        # header can still show the user's name and avatar.
+        if user is None:
+            access = token.get("access_token")
+            if access:
+                try:
+                    with httpx.Client(timeout=5) as client:
+                        info = client.get(
+                            "https://openidconnect.googleapis.com/v1/userinfo",
+                            headers={"Authorization": f"Bearer {access}"},
+                        )
+                    if info.status_code < 400:
+                        claims = info.json()
+                        user = {
+                            "email": claims.get("email"),
+                            "name": claims.get("name"),
+                            "picture": claims.get("picture"),
+                        }
+                except Exception:
+                    user = None
 
     return {"connected": token is not None, "session_key": session_key, "user": user}
 

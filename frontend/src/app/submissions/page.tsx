@@ -4,6 +4,7 @@ import { useState } from "react";
 import AppHeader from "@/components/AppHeader";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import ErrorToast from "@/components/ErrorToast";
+import ClearButton from "@/components/ClearButton";
 import { listSubmissions } from "@/lib/api";
 
 export default function SubmissionsPage() {
@@ -42,21 +43,27 @@ export default function SubmissionsPage() {
         <div className="rounded-lg border border-zinc-200 bg-white p-4 space-y-3">
           <div>
             <label className="block text-[13px] font-semibold text-zinc-800 mb-1.5">Form ID</label>
-            <input
-              value={formId}
-              onChange={(e) => setFormId(e.target.value)}
-              placeholder="e.g. ad600c2b2dfd"
-              className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-[15px] min-h-[48px] focus:outline-none focus:ring-2 focus:ring-zinc-900"
-            />
+            <div className="relative">
+              <input
+                value={formId}
+                onChange={(e) => setFormId(e.target.value)}
+                placeholder="e.g. ad600c2b2dfd"
+                className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 pr-10 text-[15px] min-h-[48px] focus:outline-none focus:ring-2 focus:ring-zinc-900"
+              />
+              {formId && <ClearButton onClick={() => setFormId("")} right={10} />}
+            </div>
           </div>
           <div>
             <label className="block text-[13px] font-semibold text-zinc-800 mb-1.5">Edit token</label>
-            <input
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              placeholder="Paste token from edit link"
-              className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-[15px] min-h-[48px] focus:outline-none focus:ring-2 focus:ring-zinc-900"
-            />
+            <div className="relative">
+              <input
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                placeholder="Paste token from edit link"
+                className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 pr-10 text-[15px] min-h-[48px] focus:outline-none focus:ring-2 focus:ring-zinc-900"
+              />
+              {token && <ClearButton onClick={() => setToken("")} right={10} />}
+            </div>
           </div>
           <button
             type="button"

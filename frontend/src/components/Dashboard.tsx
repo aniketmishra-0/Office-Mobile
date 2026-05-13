@@ -11,7 +11,9 @@ import FormFieldEditor from "@/components/FormFieldEditor";
 import FormBuilder from "@/components/FormBuilder";
 import MobileDropdown from "@/components/MobileDropdown";
 import SubmitButton from "@/components/SubmitButton";
+import ClearButton from "@/components/ClearButton";
 import { QRCodeCanvas } from "qrcode.react";
+import { usePrefs } from "@/lib/usePrefs";
 import {
   createSheet,
   previewSheet,
@@ -42,6 +44,7 @@ export default function Dashboard() {
   const router = useRouter();
   const qrRef = useRef<HTMLCanvasElement | null>(null);
   const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const { copy } = usePrefs();
   const [step, setStep] = useState<Step>("input");
   const [mode, setMode] = useState<"paste" | "create">("paste");
   const [mounted, setMounted] = useState(false);
@@ -375,175 +378,112 @@ export default function Dashboard() {
 
   if (step === "input") {
     return (
-      <div className="flex flex-col min-h-screen bg-zinc-100">
-        <AppHeader
-          showLogo
-          rightAction={
-            <button
-              type="button"
-              onClick={handleSignOut}
-              aria-label="Sign out"
-              className="flex items-center justify-center w-9 h-9 rounded-lg border border-zinc-200 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
-              </svg>
-            </button>
-          }
-        />
+      <div className="flex flex-col min-h-screen">
+        <AppHeader showLogo />
         {loadingPreview && <LoadingOverlay message="Reading your sheet..." />}
 
-        <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-32 space-y-6">
-          <section className="space-y-3">
-            <h1 className="text-[26px] font-bold text-zinc-950 leading-tight tracking-tight">
-              Turn any Google Sheet
-              <br />
-              into a mobile form
+        <div className="flex-1 w-full max-w-[560px] mx-auto px-6 pt-10 pb-32 space-y-8">
+          {/* Editorial hero */}
+          <section>
+            <p
+              style={{
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontWeight: 500,
+                fontSize: 10,
+                letterSpacing: "0.18em",
+                textTransform: "uppercase",
+                color: "var(--stone)",
+                margin: "0 0 18px 0",
+              }}
+            >
+              Step · 01 of 03
+            </p>
+            <h1
+              style={{
+                fontFamily: "var(--font-newsreader), Georgia, serif",
+                fontWeight: 300,
+                fontSize: 36,
+                lineHeight: 1.1,
+                letterSpacing: "-0.01em",
+                color: "var(--ink)",
+                margin: 0,
+                whiteSpace: "pre-line",
+              }}
+            >
+              {copy.hero_title ? (
+                copy.hero_title
+              ) : (
+                <>
+                  Your Spreadsheet.
+                  <br />
+                  Your <em style={{ fontStyle: "italic", fontWeight: 400 }}>Form.</em>
+                </>
+              )}
             </h1>
-            <p className="text-[15px] text-zinc-600 leading-relaxed">
-              Paste your sheet link. Get a shareable form in seconds.
-              Responses go straight back to your Sheet.
+            <p
+              style={{
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontWeight: 300,
+                fontSize: 12,
+                letterSpacing: "0.04em",
+                color: "var(--stone)",
+                margin: "18px 0 0 0",
+              }}
+            >
+              {copy.hero_sub ?? "// connect a google sheet. collect data. done."}
             </p>
           </section>
 
-          <div className="grid gap-3 sm:grid-cols-3">
+          <hr style={{ border: 0, borderTop: "1px solid var(--rule)", margin: 0 }} />
+
+          {/* Mode toggle — minimal segmented bar */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 0,
+              border: "1px solid var(--rule)",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setMode("paste")}
+              style={{
+                padding: "12px 16px",
+                background: mode === "paste" ? "var(--ink)" : "transparent",
+                color: mode === "paste" ? "var(--on-ink)" : "var(--ink)",
+                border: 0,
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontWeight: 500,
+                fontSize: 11,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                cursor: "pointer",
+                transition: "background-color 200ms ease-out",
+              }}
+            >
+              paste link
+            </button>
             <button
               type="button"
               onClick={() => setMode("create")}
-              className="rounded-3xl border border-zinc-200 bg-white p-4 text-left shadow-sm transition-transform duration-150 hover:-translate-y-0.5 hover:shadow-md"
+              style={{
+                padding: "12px 16px",
+                background: mode === "create" ? "var(--ink)" : "transparent",
+                color: mode === "create" ? "var(--on-ink)" : "var(--ink)",
+                border: 0,
+                borderLeft: "1px solid var(--rule)",
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontWeight: 500,
+                fontSize: 11,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                cursor: "pointer",
+                transition: "background-color 200ms ease-out",
+              }}
             >
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mb-2">Builder</p>
-              <h2 className="text-[18px] font-bold text-zinc-950 leading-tight">Create a new form</h2>
-              <p className="mt-2 text-[13px] text-zinc-600">Add columns, pick field types, and publish a sheet-backed form.</p>
+              create new
             </button>
-
-            <div className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mb-2">Library</p>
-              <div className="flex items-end justify-between gap-3">
-                <div>
-                  <h2 className="text-[18px] font-bold text-zinc-950 leading-tight">Saved forms</h2>
-                  <p className="mt-2 text-[13px] text-zinc-600">{libraryItems.length} published app{libraryItems.length === 1 ? "" : "s"}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => router.push("/history")}
-                  className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-2 text-[12px] font-medium text-zinc-700 hover:bg-zinc-100"
-                >
-                  History
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mb-2">Share</p>
-              {featuredShareUrl ? (
-                <div className="flex items-start gap-3">
-                  <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-2">
-                    <QRCodeCanvas ref={qrRef} value={featuredShareUrl} size={88} bgColor="#ffffff" fgColor="#09090b" includeMargin level="M" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h2 className="text-[18px] font-bold text-zinc-950 leading-tight">QR code ready</h2>
-                    <p className="mt-2 text-[13px] text-zinc-600">Open the latest form, copy the share link, or jump to its editor.</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button type="button" onClick={() => router.push(featuredEditUrl)} className="rounded-full bg-zinc-950 px-3 py-2 text-[12px] font-medium text-white hover:bg-zinc-800">Open QR</button>
-                      <button type="button" onClick={() => navigator.clipboard.writeText(featuredShareUrl)} className="rounded-full border border-zinc-200 bg-white px-3 py-2 text-[12px] font-medium text-zinc-700 hover:bg-zinc-50">Copy link</button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <h2 className="text-[18px] font-bold text-zinc-950 leading-tight">No QR yet</h2>
-                  <p className="mt-2 text-[13px] text-zinc-600">Create and publish a form to generate its shareable QR code.</p>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mb-1">Workspace</p>
-                <h2 className="text-[18px] font-bold text-zinc-950">Your forms library</h2>
-              </div>
-              <div className="text-right">
-                <p className="text-[11px] text-zinc-500">Saved apps</p>
-                <p className="text-sm font-semibold text-zinc-950">{libraryItems.length}</p>
-              </div>
-            </div>
-
-            <div className="mb-3">
-              <input
-                type="search"
-                value={libraryQuery}
-                onChange={(e) => setLibraryQuery(e.target.value)}
-                placeholder="Search your forms"
-                className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-[14px] text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900"
-              />
-            </div>
-
-            {libraryLoading ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {[0, 1].map((index) => (
-                  <div key={index} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 animate-pulse">
-                    <div className="h-4 w-24 rounded bg-zinc-200 mb-3" />
-                    <div className="h-6 w-40 rounded bg-zinc-200 mb-4" />
-                    <div className="h-10 rounded bg-zinc-200" />
-                  </div>
-                ))}
-              </div>
-            ) : sortedVisibleLibrary.length > 0 ? (
-              <>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {pagedLibrary.map((item, index) => (
-                    <div key={item.id} className={`rounded-2xl border p-4 shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md ${index % 3 === 0 ? "border-emerald-200 bg-emerald-50/60" : index % 3 === 1 ? "border-sky-200 bg-sky-50/60" : "border-amber-200 bg-amber-50/60"}`}>
-                      <div className="flex items-start justify-between gap-3 mb-4">
-                        <div className="min-w-0">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mb-1">Form</p>
-                          <h3 className="text-[16px] font-bold text-zinc-950 truncate">{item.form_title}</h3>
-                          <p className="text-[12px] text-zinc-600 mt-1">{item.field_count} fields · {item.submission_count} responses</p>
-                        </div>
-                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-950 text-white flex-shrink-0">
-                          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v7.5A2.25 2.25 0 005.25 18h13.5A2.25 2.25 0 0021 15.75V12M13.5 6l3-3m0 0l3 3m-3-3v9" />
-                          </svg>
-                        </div>
-                      </div>
-
-                      <div className="mb-4 space-y-2">
-                        <div className="flex items-center justify-between text-[12px] text-zinc-700">
-                          <span>Updated</span>
-                          <span className="font-medium">{formatUpdatedAt(item.updated_at)}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-[12px] text-zinc-700">
-                          <span>Sheet tab</span>
-                          <span className="font-medium truncate max-w-[140px]">{item.worksheet_name ?? "Sheet1"}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex gap-2">
-                        <button type="button" onClick={() => router.push(item.form_url)} className="flex-1 rounded-xl bg-zinc-950 px-3 py-2.5 text-[13px] font-medium text-white hover:bg-zinc-800">Open form</button>
-                        <button type="button" onClick={() => router.push(item.edit_url)} className="rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-[13px] font-medium text-zinc-700 hover:bg-zinc-50">Edit / QR</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {pagedLibrary.length < sortedVisibleLibrary.length && (
-                  <div className="mt-4 flex justify-center">
-                    <button type="button" onClick={() => setPage((p) => p + 1)} className="px-4 py-2 border rounded">Show more</button>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-5 text-center">
-                <p className="text-[14px] font-semibold text-zinc-900">No saved forms yet</p>
-                <p className="mt-1 text-[13px] text-zinc-500">Create your first app below and it will appear here like a Glide workspace.</p>
-              </div>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm">
-            <button type="button" onClick={() => setMode("paste")} className={`rounded-lg px-3 py-3 text-[13px] font-medium transition-colors min-h-[48px] ${mode === "paste" ? "bg-zinc-950 text-white" : "bg-transparent text-zinc-600 hover:bg-zinc-50"}`}>Paste link</button>
-            <button type="button" onClick={() => setMode("create")} className={`rounded-lg px-3 py-3 text-[13px] font-medium transition-colors min-h-[48px] ${mode === "create" ? "bg-zinc-950 text-white" : "bg-transparent text-zinc-600 hover:bg-zinc-50"}`}>Create new form</button>
           </div>
 
           {mode === "create" && (
@@ -555,8 +495,22 @@ export default function Dashboard() {
           {mode === "paste" && (
             <div className="space-y-4">
               <div>
-                <label htmlFor="sheet-url" className="block text-[13px] font-semibold text-zinc-800 mb-2">Google Sheet URL</label>
-                <div className="relative">
+                <label
+                  htmlFor="sheet-url"
+                  style={{
+                    display: "block",
+                    fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                    fontWeight: 500,
+                    fontSize: 10,
+                    letterSpacing: "0.14em",
+                    textTransform: "uppercase",
+                    color: "var(--charcoal)",
+                    marginBottom: 8,
+                  }}
+                >
+                  Sheet URL
+                </label>
+                <div style={{ position: "relative" }}>
                   <input
                     id="sheet-url"
                     type="url"
@@ -564,49 +518,376 @@ export default function Dashboard() {
                     value={sheetUrl}
                     onChange={(e) => handleUrlChange(e.target.value)}
                     onBlur={() => sheetUrl && validateUrl(sheetUrl)}
-                    placeholder="https://docs.google.com/spreadsheets/d/..."
+                    placeholder="https://docs.google.com/spreadsheets/..."
                     aria-invalid={!!urlError}
-                    aria-describedby={urlError ? "url-error" : urlValid ? "url-success" : undefined}
-                    className={`w-full rounded-lg border px-4 py-3.5 text-[16px] min-h-[52px] pr-10 focus:outline-none focus:ring-2 transition-all ${urlError ? "border-red-300 bg-red-50/50 focus:ring-red-500" : urlValid ? "border-emerald-300 bg-emerald-50/30 focus:ring-emerald-500" : "border-zinc-300 bg-white focus:ring-zinc-900"}`}
+                    style={{
+                      width: "100%",
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontWeight: 400,
+                      fontSize: 14,
+                      color: "var(--ink)",
+                      background: "transparent",
+                      border: 0,
+                      borderBottom: `2px solid ${urlError ? "var(--error)" : "var(--ink)"}`,
+                      borderRadius: 0,
+                      padding: "8px 28px 8px 0",
+                      outline: "none",
+                      transition: "border-color 200ms ease-out",
+                    }}
+                    onFocus={(e) => {
+                      if (!urlError) e.currentTarget.style.borderBottomColor = "var(--clay)";
+                    }}
                   />
-                </div>
-                {urlError && <p id="url-error" className="text-red-500 text-[13px] mt-1.5" role="alert">{urlError}</p>}
-                {!urlValid && !urlError && <p className="text-gray-400 text-[13px] mt-1.5">Paste any Google Sheets link or spreadsheet ID</p>}
-                {accessStatus === "none" && serviceAccountEmail && (
-                  <p className="text-[13px] mt-1.5 text-amber-700">
-                    No permission to access this sheet. Share the sheet (or Drive) with <strong>{serviceAccountEmail}</strong> or sign in with Google.
+                  {sheetUrl && (
+                    <ClearButton
+                      onClick={() => {
+                        setSheetUrl("");
+                        setUrlValid(false);
+                        setUrlError("");
+                        setAccessStatus(null);
+                      }}
+                      ariaLabel="Clear sheet URL"
+                      top="calc(50% - 2px)"
+                    />
+                  )}
+                </div>                {urlError && (
+                  <p
+                    style={{
+                      margin: "8px 0 0 0",
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontSize: 10,
+                      letterSpacing: "0.04em",
+                      color: "var(--error)",
+                    }}
+                    role="alert"
+                  >
+                    ✕ {urlError}
+                  </p>
+                )}
+                {!urlValid && !urlError && (
+                  <p
+                    style={{
+                      margin: "8px 0 0 0",
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontWeight: 300,
+                      fontSize: 10,
+                      letterSpacing: "0.04em",
+                      color: "var(--stone)",
+                    }}
+                  >
+                    paste any google sheets link or spreadsheet id
+                  </p>
+                )}
+                {accessStatus === "checking" && (
+                  <p
+                    style={{
+                      margin: "10px 0 0 0",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontWeight: 400,
+                      fontSize: 10,
+                      letterSpacing: "0.04em",
+                      color: "var(--stone)",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 10,
+                        height: 10,
+                        border: "1.5px solid var(--rule)",
+                        borderTopColor: "var(--ink)",
+                        borderRadius: "50%",
+                        display: "inline-block",
+                        animation: "spin 0.8s linear infinite",
+                      }}
+                    />
+                    checking permissions…
+                  </p>
+                )}
+                {accessStatus === "edit" && (
+                  <p
+                    style={{
+                      margin: "10px 0 0 0",
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontWeight: 500,
+                      fontSize: 10,
+                      letterSpacing: "0.04em",
+                      color: "#047857",
+                    }}
+                  >
+                    ✓ edit access confirmed
+                  </p>
+                )}
+                {accessStatus === "read" && (
+                  <p
+                    style={{
+                      margin: "10px 0 0 0",
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontWeight: 400,
+                      fontSize: 10,
+                      letterSpacing: "0.04em",
+                      color: "#b45309",
+                    }}
+                  >
+                    <strong style={{ fontWeight: 500 }}>view only.</strong>{" "}
+                    we can read the sheet, but you must grant editor access{" "}
+                    {serviceAccountEmail ? (
+                      <>
+                        to <strong style={{ fontWeight: 500 }}>{serviceAccountEmail}</strong>{" "}
+                      </>
+                    ) : null}
+                    to collect responses.
+                  </p>
+                )}
+                {accessStatus === "none" && (
+                  <p
+                    style={{
+                      margin: "10px 0 0 0",
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontWeight: 400,
+                      fontSize: 10,
+                      letterSpacing: "0.04em",
+                      color: "var(--clay)",
+                    }}
+                  >
+                    <strong style={{ fontWeight: 500 }}>no access.</strong>{" "}
+                    {serviceAccountEmail ? (
+                      <>
+                        share the sheet with{" "}
+                        <strong style={{ fontWeight: 500 }}>{serviceAccountEmail}</strong>{" "}
+                        or sign in with google.
+                      </>
+                    ) : (
+                      <>sign in with google or share the sheet with the app.</>
+                    )}
                   </p>
                 )}
               </div>
 
-              <div className="flex items-start gap-2 text-[12px] text-zinc-500">
-                <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-                </svg>
-                <span>Your data stays in your Google Sheet. We never store spreadsheet content.</span>
-              </div>
+              <p
+                style={{
+                  margin: 0,
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  fontWeight: 300,
+                  fontSize: 10,
+                  letterSpacing: "0.06em",
+                  color: "var(--stone)",
+                }}
+              >
+                your data stays in your sheet · we never store contents
+              </p>
+            </div>
+          )}
 
-              <div className="fixed bottom-0 left-0 right-0 max-w-[560px] mx-auto px-5 pt-3 pb-3 bg-white border-t border-zinc-200 shadow-sticky z-40" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}>
+          {/* Library */}
+          {sortedVisibleLibrary.length > 0 && (
+            <section>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  justifyContent: "space-between",
+                  marginBottom: 12,
+                  borderTop: "1px solid var(--rule)",
+                  paddingTop: 24,
+                }}
+              >
+                <div>
+                  <p
+                    style={{
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontWeight: 500,
+                      fontSize: 10,
+                      letterSpacing: "0.18em",
+                      textTransform: "uppercase",
+                      color: "var(--stone)",
+                      margin: "0 0 8px 0",
+                    }}
+                  >
+                    Library
+                  </p>
+                  <h2
+                    style={{
+                      fontFamily: "var(--font-newsreader), Georgia, serif",
+                      fontWeight: 400,
+                      fontSize: 20,
+                      color: "var(--ink)",
+                      margin: 0,
+                    }}
+                  >
+                    Saved forms
+                  </h2>
+                </div>
                 <button
-                  onClick={handleGenerate}
-                  disabled={loadingPreview || !sheetUrl.trim() || accessStatus === "none" || accessStatus === "read"}
-                  className="w-full bg-zinc-950 hover:bg-zinc-800 active:bg-black disabled:bg-zinc-200 disabled:text-zinc-500 text-white font-semibold text-[15px] rounded-lg h-[52px] flex items-center justify-center gap-2 transition-all duration-150"
+                  type="button"
+                  onClick={() => router.push("/history")}
+                  style={{
+                    background: "transparent",
+                    border: 0,
+                    padding: 0,
+                    fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                    fontWeight: 500,
+                    fontSize: 11,
+                    letterSpacing: "0.12em",
+                    textTransform: "uppercase",
+                    color: "var(--clay)",
+                    cursor: "pointer",
+                  }}
                 >
-                  {loadingPreview ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      <span>Reading sheet...</span>
-                    </>
-                  ) : (
-                    <span>Preview your form</span>
-                  )}
+                  history →
                 </button>
               </div>
-            </div>
+
+              <div style={{ marginBottom: 16, position: "relative" }}>
+                <input
+                  type="search"
+                  value={libraryQuery}
+                  onChange={(e) => setLibraryQuery(e.target.value)}
+                  placeholder="search forms"
+                  style={{
+                    width: "100%",
+                    fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                    fontSize: 13,
+                    color: "var(--ink)",
+                    background: "transparent",
+                    border: 0,
+                    borderBottom: "1px solid var(--rule)",
+                    borderRadius: 0,
+                    padding: "8px 28px 8px 0",
+                    outline: "none",
+                  }}
+                />
+                {libraryQuery && (
+                  <ClearButton
+                    onClick={() => setLibraryQuery("")}
+                    ariaLabel="Clear search"
+                    top="calc(50% - 2px)"
+                  />
+                )}
+              </div>
+
+              <div style={{ borderTop: "1px solid var(--rule)" }}>
+                {pagedLibrary.map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr auto",
+                      gap: 12,
+                      padding: "14px 0",
+                      borderBottom: "1px solid var(--rule)",
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <p
+                        style={{
+                          fontFamily: "var(--font-newsreader), Georgia, serif",
+                          fontWeight: 400,
+                          fontSize: 15,
+                          color: "var(--ink)",
+                          margin: "0 0 4px 0",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {item.form_title}
+                      </p>
+                      <p
+                        style={{
+                          fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                          fontWeight: 300,
+                          fontSize: 10,
+                          letterSpacing: "0.04em",
+                          color: "var(--stone)",
+                          margin: 0,
+                        }}
+                      >
+                        {String(item.field_count).padStart(2, "0")} fields ·{" "}
+                        {item.submission_count} entries · {formatUpdatedAt(item.updated_at)}
+                      </p>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <button
+                        type="button"
+                        onClick={() => router.push(item.form_url)}
+                        style={{
+                          background: "transparent",
+                          border: 0,
+                          padding: 0,
+                          fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                          fontWeight: 500,
+                          fontSize: 10,
+                          letterSpacing: "0.12em",
+                          textTransform: "uppercase",
+                          color: "var(--ink)",
+                          cursor: "pointer",
+                        }}
+                      >
+                        open
+                      </button>
+                      <span style={{ color: "var(--rule)" }}>·</span>
+                      <button
+                        type="button"
+                        onClick={() => router.push(item.edit_url)}
+                        style={{
+                          background: "transparent",
+                          border: 0,
+                          padding: 0,
+                          fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                          fontWeight: 500,
+                          fontSize: 10,
+                          letterSpacing: "0.12em",
+                          textTransform: "uppercase",
+                          color: "var(--stone)",
+                          cursor: "pointer",
+                        }}
+                      >
+                        edit
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {pagedLibrary.length < sortedVisibleLibrary.length && (
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => p + 1)}
+                  style={{
+                    marginTop: 16,
+                    background: "transparent",
+                    border: 0,
+                    padding: 0,
+                    fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                    fontWeight: 500,
+                    fontSize: 11,
+                    letterSpacing: "0.12em",
+                    textTransform: "uppercase",
+                    color: "var(--clay)",
+                    cursor: "pointer",
+                  }}
+                >
+                  show more →
+                </button>
+              )}
+            </section>
           )}
 
           <ErrorToast message={error} onDismiss={() => setError(null)} />
         </div>
+
+        {/* Submit band — generate form */}
+        {mode === "paste" && (
+          <SubmitButton
+            label={copy.submit_label ?? "Preview your form"}
+            submitting={loadingPreview}
+            onClick={handleGenerate}
+            disabled={!sheetUrl.trim() || accessStatus === "none" || accessStatus === "read"}
+          />
+        )}
       </div>
     );
   }
@@ -671,12 +952,15 @@ export default function Dashboard() {
             <label className="block text-[13px] font-semibold text-zinc-800 mb-2">
               Form title
             </label>
-            <input
-              type="text"
-              value={formTitle}
-              onChange={(e) => setFormTitle(e.target.value)}
-              className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-[16px] min-h-[48px] focus:outline-none focus:ring-2 focus:ring-zinc-900"
-            />
+            <div className="relative">
+              <input
+                type="text"
+                value={formTitle}
+                onChange={(e) => setFormTitle(e.target.value)}
+                className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 pr-10 text-[16px] min-h-[48px] focus:outline-none focus:ring-2 focus:ring-zinc-900"
+              />
+              {formTitle && <ClearButton onClick={() => setFormTitle("")} right={10} ariaLabel="Clear title" />}
+            </div>
           </div>
 
           {/* Field editor */}

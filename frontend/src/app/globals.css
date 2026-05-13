@@ -2,6 +2,46 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   OfficeMobile — "Ink on Rice Paper"
+   Calm industrial editorial. Newsreader + IBM Plex Mono on a
+   warm cream base with a single terracotta accent.
+   ============================================================ */
+
+:root {
+  --cream:     #F7F3EE;
+  --paper:     #EEE9E2;
+  --ink:       #1A1714;
+  --charcoal:  #2D2925;
+  --stone:     #9C9488;
+  --rule:      #D4CECC;
+  --clay:      #C8623A;
+  --clay-dark: #A84E2C;
+  --error:     #B83A3A;
+  --on-clay:   #FFFFFF;
+  --on-ink:    #F7F3EE;
+  color-scheme: light;
+}
+
+/* ───── Dark theme ─────────────────────────────────────────────
+   Kept editorial, not pitch-black. Warm near-black base with the
+   same terracotta accent. The tokens flip so every surface-and-type
+   pair we painted with CSS vars inverts automatically. */
+[data-theme="dark"] {
+  --cream:     #1A1714;  /* base background */
+  --paper:     #242020;  /* hover / secondary */
+  --ink:       #F3ECE2;  /* primary text */
+  --charcoal:  #D9D1C6;  /* secondary text */
+  --stone:     #7F7A71;  /* muted */
+  --rule:      #35302B;  /* hairline dividers */
+  --clay:      #E07A50;  /* accent — slightly brighter for contrast */
+  --clay-dark: #C8623A;
+  --error:     #E66565;
+  --on-clay:   #1A1714;
+  --on-ink:    #1A1714;
+  color-scheme: dark;
+}
+
 /* Prevent iOS input zoom — all inputs must be at least 16px */
 input, select, textarea {
   font-size: 16px;
@@ -37,434 +77,376 @@ body {
 }
 
 body {
-  background-color: #f4f4f5;
-  color: #18181b;
+  background-color: var(--cream);
+  color: var(--ink);
+  font-family: var(--font-newsreader), Georgia, "ui-serif", serif;
+  font-weight: 300;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Subtle diagonal paper grain — deliberately very faint. */
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 2px,
+    rgba(26, 23, 20, 0.012) 2px,
+    rgba(26, 23, 20, 0.012) 4px
+  );
+}
+
+/* ============================================================
+   Theme swap — smooth cross-fade via a full-viewport overlay.
+   When the user toggles light ↔ dark we briefly decorate <html>
+   with `theme-transitioning` and snapshot the *previous* surface
+   colour into `--theme-from`. A fixed, GPU-accelerated overlay
+   paints that old colour on top of the new theme and fades to 0,
+   giving us a smooth crossfade on mobile without asking every
+   element in the DOM to animate its own colour tokens (which
+   stutters on lower-end devices).
+   ============================================================ */
+.theme-transitioning::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background: var(--theme-from, transparent);
+  opacity: 1;
+  animation: themeFade 380ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  will-change: opacity;
+  transform: translateZ(0);
+}
+@keyframes themeFade {
+  to { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-transitioning::before {
+    display: none;
+  }
+}
+
+/* In dark mode the grain flips to a faint white overlay so it stays
+   readable instead of disappearing into the near-black background. */
+[data-theme="dark"] body {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 2px,
+    rgba(243, 236, 226, 0.02) 2px,
+    rgba(243, 236, 226, 0.02) 4px
+  );
 }
 
 ::selection {
-  background: #d9f99d;
-  color: #18181b;
+  background: var(--clay);
+  color: #ffffff;
+}
+
+/* ============================================================
+   Global overrides
+   The existing code liberally uses `bg-white`, `shadow-*`, and
+   rounded corner utilities. The rewrites below keep those class
+   names working but snap them to the editorial system.
+   ============================================================ */
+
+/* White surfaces become the theme's base so they blend with the body. */
+.bg-white,
+[class*="bg-white/"] {
+  background-color: var(--cream) !important;
+}
+
+/* Hover-white variations follow. */
+.hover\:bg-white:hover {
+  background-color: var(--paper) !important;
+}
+
+/* Neutral/zinc backgrounds — snap them to paper so dark mode recolours
+   them correctly via the CSS variable rather than a hard hex. */
+.bg-zinc-50,
+.bg-zinc-100,
+.bg-neutral-50,
+.bg-neutral-100,
+.bg-gray-50,
+.bg-gray-100,
+.bg-stone-50,
+.bg-stone-100,
+.bg-slate-50,
+.bg-slate-100 {
+  background-color: var(--paper) !important;
+}
+
+/* Very common "zinc text" classes — map them to ink/charcoal/stone. */
+.text-zinc-950, .text-neutral-950, .text-gray-950, .text-slate-950,
+.text-zinc-900, .text-neutral-900, .text-gray-900, .text-slate-900 {
+  color: var(--ink) !important;
+}
+.text-zinc-800, .text-neutral-800, .text-gray-800, .text-slate-800,
+.text-zinc-700, .text-neutral-700, .text-gray-700, .text-slate-700 {
+  color: var(--charcoal) !important;
+}
+.text-zinc-600, .text-neutral-600, .text-gray-600, .text-slate-600,
+.text-zinc-500, .text-neutral-500, .text-gray-500, .text-slate-500,
+.text-zinc-400, .text-neutral-400, .text-gray-400, .text-slate-400 {
+  color: var(--stone) !important;
+}
+
+/* Borders in the same neutral family. */
+.border-zinc-200, .border-neutral-200, .border-gray-200, .border-slate-200,
+.border-zinc-300, .border-neutral-300, .border-gray-300, .border-slate-300,
+.border-zinc-100, .border-neutral-100, .border-gray-100, .border-slate-100 {
+  border-color: var(--rule) !important;
+}
+
+/* Flatten any stray shadows from third-party components. */
+.shadow,
+.shadow-sm,
+.shadow-md,
+.shadow-lg,
+.shadow-xl,
+.shadow-2xl,
+.shadow-soft,
+.shadow-medium,
+.shadow-sticky {
+  box-shadow: none !important;
+}
+
+/* Eliminate rounded corners on large container utilities — keep only
+   the small radii on inputs/chips (handled at the Tailwind config
+   level via .rounded-md / .rounded-lg / .rounded-xl = 4px). */
+.rounded-2xl,
+.rounded-3xl,
+.rounded-t-lg,
+.rounded-b-lg,
+.rounded-tr-lg,
+.rounded-tl-lg,
+.rounded-br-lg,
+.rounded-bl-lg {
+  border-radius: 0 !important;
+}
+.rounded-full {
+  border-radius: 9999px;
 }
 
 /* Entrance animations */
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulseSoft {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .animate-in {
-  animation: fadeIn 0.3s ease-out forwards;
+  animation: fadeIn 250ms ease-out forwards;
   opacity: 0;
 }
 
-/* Focus visible ring for accessibility */
+/* Focus visible — ink ring, never blue. */
 :focus-visible {
-  outline: 2px solid #18181b;
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
-  border-radius: 8px;
+  border-radius: 0;
 }
 
-/* Better tap highlight on mobile */
+/* Tap highlight — tinted clay instead of blue. */
 * {
-  -webkit-tap-highlight-color: rgba(24, 24, 27, 0.08);
+  -webkit-tap-highlight-color: rgba(200, 98, 58, 0.12);
 }
 
-/* Smooth transitions for interactive elements */
+/* All transitions decay cleanly — no springs, no bounces. */
 button, a, input, select, textarea {
-  transition-property: color, background-color, border-color, box-shadow, transform, opacity;
-  transition-duration: 150ms;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-property: color, background-color, border-color, opacity;
+  transition-duration: 200ms;
+  transition-timing-function: ease-out;
 }
 
-/* Active state for buttons */
+/* Active state for buttons — color shift only, no movement. */
 button:active:not(:disabled) {
-  transform: scale(0.98);
+  transform: none;
 }
 
-/* Custom scrollbar */
+/* Custom scrollbar — hair-thin rule colour. */
 ::-webkit-scrollbar {
   width: 4px;
+  height: 4px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #e2e8f0;
-  border-radius: 2px;
+  background: var(--rule);
+  border-radius: 0;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #cbd5e1;
+  background: var(--stone);
 }
 
-/* Utility: stagger children animations */
+/* Staggered children — kept for existing list fade-ins. */
 .stagger-children > * {
   opacity: 0;
-  animation: fadeIn 0.3s ease-out forwards;
+  animation: fadeIn 250ms ease-out forwards;
 }
 .stagger-children > *:nth-child(1) { animation-delay: 0ms; }
-.stagger-children > *:nth-child(2) { animation-delay: 50ms; }
-.stagger-children > *:nth-child(3) { animation-delay: 100ms; }
-.stagger-children > *:nth-child(4) { animation-delay: 150ms; }
-.stagger-children > *:nth-child(5) { animation-delay: 200ms; }
-.stagger-children > *:nth-child(6) { animation-delay: 250ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 30ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 60ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 90ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 120ms; }
+.stagger-children > *:nth-child(6) { animation-delay: 150ms; }
 
-/* ============================================
-   LOGIN / WELCOME SCREEN
-   ============================================ */
+/* ============================================================
+   UI primitives — reusable classes for the editorial language
+   ============================================================ */
+
+/* Monospace UI label — 10px uppercase with generous tracking. */
+.om-label {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-weight: 500;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--stone);
+  line-height: 1.2;
+}
+
+/* Meta text — mono light, for timestamps & counts. */
+.om-meta {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-weight: 300;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--stone);
+}
+
+/* Display heading — Newsreader, editorial weight. */
+.om-display {
+  font-family: var(--font-newsreader), Georgia, serif;
+  font-weight: 300;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+/* Editorial rule — 1px solid. */
+.om-rule {
+  border: 0;
+  border-top: 1px solid var(--rule);
+  margin: 0;
+}
+.om-rule-ink {
+  border: 0;
+  border-top: 2px solid var(--ink);
+  margin: 0;
+}
+
+/* Full-bleed band — used by submit strip, generate button, etc. */
+.om-band {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ink);
+  color: var(--on-ink);
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  border: 0;
+  border-radius: 0;
+  transition: background-color 200ms ease-out;
+}
+.om-band--clay {
+  background: var(--clay);
+}
+.om-band--clay:hover:not(:disabled) {
+  background: var(--clay-dark);
+}
+.om-band:disabled {
+  background: var(--stone);
+  cursor: not-allowed;
+}
+
+/* ============================================================
+   LEGACY Login screen classes — kept for any lingering usages,
+   restyled to the Ink on Rice Paper system. Most of the login
+   UI is reimplemented in WelcomeScreen.tsx with the new primitives.
+   ============================================================ */
 
 .login-screen {
   position: fixed;
   inset: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: stretch;
   min-height: 100vh;
   min-height: 100dvh;
-  padding: 24px 20px;
-  padding-bottom: calc(24px + env(safe-area-inset-bottom));
   overflow: hidden;
-  background: #f4f4f5;
+  background: var(--cream);
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 2px,
+    rgba(26, 23, 20, 0.012) 2px,
+    rgba(26, 23, 20, 0.012) 4px
+  );
   z-index: 100;
 }
 
-.login-bg {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(#e4e4e7 1px, transparent 1px),
-    linear-gradient(90deg, #e4e4e7 1px, transparent 1px);
-  background-size: 40px 40px;
-  opacity: 0.35;
-  pointer-events: none;
-}
-
-.login-content {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
-  max-width: 390px;
-  padding: 28px 24px;
-  background: #ffffff;
-  border: 1px solid #e4e4e7;
-  border-radius: 8px;
-  box-shadow: 0 12px 40px rgba(24, 24, 27, 0.08);
-  animation: loginFadeUp 0.6s ease-out forwards;
-}
-
-@keyframes loginFadeUp {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Logo */
-.login-header {
-  width: 100%;
-  margin-bottom: 30px;
-}
-
-.login-logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.login-logo-mark {
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #1a1a1a;
-  border-radius: 10px;
-  color: white;
-}
-
-.login-logo-text {
-  font-size: 17px;
-  font-weight: 700;
-  color: #1a1a1a;
-  letter-spacing: -0.3px;
-}
-
-/* Steps */
-.login-steps {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 32px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.login-step {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  background: #fafafa;
-  border: 1px solid #e4e4e7;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #52525b;
-  white-space: nowrap;
-}
-
-.login-step-icon {
-  display: flex;
-  align-items: center;
-  color: #71717a;
-}
-
-.login-step-divider {
-  display: flex;
-  align-items: center;
-  color: #a1a1aa;
-}
-
-/* Hero */
-.login-hero {
-  text-align: center;
-  margin-bottom: 36px;
-}
-
-.login-headline {
-  font-size: 30px;
-  font-weight: 700;
-  line-height: 1.2;
-  color: #18181b;
-  letter-spacing: -0.5px;
-  margin: 0 0 12px 0;
-}
-
-.login-subheadline {
-  font-size: 15px;
-  font-weight: 400;
-  line-height: 1.5;
-  color: #52525b;
-  margin: 0;
-  max-width: 320px;
-}
-
-/* CTA */
-.login-cta-area {
-  width: 100%;
-  margin-bottom: 20px;
-}
-
-.login-google-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  height: 52px;
-  padding: 0 24px;
-  background: #18181b;
-  border: 1px solid #18181b;
-  border-radius: 8px;
-  font-size: 15px;
-  font-weight: 600;
-  color: #ffffff;
-  cursor: pointer;
-  box-shadow: none;
-  transition: all 200ms ease;
-}
-
-.login-google-btn:hover:not(:disabled) {
-  background: #27272a;
-  border-color: #27272a;
-}
-
-.login-google-btn:active:not(:disabled) {
-  transform: translateY(0) scale(0.98);
-}
-
-.login-google-btn:focus-visible {
-  outline: 2px solid #18181b;
-  outline-offset: 2px;
-}
-
-.login-google-btn:disabled {
-  background: #e4e4e7;
-  border-color: #d4d4d8;
-  color: #71717a;
-  opacity: 1;
-  cursor: not-allowed;
-}
-
-/* States */
-.login-checking,
-.login-success {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  height: 52px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #52525b;
-}
-
-.login-success {
-  color: #166534;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  border-radius: 8px;
-}
-
-.login-success-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  color: #166534;
-  animation: loginScaleIn 0.3s ease-out;
-}
-
-@keyframes loginScaleIn {
-  from {
-    transform: scale(0);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
 .login-spinner {
-  width: 18px;
-  height: 18px;
-  border: 2px solid currentColor;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid currentColor;
   border-top-color: transparent;
   border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.login-error-area {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.login-error-message {
-  font-size: 13px;
-  color: #dc2626;
-  text-align: center;
-  margin: 8px 0 0 0;
-  line-height: 1.4;
-}
-
-/* Trust */
-.login-trust {
-  font-size: 12px;
-  line-height: 1.6;
-  color: #71717a;
-  text-align: center;
-  margin: 0;
-}
-
-/* Footer */
-.login-footer {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 24px;
-}
-
-.login-footer-link {
-  font-size: 12px;
-  color: #a8a29e;
-  text-decoration: none;
-  transition: color 150ms ease;
-}
-
-.login-footer-link:hover {
-  color: #78716c;
-}
-
-.login-footer-dot {
-  color: #d6d3d1;
-  font-size: 12px;
-}
-
-/* Desktop enhancements */
-@media (min-width: 640px) {
-  .login-screen {
-    padding: 48px 32px;
-  }
-
-  .login-header {
-    margin-bottom: 56px;
-  }
-
-  .login-headline {
-    font-size: 36px;
-  }
-
-  .login-subheadline {
-    font-size: 16px;
-  }
-
-  .login-steps {
-    margin-bottom: 40px;
-  }
-
-  .login-hero {
-    margin-bottom: 44px;
-  }
-
-  .login-footer {
-    margin-top: 64px;
-  }
+  animation: spin 0.9s linear infinite;
 }
 
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  .login-content {
-    animation: none;
-    opacity: 1;
-  }
-
-  .login-spinner {
-    animation-duration: 1.5s;
-  }
-
-  .login-success-icon {
-    animation: none;
-  }
-
-  .login-google-btn:hover:not(:disabled) {
-    transform: none;
-  }
-
-  .login-google-btn:active:not(:disabled) {
-    transform: none;
+  .animate-in,
+  .stagger-children > * {
+    animation: none !important;
+    opacity: 1 !important;
   }
 }
+
+/* ============================================================
+   Responsive page shell
+   Every page wraps its content in `max-w-[560px] mx-auto` — a
+   hand-tuned mobile column. On larger viewports we let that
+   column breathe so the app no longer looks stranded in a narrow
+   strip on laptops, desktops, and TVs.
+   ============================================================ */
+@media (min-width: 640px) {
+  .max-w-\[560px\] { max-width: 620px !important; }
+}
+@media (min-width: 768px) {
+  .max-w-\[560px\] { max-width: 680px !important; }
+}
+@media (min-width: 1024px) {
+  .max-w-\[560px\] { max-width: 760px !important; }
+}
+@media (min-width: 1280px) {
+  .max-w-\[560px\] { max-width: 860px !important; }
+}
+@media (min-width: 1536px) {
+  .max-w-\[560px\] { max-width: 960px !important; }
+}
+@media (min-width: 1920px) {
+  .max-w-\[560px\] { max-width: 1080px !important; }
+}
+
+/* Loading overlay — ensure it covers every viewport size, including
+   TVs, by anchoring the ring to the visual center of the largest
+   possible stage. The component already uses position:fixed; inset:0
+   which is correct — nothing extra needed here. */
+

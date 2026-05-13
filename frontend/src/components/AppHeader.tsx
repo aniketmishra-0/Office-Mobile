@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Logo from "@/components/Logo";
 import SettingsPanel from "@/components/SettingsPanel";
 import { logout as apiLogout } from "@/lib/api";
+import { getStoredTheme, setTheme } from "@/lib/prefs";
+import { usePrefs } from "@/lib/usePrefs";
 
 interface Props {
   title?: string;
@@ -14,6 +16,15 @@ interface Props {
   rightAction?: React.ReactNode;
 }
 
+/**
+ * AppHeader — editorial top strip.
+ *
+ * The right-hand slot is, by default, a profile avatar that opens an
+ * editorial account card (profile, Account Settings, theme toggle,
+ * log out). Individual pages can still provide a `rightAction` to
+ * override, but dashboards no longer need to, so users always have
+ * access to Settings from any screen.
+ */
 export default function AppHeader({
   title,
   showBack,
@@ -22,7 +33,12 @@ export default function AppHeader({
   rightAction,
 }: Props) {
   const router = useRouter();
-  const [user, setUser] = useState<{ email?: string | null; name?: string | null; picture?: string | null } | null>(null);
+  const { theme } = usePrefs();
+  const [user, setUser] = useState<{
+    email?: string | null;
+    name?: string | null;
+    picture?: string | null;
+  } | null>(null);
   const [openMenu, setOpenMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -42,140 +58,473 @@ export default function AppHeader({
     let mounted = true;
     async function load() {
       try {
-        const res = await fetch((process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "") + "/api/auth/status", { credentials: "include" });
+        const res = await fetch(
+          (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "") +
+            "/api/auth/status",
+          { credentials: "include" },
+        );
         const data = await res.json();
         if (!mounted) return;
         setUser(data.user ?? null);
-      } catch (e) {
-        // ignore
-      }
+      } catch {}
     }
     load();
-    return () => { mounted = false };
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   function handleBack() {
-    if (onBack) {
-      onBack();
-    } else {
-      router.back();
-    }
+    if (onBack) onBack();
+    else router.back();
   }
+
+  async function handleLogout() {
+    try {
+      await apiLogout();
+    } catch {}
+    try {
+      window.localStorage.removeItem("om_session");
+    } catch {}
+    window.location.reload();
+  }
+
+  function toggleTheme() {
+    const next = getStoredTheme() === "dark" ? "light" : "dark";
+    setTheme(next);
+  }
+
+  const displayName = user?.name || user?.email || "Account";
+  const displayEmail = user?.email || "";
+  const initials = (() => {
+    const src = (user?.name || user?.email || "").trim();
+    if (!src) return "OM"; // Office Mobile default — never looks like "0"
+    const parts = src.split(/\s+/);
+    const first = parts[0]?.[0] || "";
+    const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
+    const out = (first + last).toUpperCase().slice(0, 2);
+    return out || "OM";
+  })();
 
   return (
     <header
-      className="sticky top-0 z-50 bg-white border-b border-zinc-200"
+      className="om-header"
       style={{ paddingTop: "env(safe-area-inset-top)" }}
     >
-      <div className="flex items-center h-14 px-4 max-w-[560px] mx-auto">
-        {/* Left: back button and/or logo */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="om-header__row">
+        <div className="om-header__left">
           {showBack && (
-            <button
-              type="button"
-              onClick={handleBack}
-              aria-label="Go back"
-              className="flex items-center justify-center w-9 h-9 -ml-1 rounded-lg
-                         hover:bg-zinc-100 active:bg-zinc-200 transition-colors"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="w-5 h-5 text-zinc-800"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M15.75 19.5L8.25 12l7.5-7.5"
-                />
-              </svg>
+            <button type="button" onClick={handleBack} aria-label="Go back" className="om-header__back">
+              <span aria-hidden>←</span>
+              <span className="om-header__back-label">back</span>
             </button>
           )}
-          {showLogo && <Logo size="sm" showText={!title} />}
+          {showLogo && !showBack && <Logo size="sm" showText={!title} />}
         </div>
 
-        {/* Center: title (if provided) */}
         {title && (
-          <div className="flex-1 flex items-center justify-center min-w-0 mx-2">
-            <span className="font-semibold text-sm text-zinc-950 truncate">
-              {title}
-            </span>
+          <div className="om-header__title">
+            <span>{title}</span>
           </div>
         )}
+        {!title && <div style={{ flex: 1 }} />}
 
-        {/* Spacer when no title */}
-        {!title && <div className="flex-1" />}
-
-        {/* Right: action slot */}
         {rightAction ? (
-          <div className="flex-shrink-0 flex items-center justify-end">{rightAction}</div>
+          <div className="om-header__right">{rightAction}</div>
         ) : (
-          <div className="flex-shrink-0 flex items-center justify-end" ref={menuRef}>
-            <div className="relative">
-              <button
-                type="button"
-                aria-label="Open menu"
-                onClick={() => setOpenMenu((s) => !s)}
-                className="flex items-center justify-center w-9 h-9 rounded-lg border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 transition-colors overflow-hidden"
-              >
-                {user && user.picture ? (
-                  <img src={user.picture} alt={(user.name ?? user.email) || "Profile"} className="w-9 h-9 object-cover rounded-md" />
-                ) : (
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zM6 20v-1c0-2.21 3.58-4 6-4s6 1.79 6 4v1" />
-                  </svg>
-                )}
-              </button>
+          <div className="om-header__right" ref={menuRef}>
+            <button
+              type="button"
+              aria-label="Open account menu"
+              aria-expanded={openMenu}
+              onClick={() => setOpenMenu((s) => !s)}
+              className={`om-header__avatar ${openMenu ? "is-open" : ""}`}
+            >
+              {user && user.picture ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={user.picture} alt={displayName} />
+              ) : (
+                <span className="om-header__avatar-initials" aria-hidden>
+                  {initials}
+                </span>
+              )}
+            </button>
 
-              {openMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-white border border-zinc-200 rounded-lg shadow-lg z-50">
+            {openMenu && (
+              <div className="om-header__menu" role="menu">
+                {/* Profile card */}
+                <div className="om-header__profile">
+                  <div className="om-header__profile-avatar">
+                    {user && user.picture ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={user.picture} alt={displayName} />
+                    ) : (
+                      <span>{initials}</span>
+                    )}
+                  </div>
+                  <div className="om-header__profile-text">
+                    <p className="om-header__profile-name">{displayName}</p>
+                    {displayEmail && displayEmail !== displayName && (
+                      <p className="om-header__profile-email">{displayEmail}</p>
+                    )}
+                  </div>
+                </div>
+
+                <hr className="om-header__menu-rule" />
+
+                {/* Primary actions */}
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="om-header__menu-item"
+                  onClick={() => {
+                    setShowSettings(true);
+                    setOpenMenu(false);
+                  }}
+                >
+                  <span className="om-header__menu-icon" aria-hidden>◌</span>
+                  <span>Account settings</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="om-header__menu-item"
+                  onClick={() => {
+                    router.push("/history");
+                    setOpenMenu(false);
+                  }}
+                >
+                  <span className="om-header__menu-icon" aria-hidden>☰</span>
+                  <span>Submission history</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="om-header__menu-item"
+                  onClick={() => {
+                    router.push("/submissions");
+                    setOpenMenu(false);
+                  }}
+                >
+                  <span className="om-header__menu-icon" aria-hidden>▦</span>
+                  <span>Your submissions</span>
+                </button>
+
+                <hr className="om-header__menu-rule" />
+
+                {/* Secondary */}
+                <a
+                  href="/privacy"
+                  role="menuitem"
+                  className="om-header__menu-item"
+                  onClick={() => setOpenMenu(false)}
+                >
+                  <span className="om-header__menu-icon" aria-hidden>§</span>
+                  <span>Privacy</span>
+                </a>
+                <a
+                  href="mailto:aniketmishra492@gmail.com"
+                  role="menuitem"
+                  className="om-header__menu-item"
+                  onClick={() => setOpenMenu(false)}
+                >
+                  <span className="om-header__menu-icon" aria-hidden>?</span>
+                  <span>Support</span>
+                </a>
+
+                <hr className="om-header__menu-rule" />
+
+                {/* Footer row — theme toggle + log out */}
+                <div className="om-header__menu-footer">
                   <button
                     type="button"
-                    onClick={() => { setShowSettings(true); setOpenMenu(false); }}
-                    className="w-full text-left px-4 py-2 hover:bg-zinc-50"
+                    role="menuitem"
+                    className="om-header__menu-footer-btn"
+                    onClick={toggleTheme}
+                    aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
                   >
-                    Settings
+                    <span aria-hidden>{theme === "dark" ? "☼" : "☾"}</span>
+                    <span>{theme === "dark" ? "Light theme" : "Dark theme"}</span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      // toggle theme
-                      try {
-                        if (document.documentElement.classList.contains("dark")) {
-                          document.documentElement.classList.remove("dark");
-                          localStorage.setItem("om_theme", "light");
-                        } else {
-                          document.documentElement.classList.add("dark");
-                          localStorage.setItem("om_theme", "dark");
-                        }
-                      } catch {}
-                      setOpenMenu(false);
-                    }}
-                    className="w-full text-left px-4 py-2 hover:bg-zinc-50"
+                    role="menuitem"
+                    className="om-header__menu-footer-btn om-header__menu-danger"
+                    onClick={handleLogout}
                   >
-                    Toggle theme
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await apiLogout();
-                      try { window.localStorage.removeItem("om_session"); } catch {}
-                      window.location.reload();
-                    }}
-                    className="w-full text-left px-4 py-2 text-red-600 hover:bg-zinc-50"
-                  >
-                    Log out
+                    <span aria-hidden>⏻</span>
+                    <span>Log out</span>
                   </button>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+
             {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
           </div>
         )}
       </div>
+
+      <style jsx>{`
+        .om-header {
+          position: sticky;
+          top: 0;
+          z-index: 40;
+          background: var(--cream);
+          border-bottom: 1px solid var(--rule);
+        }
+        .om-header__row {
+          display: flex;
+          align-items: center;
+          height: 52px;
+          padding: 0 18px;
+          max-width: 560px;
+          margin: 0 auto;
+          gap: 12px;
+        }
+        .om-header__left {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-shrink: 0;
+        }
+        .om-header__back {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 4px;
+          background: transparent;
+          border: 0;
+          color: var(--ink);
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 500;
+          font-size: 11px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          cursor: pointer;
+          transition: color 200ms ease-out;
+        }
+        .om-header__back:hover { color: var(--clay); }
+        .om-header__title {
+          flex: 1;
+          min-width: 0;
+          text-align: center;
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 500;
+          font-size: 11px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: var(--charcoal);
+        }
+        .om-header__title span {
+          display: inline-block;
+          max-width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .om-header__right {
+          position: relative;
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+        }
+
+        /* Avatar */
+        .om-header__avatar {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 34px;
+          height: 34px;
+          background: transparent;
+          border: 1px solid var(--rule);
+          border-radius: 50%;
+          color: var(--charcoal);
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 500;
+          font-size: 10px;
+          line-height: 1;
+          letter-spacing: 0.02em;
+          cursor: pointer;
+          overflow: hidden;
+          transition: border-color 200ms ease-out, color 200ms ease-out;
+        }
+        .om-header__avatar:hover,
+        .om-header__avatar.is-open {
+          border-color: var(--ink);
+          color: var(--ink);
+        }
+        .om-header__avatar img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+        .om-header__avatar-initials {
+          display: inline-block;
+        }
+
+        /* Menu — opens to a compact editorial account card */
+        .om-header__menu {
+          position: absolute;
+          right: 0;
+          top: calc(100% + 10px);
+          width: 280px;
+          background: var(--cream);
+          border: 1px solid var(--rule);
+          display: flex;
+          flex-direction: column;
+          z-index: 60;
+          transform-origin: top right;
+          animation: omMenuReveal 280ms cubic-bezier(0.22, 1, 0.36, 1);
+          will-change: transform, opacity;
+        }
+        @keyframes omMenuReveal {
+          0% {
+            opacity: 0;
+            transform: translate3d(4px, -6px, 0) scale(0.9);
+          }
+          60% {
+            opacity: 1;
+          }
+          100% {
+            opacity: 1;
+            transform: translate3d(0, 0, 0) scale(1);
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .om-header__menu {
+            animation: fadeIn 160ms ease-out;
+          }
+        }
+
+        .om-header__profile {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 16px 16px 14px 16px;
+        }
+        .om-header__profile-avatar {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          border: 1px solid var(--rule);
+          overflow: hidden;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          color: var(--charcoal);
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 500;
+          font-size: 11px;
+          letter-spacing: 0.02em;
+        }
+        .om-header__profile-avatar img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+        .om-header__profile-text {
+          min-width: 0;
+          flex: 1;
+        }
+        .om-header__profile-name {
+          margin: 0;
+          font-family: var(--font-newsreader), Georgia, serif;
+          font-weight: 400;
+          font-size: 15px;
+          color: var(--ink);
+          line-height: 1.25;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .om-header__profile-email {
+          margin: 2px 0 0 0;
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 300;
+          font-size: 10px;
+          letter-spacing: 0.04em;
+          color: var(--stone);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .om-header__menu-rule {
+          margin: 0;
+          border: 0;
+          border-top: 1px solid var(--rule);
+        }
+
+        .om-header__menu-item {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 11px 16px;
+          background: transparent;
+          border: 0;
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 400;
+          font-size: 12px;
+          letter-spacing: 0.04em;
+          color: var(--ink);
+          text-align: left;
+          text-decoration: none;
+          cursor: pointer;
+          transition: background-color 200ms ease-out, color 200ms ease-out;
+        }
+        .om-header__menu-item:hover {
+          background: var(--paper);
+          color: var(--clay);
+        }
+        .om-header__menu-icon {
+          width: 16px;
+          text-align: center;
+          font-size: 13px;
+          color: var(--stone);
+        }
+        .om-header__menu-item:hover .om-header__menu-icon {
+          color: var(--clay);
+        }
+
+        .om-header__menu-footer {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+        }
+        .om-header__menu-footer-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          padding: 12px 10px;
+          background: transparent;
+          border: 0;
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 500;
+          font-size: 10px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: var(--ink);
+          cursor: pointer;
+          transition: background-color 200ms ease-out, color 200ms ease-out;
+        }
+        .om-header__menu-footer-btn:first-child {
+          border-right: 1px solid var(--rule);
+        }
+        .om-header__menu-footer-btn:hover {
+          background: var(--paper);
+          color: var(--clay);
+        }
+        .om-header__menu-danger {
+          color: var(--error) !important;
+        }
+        .om-header__menu-danger:hover {
+          background: var(--paper);
+          color: var(--error) !important;
+        }
+      `}</style>
     </header>
   );
 }

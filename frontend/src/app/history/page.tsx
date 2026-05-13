@@ -4,6 +4,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import AppHeader from "@/components/AppHeader";
 import ErrorToast from "@/components/ErrorToast";
 import LoadingOverlay from "@/components/LoadingOverlay";
+import ClearButton from "@/components/ClearButton";
 import type { FieldSchema } from "@/types/field";
 import {
   getFormSuggestions,
@@ -146,12 +147,25 @@ export default function HistoryPage() {
   const matches = useMemo(() => {
     if (!loaded || !loaded.rows.length) return [];
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return loaded.rows.slice(0, 100);
-    const filtered = loaded.rows.filter((row) =>
+    if (!query) return loaded.rows;
+    return loaded.rows.filter((row) =>
       loaded.fields.some((f) => (row[f.key] ?? "").toLowerCase().includes(query)),
     );
-    return filtered.slice(0, 100);
   }, [loaded, searchQuery]);
+
+  // Virtualized view: only render a page at a time so 10k+ rows don't choke the DOM
+  const ROWS_PER_PAGE = 200;
+  const [visibleCount, setVisibleCount] = useState(ROWS_PER_PAGE);
+
+  // Reset visible count when query or dataset changes
+  React.useEffect(() => {
+    setVisibleCount(ROWS_PER_PAGE);
+  }, [searchQuery, loaded]);
+
+  const visibleMatches = useMemo(
+    () => matches.slice(0, visibleCount),
+    [matches, visibleCount],
+  );
 
   const handleReset = useCallback(() => {
     setLoaded(null);
@@ -285,11 +299,12 @@ export default function HistoryPage() {
             <div>
               {searchQuery && (
                 <p className="text-[11px] font-medium text-gray-500 mb-2 px-1">
-                  {matches.length} {matches.length === 1 ? "match" : "matches"}{matches.length === 100 ? "+" : ""}
+                  {matches.length.toLocaleString()}{" "}
+                  {matches.length === 1 ? "match" : "matches"}
                 </p>
               )}
               <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden">
-                {matches.map((row, idx) => {
+                {visibleMatches.map((row, idx) => {
                   const parts: string[] = [];
                   for (const f of loaded.fields) {
                     if (parts.length >= 4) break;
@@ -315,6 +330,18 @@ export default function HistoryPage() {
                   );
                 })}
               </div>
+              {visibleCount < matches.length && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setVisibleCount((c) => Math.min(c + ROWS_PER_PAGE, matches.length))
+                  }
+                  className="mt-3 w-full py-2.5 rounded-lg border border-zinc-200 bg-white text-[12px] font-medium text-zinc-700 hover:bg-zinc-50"
+                >
+                  Show {Math.min(ROWS_PER_PAGE, matches.length - visibleCount)} more
+                  <span className="text-zinc-400"> · {(matches.length - visibleCount).toLocaleString()} remaining</span>
+                </button>
+              )}
             </div>
           )}
 
@@ -377,8 +404,32 @@ export default function HistoryPage() {
                   : "border-zinc-300 bg-white focus:ring-zinc-900"
               }`}
             />
+            {formInput && !urlValid && (
+              <ClearButton
+                onClick={() => {
+                  setFormInput("");
+                  setUrlValid(false);
+                  setUrlError("");
+                }}
+                ariaLabel="Clear URL"
+              />
+            )}
             {urlValid && !urlError && (
-              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormInput("");
+                    setUrlValid(false);
+                    setUrlError("");
+                  }}
+                  aria-label="Clear URL"
+                  className="w-5 h-5 rounded-full text-gray-400 hover:text-gray-700 flex items-center justify-center"
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
                 <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center">
                   <svg className="w-3 h-3 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -404,25 +455,45 @@ export default function HistoryPage() {
 
         {/* Step indicator */}
         <div className="mb-6">
-          <div className="flex items-center gap-4 text-[13px] text-gray-400">
-            <div className="flex items-center gap-1.5">
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold ${step >= 1 ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500"}`}>1</span>
-              <span className={step >= 1 ? "text-gray-700 font-medium" : ""}>Paste link</span>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-4 text-[13px] text-gray-400 min-w-0 overflow-x-auto">
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold ${step >= 1 ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500"}`}>1</span>
+                <span className={step >= 1 ? "text-gray-700 font-medium" : ""}>Paste link</span>
+              </div>
+              <svg className="w-3 h-3 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold ${step >= 2 ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500"}`}>2</span>
+                <span className={step >= 2 ? "text-gray-700 font-medium" : ""}>Pick tab</span>
+              </div>
+              <svg className="w-3 h-3 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold ${step >= 3 ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500"}`}>3</span>
+                <span className={step >= 3 ? "text-gray-700 font-medium" : ""}>Search</span>
+              </div>
             </div>
-            <svg className="w-3 h-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-            <div className="flex items-center gap-1.5">
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold ${step >= 2 ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500"}`}>2</span>
-              <span className={step >= 2 ? "text-gray-700 font-medium" : ""}>Pick tab</span>
-            </div>
-            <svg className="w-3 h-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-            <div className="flex items-center gap-1.5">
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold ${step >= 3 ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500"}`}>3</span>
-              <span className={step >= 3 ? "text-gray-700 font-medium" : ""}>Search</span>
-            </div>
+            {(formInput || availableTabs) && (
+              <button
+                type="button"
+                onClick={handleReset}
+                className="flex-shrink-0 text-[11px] font-medium uppercase tracking-[0.12em] text-stone hover:text-clay transition-colors"
+                style={{
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  color: "var(--stone)",
+                  background: "transparent",
+                  border: 0,
+                  padding: 0,
+                  cursor: "pointer",
+                }}
+                aria-label="Clear all fields and start over"
+              >
+                ✕ clear all
+              </button>
+            )}
           </div>
         </div>
 

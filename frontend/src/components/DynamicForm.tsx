@@ -12,8 +12,10 @@ interface Props {
   resetKey?: number;
   suggestions?: Record<string, string>[];
   suggestionsLoading?: boolean;
+  suggestionsError?: string | null;
   autofillColumns?: string[];
   onAutofillOpen?: () => void;
+  onRetrySuggestions?: () => void;
 }
 
 export default function DynamicForm({
@@ -23,8 +25,10 @@ export default function DynamicForm({
   resetKey = 0,
   suggestions = [],
   suggestionsLoading = false,
+  suggestionsError = null,
   autofillColumns = [],
   onAutofillOpen,
+  onRetrySuggestions,
 }: Props) {
   const sortedFields = useMemo(
     () => [...fields].sort((a, b) => a.order - b.order),
@@ -154,23 +158,58 @@ export default function DynamicForm({
       }}
       noValidate
     >
-      {/* Progress bar */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-[12px] font-medium text-zinc-500">
-            {filledCount} of {totalCount} filled
-          </span>
-          <span className="text-[12px] font-medium text-zinc-500">
-            {Math.round(progress)}%
-          </span>
-        </div>
-        <div className="h-1 bg-zinc-200 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-zinc-950 rounded-full transition-all duration-500 ease-out"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
+      {/* Progress rule — thin terracotta fill, no percent label */}
+      <div className="om-dform-progress" aria-hidden>
+        <div
+          className="om-dform-progress__fill"
+          style={{ width: `${progress}%` }}
+        />
       </div>
+      <p className="om-dform-meta">
+        {String(totalCount).padStart(2, "0")} fields · {filledCount} complete
+      </p>
+
+      <style jsx>{`
+        .om-dform-progress {
+          position: relative;
+          height: 2px;
+          background: var(--rule);
+          margin-bottom: 8px;
+        }
+        .om-dform-progress__fill {
+          height: 100%;
+          background: var(--clay);
+          transition: width 400ms ease-out;
+        }
+        .om-dform-meta {
+          margin: 0 0 24px 0;
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 300;
+          font-size: 11px;
+          letter-spacing: 0.04em;
+          color: var(--stone);
+        }
+        .om-dform-autofilled {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 10px 14px;
+          margin-bottom: 24px;
+          border: 1px solid var(--clay);
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 400;
+          font-size: 11px;
+          letter-spacing: 0.04em;
+          color: var(--ink);
+          animation: fadeIn 200ms ease-out;
+        }
+        .om-dform-autofilled__mark {
+          color: var(--clay);
+          font-family: var(--font-newsreader), Georgia, serif;
+          font-size: 14px;
+          line-height: 1;
+        }
+      `}</style>
 
       {/* Autofill suggestions */}
       {autofillColumns.length > 0 && !autofilled && (
@@ -190,19 +229,9 @@ export default function DynamicForm({
 
       {/* Autofill notice */}
       {autofilled && (
-        <div className="mb-4 px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2 animate-in">
-          <svg
-            className="w-4 h-4 text-emerald-600 flex-shrink-0"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
-          <span className="text-[12px] text-emerald-700 font-medium">
-            Auto-filled from existing data · Edit any field below
-          </span>
+        <div className="om-dform-autofilled" role="status">
+          <span className="om-dform-autofilled__mark" aria-hidden>✓</span>
+          <span>auto-filled from an existing row · edit any field below</span>
         </div>
       )}
 
@@ -230,13 +259,37 @@ export default function DynamicForm({
                 </div>
               )}
 
-              {!suggestionsLoading && suggestions.length === 0 && (
+              {!suggestionsLoading && suggestionsError && (
+                <div className="text-center py-3">
+                  <p className="text-[12px] text-zinc-500">
+                    Could not load past entries.
+                  </p>
+                  {onRetrySuggestions && (
+                    <button
+                      type="button"
+                      onClick={onRetrySuggestions}
+                      className="mt-1 text-[11px] font-medium uppercase tracking-[0.12em]"
+                      style={{
+                        fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                        color: "var(--clay)",
+                        background: "transparent",
+                        border: 0,
+                        cursor: "pointer",
+                      }}
+                    >
+                      retry
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {!suggestionsLoading && !suggestionsError && suggestions.length === 0 && (
                 <div className="text-center py-3">
                   <p className="text-[12px] text-zinc-500">No previous entries found yet.</p>
                 </div>
               )}
 
-              {!suggestionsLoading && suggestions.length > 0 && autofillMatches.length === 0 && (
+              {!suggestionsLoading && !suggestionsError && suggestions.length > 0 && autofillMatches.length === 0 && (
                 <div className="text-center py-3">
                   <p className="text-[12px] text-zinc-500">
                     No matching entries found. Try different filter values.
@@ -244,7 +297,7 @@ export default function DynamicForm({
                 </div>
               )}
 
-              {!suggestionsLoading && autofillMatches.length > 0 && (
+              {!suggestionsLoading && !suggestionsError && autofillMatches.length > 0 && (
                 <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden">
                   <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-100">
                     <span className="text-[11px] font-medium text-zinc-600">

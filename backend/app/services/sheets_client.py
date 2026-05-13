@@ -22,6 +22,9 @@ from app.services import form_store
 logger = logging.getLogger(__name__)
 
 SCOPES = [
+    "openid",
+    "email",
+    "profile",
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive.file",
 ]
@@ -83,7 +86,12 @@ def _has_credentials() -> bool:
 
 
 def _oauth_credentials() -> Any | None:
-    """Return google-auth credentials from stored OAuth token if present."""
+    """Return google-auth credentials from stored OAuth token if present.
+
+    Wires up a refresh callback so refreshed access tokens are persisted
+    back to the store, preventing repeated refresh round-trips and keeping
+    long-lived sessions working after the initial access_token expires.
+    """
     token = form_store.get_oauth_token()
     if not token:
         return None
@@ -97,7 +105,7 @@ def _oauth_credentials() -> Any | None:
     except Exception:
         return None
 
-    return Credentials(
+    creds = Credentials(
         token=token.get("access_token"),
         refresh_token=token.get("refresh_token"),
         token_uri="https://oauth2.googleapis.com/token",
@@ -105,6 +113,31 @@ def _oauth_credentials() -> Any | None:
         client_secret=settings.google_oauth_client_secret,
         scopes=SCOPES,
     )
+
+    # Proactively refresh if expired or about to expire. This keeps the
+    # access_token fresh for the lifetime of this request and lets us
+    # persist the new token for subsequent requests.
+    try:
+        from google.auth.transport.requests import Request as GoogleRequest
+
+        if creds.refresh_token and (
+            not creds.token or not creds.valid or creds.expired
+        ):
+            creds.refresh(GoogleRequest())
+            # Persist the refreshed token so we don't re-refresh on the
+            # next request and so other workers pick up the new access token.
+            refreshed = dict(token)
+            refreshed["access_token"] = creds.token
+            if getattr(creds, "expiry", None):
+                refreshed["expires_at"] = int(creds.expiry.timestamp())
+            form_store.set_oauth_token(refreshed)
+    except Exception as exc:
+        # A failed refresh means the user revoked access or Google is
+        # temporarily unreachable. Log and fall through — gspread will
+        # surface a clear permission error that the API maps to 401/403.
+        logger.warning("oauth.refresh_failed: %s", exc)
+
+    return creds
 
 
 def _authenticated_sheet_access(spreadsheet_id: str) -> dict[str, bool]:
@@ -674,7 +707,7 @@ def read_sheet_rows(
     spreadsheet_id: str,
     worksheet_name: str | None,
     fields: list[FieldSchema],
-    max_rows: int = 10000,
+    max_rows: int = 100000,
 ) -> list[dict[str, str]]:
     """
     Read existing data rows from the Google Sheet and return them as a list
@@ -797,11 +830,45 @@ def map_sheet_exception(exc: Exception) -> tuple[int, str]:
         status_code = (
             getattr(getattr(exc, "response", None), "status_code", None) or 502
         )
-        # Log the raw message for debugging, surface a safe one.
-        logger.warning("sheets.api_error status=%s message=%s", status_code, str(exc)[:500])
+        # Grab Google's actual error body so ops can see what went wrong.
+        response_body = ""
+        try:
+            resp = getattr(exc, "response", None)
+            if resp is not None:
+                response_body = (getattr(resp, "text", None) or "")[:800]
+        except Exception:
+            response_body = ""
+        logger.warning(
+            "sheets.api_error status=%s message=%s body=%s",
+            status_code,
+            str(exc)[:500],
+            response_body,
+        )
         if status_code == 400:
             return 400, "The sheet structure changed or the request was invalid."
         if status_code == 403:
+            # The message differs depending on which auth path is in use.
+            # OAuth users can't "share with a service account" — that advice
+            # is only correct when the backend is running on service-account
+            # credentials. Detecting this up-front avoids misleading users.
+            has_oauth = form_store.get_oauth_token() is not None
+            if has_oauth:
+                # Google sometimes embeds a scope hint ("insufficient authentication
+                # scopes" / "insufficientPermissions") in the body.
+                hint_scope = "insufficient" in response_body.lower() or "scope" in response_body.lower()
+                if hint_scope:
+                    return 403, (
+                        "Google refused this request because your sign-in is missing the "
+                        "Sheets or Drive permission. Sign out and sign in again, and make "
+                        "sure both 'See, edit, create, and delete your spreadsheets' and "
+                        "'See, edit, create, and delete only the specific Google Drive files "
+                        "you use with this app' stay checked on the consent screen."
+                    )
+                return 403, (
+                    "Google denied access to this sheet or to your Drive. "
+                    "If you're trying to open an existing sheet, make sure you have access to it in Google Drive. "
+                    "If this keeps happening when creating new forms, sign out and sign in again to re-grant permissions."
+                )
             return 403, (
                 "No permission to read or write this sheet. "
                 "If you expect the app to create or access sheets, share the sheet/Drive with the service account or sign in with Google."

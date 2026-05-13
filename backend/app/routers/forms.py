@@ -98,11 +98,22 @@ def create_sheet(payload: CreateSheetRequest) -> CreateSheetResponse:
 
     try:
         client = get_client()
+    except Exception as exc:
+        logger.exception("sheet.create.client_init_failed")
+        raise _sheet_error(exc) from exc
+
+    try:
         spreadsheet = client.create(payload.form_title)
         worksheet = spreadsheet.sheet1
         headers = [field.source_header for field in payload.fields]
         worksheet.update("A1", [headers], value_input_option="RAW")
     except Exception as exc:
+        logger.warning(
+            "sheet.create.failed title=%r type=%s msg=%s",
+            payload.form_title,
+            type(exc).__name__,
+            str(exc)[:300],
+        )
         raise _sheet_error(exc) from exc
 
     spreadsheet_id = spreadsheet.id
@@ -229,7 +240,7 @@ def create_form(payload: CreateFormRequest) -> CreateFormResponse:
 
 
 @router.get("/sheet/history")
-def get_sheet_history(sheet_url: str, worksheet_name: str | None = None, limit: int = Query(10000, ge=1, le=50000)) -> dict:
+def get_sheet_history(sheet_url: str, worksheet_name: str | None = None, limit: int = Query(100000, ge=1, le=200000)) -> dict:
     """
     Read history directly from any worksheet tab of a Google Sheet,
     even if no form has been created for it. Used by the Check History feature.
@@ -473,7 +484,7 @@ def list_submissions(form_id: str, token: str = Query(..., min_length=16)) -> di
 
 
 @router.get("/forms/{form_id}/suggestions")
-def get_form_suggestions(form_id: str, limit: int = Query(10000, ge=1, le=50000)) -> dict:
+def get_form_suggestions(form_id: str, limit: int = Query(100000, ge=1, le=200000)) -> dict:
     """
     Read existing rows from the backing Google Sheet and return them
     as autofill suggestions. Users can pick a matching row to auto-fill
