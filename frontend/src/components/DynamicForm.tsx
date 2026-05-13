@@ -12,6 +12,7 @@ interface Props {
   resetKey?: number;
   suggestions?: Record<string, string>[];
   autofillColumns?: string[];
+  onAutofillOpen?: () => void;
 }
 
 export default function DynamicForm({
@@ -21,6 +22,7 @@ export default function DynamicForm({
   resetKey = 0,
   suggestions = [],
   autofillColumns = [],
+  onAutofillOpen,
 }: Props) {
   const sortedFields = useMemo(
     () => [...fields].sort((a, b) => a.order - b.order),
@@ -129,13 +131,14 @@ export default function DynamicForm({
       </div>
 
       {/* Autofill suggestions */}
-      {suggestions.length > 0 && autofillColumns.length > 0 && !autofilled && (
+      {autofillColumns.length > 0 && !autofilled && (
         <AutofillBar
           fields={sortedFields}
           values={values}
           suggestions={suggestions}
           autofillColumns={autofillColumns}
           onAutofill={handleAutofill}
+          onOpen={onAutofillOpen}
         />
       )}
 

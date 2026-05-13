@@ -41,11 +41,21 @@ async function fetchWithRetry(
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       const res = await fetch(input, init);
-      // Don't retry on client errors (4xx), only on server errors (5xx)
-      if (res.status < 500 || attempt === maxRetries) {
+      // Retry only on transient server errors (5xx) and rate limits (429).
+      // Client errors (400, 401, 403, 404, 413, 422) are final.
+      const shouldRetry = (res.status >= 500 || res.status === 429) && attempt < maxRetries;
+      if (!shouldRetry) {
         return res;
       }
       lastError = new Error(`Server error: ${res.status}`);
+      // For 429, respect Retry-After if present (seconds).
+      if (res.status === 429) {
+        const retryAfter = Number(res.headers.get("Retry-After") ?? "0");
+        if (retryAfter > 0 && retryAfter < 30) {
+          await new Promise((r) => setTimeout(r, retryAfter * 1000));
+          continue;
+        }
+      }
     } catch (err: any) {
       lastError = err;
       if (attempt === maxRetries) break;
@@ -66,6 +76,7 @@ async function jsonRequest<T>(
     method,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    credentials: "include",
   });
   return handleResponse<T>(res);
 }
@@ -75,6 +86,7 @@ async function jsonGet<T>(path: string): Promise<T> {
   const res = await fetchWithRetry(url(path), {
     method: "GET",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
   });
   return handleResponse<T>(res);
 }

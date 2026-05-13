@@ -9,6 +9,7 @@ interface Props {
   suggestions: Record<string, string>[];
   autofillColumns: string[];
   onAutofill: (row: Record<string, string>) => void;
+  onOpen?: () => void;
 }
 
 /**
@@ -29,6 +30,7 @@ export default function AutofillBar({
   suggestions,
   autofillColumns,
   onAutofill,
+  onOpen,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
@@ -155,7 +157,13 @@ export default function AutofillBar({
       {/* Toggle button */}
       <button
         type="button"
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => {
+          const next = !expanded;
+          setExpanded(next);
+          // Lazy-load suggestions on first open so large sheets don't
+          // pay the round-trip cost unless the user actually wants autofill.
+          if (next) onOpen?.();
+        }}
         className={`w-full flex items-center gap-2.5 px-4 py-3 rounded-xl border transition-all duration-150 ${
           expanded
             ? "border-accent-300 bg-accent-50/50"

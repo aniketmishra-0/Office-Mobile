@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import LoadingOverlay from "@/components/LoadingOverlay";
@@ -26,6 +26,9 @@ export default function FillFormPage() {
   const [resetKey, setResetKey] = useState(0);
   const [isOffline, setIsOffline] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  // Track whether suggestions have been fetched. We defer this expensive
+  // call (up to 10k sheet rows) until the user actually opens autofill.
+  const suggestionsRequested = useRef(false);
 
   const syncPendingSubmissions = useCallback(async () => {
     if (syncing) return;
@@ -74,14 +77,24 @@ export default function FillFormPage() {
 
   useEffect(() => {
     getPublicForm(id)
-      .then((data) => {
-        setFormData(data);
-        getFormSuggestions(id)
-          .then((res) => setSuggestions(res.rows ?? []))
-          .catch(() => {});
-      })
+      .then((data) => setFormData(data))
       .catch((e) => setError(e.message ?? "Failed to load form"))
       .finally(() => setLoading(false));
+  }, [id]);
+
+  // Defer loading suggestions until the user actually opens the autofill
+  // panel. For forms with thousands of rows this saves a 1–3 second
+  // backend round trip plus a lot of Google Sheets API quota.
+  const loadSuggestions = useCallback(async () => {
+    if (suggestionsRequested.current) return;
+    suggestionsRequested.current = true;
+    try {
+      const res = await getFormSuggestions(id);
+      setSuggestions(res.rows ?? []);
+    } catch {
+      // Autofill is optional — allow retry on next open.
+      suggestionsRequested.current = false;
+    }
   }, [id]);
 
   const handleSubmit = useCallback(
@@ -183,6 +196,7 @@ export default function FillFormPage() {
           resetKey={resetKey}
           suggestions={suggestions}
           autofillColumns={formData!.autofill_columns ?? []}
+          onAutofillOpen={loadSuggestions}
         />
       </div>
       <SubmitButton submitting={submitting} form="dynamic-form" />

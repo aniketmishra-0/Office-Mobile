@@ -624,6 +624,15 @@ def map_sheet_exception(exc: Exception) -> tuple[int, str]:
         # log the real reason but only show a neutral message to the client.
         logger.error("sheets.config_error", exc_info=exc)
         return 500, "Google Sheets is not configured. Please contact support."
+        
+    try:
+        from google.auth.exceptions import GoogleAuthError
+        if isinstance(exc, GoogleAuthError):
+            logger.warning("sheets.auth_error", exc_info=exc)
+            return 401, "Your Google login session has expired or is invalid. Please sign out and sign in again."
+    except ImportError:
+        pass
+
     if isinstance(exc, PublicSheetError):
         return 422, str(exc)
     if isinstance(exc, SpreadsheetNotFound):
@@ -645,5 +654,14 @@ def map_sheet_exception(exc: Exception) -> tuple[int, str]:
         if status_code == 429:
             return 429, "Google Sheets rate limit reached. Try again in a minute."
         return int(status_code), "Google Sheets is unavailable right now. Please retry."
+        
+    try:
+        import requests
+        if isinstance(exc, requests.exceptions.RequestException):
+            logger.warning("sheets.network_error", exc_info=exc)
+            return 502, "Network error connecting to Google Sheets. Please check your connection and try again."
+    except ImportError:
+        pass
+
     logger.exception("sheets.unexpected_error", exc_info=exc)
     return 500, "Unexpected Google Sheets error."
