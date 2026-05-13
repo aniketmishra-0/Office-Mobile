@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import json
 import logging
 import re
@@ -7,6 +8,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import time
+import xml.etree.ElementTree as ET
+import zipfile
 from typing import Any
 
 import gspread
@@ -104,6 +107,34 @@ def _oauth_credentials() -> Any | None:
     )
 
 
+def _authenticated_sheet_access(spreadsheet_id: str) -> dict[str, bool]:
+    if not _has_credentials():
+        return {"read": False, "edit": False}
+
+    client = get_client()
+    try:
+        spreadsheet = client.open_by_key(spreadsheet_id)
+    except PermissionError:
+        return {"read": False, "edit": False}
+    except Exception:
+        return {"read": False, "edit": False}
+
+    try:
+        # A batchUpdate with an empty list of requests requires write permission
+        # but does not modify the sheet or update the "Last Modified" timestamp.
+        spreadsheet.batch_update({"requests": []})
+        return {"read": True, "edit": True}
+    except APIError as exc:
+        status_code = getattr(getattr(exc, "response", None), "status_code", None)
+        if status_code == 400:
+            # Some API versions reject empty batchUpdate requests even with
+            # valid edit access. Treat this as editable rather than false-negative.
+            return {"read": True, "edit": True}
+        if status_code == 403:
+            return {"read": True, "edit": False}
+        return {"read": True, "edit": False}
+
+
 def get_client() -> gspread.Client:
     # Prefer OAuth (end-user) if connected
     oauth_creds = _oauth_credentials()
@@ -129,6 +160,69 @@ def get_client() -> gspread.Client:
     raise GoogleSheetsConfigurationError(
         "Set GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_SERVICE_ACCOUNT_FILE before using Google Sheets."
     )
+
+
+def _fetch_public_xlsx(spreadsheet_id: str) -> bytes:
+    url = (
+        f"https://docs.google.com/spreadsheets/d/"
+        f"{urllib.parse.quote(spreadsheet_id, safe='')}"
+        f"/export?format=xlsx"
+    )
+
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "AllinForm/1.0",
+            "Accept": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/octet-stream,*/*",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            return resp.read()
+    except urllib.error.HTTPError as exc:
+        if exc.code in (400, 403, 404):
+            raise PublicSheetError(
+                "Sheet not found or not publicly accessible. "
+                "Set sharing to 'Anyone with the link can view'."
+            ) from exc
+        raise PublicSheetError(f"Google returned HTTP {exc.code}.") from exc
+    except urllib.error.URLError as exc:
+        raise PublicSheetError(f"Network error fetching sheet: {exc.reason}") from exc
+
+
+def _extract_sheet_names_from_xlsx(xlsx_bytes: bytes) -> list[str]:
+    try:
+        with zipfile.ZipFile(io.BytesIO(xlsx_bytes)) as archive:
+            workbook_xml = archive.read("xl/workbook.xml")
+    except Exception as exc:
+        raise PublicSheetError("Unexpected response format from Google Sheets.") from exc
+
+    try:
+        root = ET.fromstring(workbook_xml)
+    except ET.ParseError as exc:
+        raise PublicSheetError("Unexpected response format from Google Sheets.") from exc
+
+    namespaces = {
+        "main": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+    }
+    sheets_parent = root.find("main:sheets", namespaces)
+    if sheets_parent is None:
+        raise PublicSheetError("Unexpected response format from Google Sheets.")
+
+    names: list[str] = []
+    for sheet in sheets_parent.findall("main:sheet", namespaces):
+        name = sheet.attrib.get("name")
+        if name:
+            names.append(name)
+
+    if not names:
+        raise PublicSheetError("Unexpected response format from Google Sheets.")
+
+    return names
+
+
+def _read_public_sheet_names(spreadsheet_id: str) -> list[str]:
+    return _extract_sheet_names_from_xlsx(_fetch_public_xlsx(spreadsheet_id))
 
 
 # ---------------------------------------------------------------------------
@@ -198,11 +292,20 @@ def _fetch_gviz_json(spreadsheet_id: str, worksheet_name: str | None) -> dict:
 
 def list_worksheet_names(spreadsheet_id: str) -> list[str]:
     """List worksheet/tab names for a spreadsheet."""
+    try:
+        return _read_public_sheet_names(spreadsheet_id)
+    except PublicSheetError:
+        pass
+
     if _has_credentials():
         client = get_client()
         spreadsheet = client.open_by_key(spreadsheet_id)
         return [ws.title for ws in spreadsheet.worksheets()]
-    return ["Sheet1"]
+
+    raise PublicSheetError(
+        "Sheet not found or not publicly accessible. "
+        "Set sharing to 'Anyone with the link can view'."
+    )
 
 
 def read_headers_public(
@@ -228,27 +331,24 @@ def read_headers_public(
 
 def check_sheet_access(spreadsheet_id: str) -> dict[str, bool]:
     """Check if we have read/edit access to the spreadsheet."""
+    try:
+        _read_public_sheet_names(spreadsheet_id)
+        public_read = True
+    except PublicSheetError:
+        public_read = False
+
+    if public_read:
+        result = {"read": True, "edit": False}
+        if _has_credentials():
+            auth_access = _authenticated_sheet_access(spreadsheet_id)
+            if auth_access["edit"]:
+                return {"read": True, "edit": True}
+        return result
+
     if not _has_credentials():
         return {"read": False, "edit": False}
 
-    client = get_client()
-    try:
-        spreadsheet = client.open_by_key(spreadsheet_id)
-    except PermissionError:
-        return {"read": False, "edit": False}
-    except Exception:
-        return {"read": False, "edit": False}
-
-    try:
-        # A batchUpdate with an empty list of requests requires write permission 
-        # but does not modify the sheet or update the "Last Modified" timestamp.
-        spreadsheet.batch_update({"requests": []})
-        return {"read": True, "edit": True}
-    except APIError as exc:
-        status_code = getattr(getattr(exc, "response", None), "status_code", None)
-        if status_code == 403:
-            return {"read": True, "edit": False}
-        return {"read": True, "edit": False}
+    return _authenticated_sheet_access(spreadsheet_id)
 
 
 def _select_worksheet(spreadsheet: Any, worksheet_name: str | None = None) -> Any:
@@ -273,10 +373,13 @@ def read_headers_authenticated(
 def read_headers(
     spreadsheet_id: str, worksheet_name: str | None = None
 ) -> tuple[str, str, list[str]]:
-    """Read headers — prefers authenticated, falls back to public."""
-    if _has_credentials():
-        return read_headers_authenticated(spreadsheet_id, worksheet_name)
-    return read_headers_public(spreadsheet_id, worksheet_name)
+    """Read headers — prefers public access, then falls back to authenticated."""
+    try:
+        return read_headers_public(spreadsheet_id, worksheet_name)
+    except PublicSheetError:
+        if _has_credentials():
+            return read_headers_authenticated(spreadsheet_id, worksheet_name)
+        raise
 
 
 # ---------------------------------------------------------------------------
