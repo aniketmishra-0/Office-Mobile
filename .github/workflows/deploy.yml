@@ -18,10 +18,7 @@ jobs:
           command_timeout: 25m
           script: |
             cd ~/Office-Mobile
-            git pull origin main
-
-            # ---- Backend: Restart ----
-            pm2 restart backend
+            bash scripts/deploy-backend.sh
 
       - name: Trigger Frontend Vercel Deployment
         run: |

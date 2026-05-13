@@ -15,7 +15,7 @@ Turn any Google Sheet into a mobile data entry form. No coding required.
 
 - **Backend**: FastAPI (Python) + gspread + SQLite
 - **Frontend**: Next.js 14 (App Router) + Tailwind CSS + TypeScript
-- **Deployment**: Railway (backend) + Vercel (frontend)
+- **Deployment**: GCP VM + pm2 (backend) + Vercel (frontend)
 - **Auth**: Google Service Account (MVP), OAuth planned
 
 ## Quick Start
@@ -55,11 +55,15 @@ Turn any Google Sheet into a mobile data entry form. No coding required.
 
 ## Deployment
 
-### Backend (Railway)
+### Backend (GCP VM + pm2)
 
-1. Connect GitHub repo
-2. Set environment variables in Railway dashboard
-3. Deploy
+Use the deploy script in this repo instead of running `git pull` and `pm2 restart` by hand:
+
+1. SSH into the VM
+2. `cd ~/Office-Mobile`
+3. `bash scripts/deploy-backend.sh`
+
+The GitHub Actions workflow in `.github/workflows/deploy.yml` also calls the same script on every push to `main`, so normal updates should be automatic.
 
 ### Frontend (Vercel)
 
