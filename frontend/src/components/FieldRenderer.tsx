@@ -77,11 +77,33 @@ export default function FieldRenderer({
   };
 
   const renderControl = () => {
+    let displayValue = value;
+    if (field.type === "date" && value) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        const d = new Date(value);
+        if (!isNaN(d.getTime())) {
+          displayValue = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        }
+      }
+    } else if (field.type === "time" && value) {
+      if (!/^\d{2}:\d{2}/.test(value)) {
+        const match = value.match(/(\d+):(\d+)(?::\d+)?\s*(AM|PM)?/i);
+        if (match) {
+          let hours = parseInt(match[1], 10);
+          const mins = match[2];
+          const ampm = match[3]?.toUpperCase();
+          if (ampm === "PM" && hours < 12) hours += 12;
+          if (ampm === "AM" && hours === 12) hours = 0;
+          displayValue = `${hours.toString().padStart(2, "0")}:${mins}`;
+        }
+      }
+    }
+
     const commonProps = {
       id,
       className: cls,
       placeholder: field.placeholder,
-      value,
+      value: displayValue,
       onChange: handle,
       onFocus: handleFocus,
       onBlur: handleBlur,

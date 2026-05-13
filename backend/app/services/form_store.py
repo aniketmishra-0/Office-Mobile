@@ -374,3 +374,26 @@ def save_submission(
         )
         conn.commit()
     return {"id": sub_id, "form_id": form_id, "submitted_at": now}
+
+
+def delete_form(form_id: str) -> bool:
+    """Delete a form and its submissions. Returns True if deleted."""
+    with _connect() as conn:
+        cur = conn.execute("SELECT 1 FROM forms WHERE id = ?", (form_id,)).fetchone()
+        if not cur:
+            return False
+        conn.execute("DELETE FROM submissions WHERE form_id = ?", (form_id,))
+        conn.execute("DELETE FROM forms WHERE id = ?", (form_id,))
+        conn.commit()
+    return True
+
+
+def unset_oauth_key(form_id: str) -> bool:
+    """Remove oauth_key association for a form. Returns True if updated."""
+    with _connect() as conn:
+        cur = conn.execute("SELECT oauth_key FROM forms WHERE id = ?", (form_id,)).fetchone()
+        if not cur:
+            return False
+        conn.execute("UPDATE forms SET oauth_key = NULL WHERE id = ?", (form_id,))
+        conn.commit()
+    return True

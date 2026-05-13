@@ -50,6 +50,10 @@ export default function Dashboard() {
   const [libraryLoading, setLibraryLoading] = useState(true);
   const [libraryQuery, setLibraryQuery] = useState("");
 
+  // Pagination state for large libraries
+  const [pageSize] = useState(12);
+  const [page, setPage] = useState(1);
+
   // Restore step from sessionStorage on mount to avoid hydration flicker
   useEffect(() => {
     const saved = sessionStorage.getItem("dashboard-step");
@@ -284,7 +288,17 @@ export default function Dashboard() {
       })
     : libraryItems;
 
-  const featuredForm = visibleLibraryItems[0] ?? null;
+  // Sort by updated_at (newest first)
+  const sortedVisibleLibrary = [...visibleLibraryItems].sort((a, b) => {
+    const ta = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+    const tb = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+    return tb - ta;
+  });
+
+  // Paged subset for UI (infinite-scroll / show-more pattern)
+  const pagedLibrary = sortedVisibleLibrary.slice(0, page * pageSize);
+
+  const featuredForm = sortedVisibleLibrary[0] ?? null;
   const featuredShareUrl = featuredForm ? `${origin}${featuredForm.form_url}` : "";
   const featuredEditUrl = featuredForm ? `${origin}${featuredForm.edit_url}` : "";
 
@@ -319,6 +333,7 @@ export default function Dashboard() {
       setCreatedForm(result);
       setFormTitle(payload.formTitle);
       await refreshLibrary();
+      setPage(1);
       setStep("done");
     } catch (e: any) {
       setError(e.message ?? "Failed to create form");
@@ -378,37 +393,32 @@ export default function Dashboard() {
         />
         {loadingPreview && <LoadingOverlay message="Reading your sheet..." />}
 
-        <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-32">
-          {/* Hero */}
-          <div className="mb-8">
+        <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-32 space-y-6">
+          <section className="space-y-3">
             <h1 className="text-[26px] font-bold text-zinc-950 leading-tight tracking-tight">
               Turn any Google Sheet
               <br />
               into a mobile form
             </h1>
-            <p className="text-[15px] text-zinc-600 mt-2.5 leading-relaxed">
+            <p className="text-[15px] text-zinc-600 leading-relaxed">
               Paste your sheet link. Get a shareable form in seconds.
               Responses go straight back to your Sheet.
             </p>
-          </div>
+          </section>
 
-          <div className="mb-6 grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-3">
             <button
               type="button"
               onClick={() => setMode("create")}
               className="rounded-3xl border border-zinc-200 bg-white p-4 text-left shadow-sm transition-transform duration-150 hover:-translate-y-0.5 hover:shadow-md"
             >
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mb-2">
-                Builder
-              </p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mb-2">Builder</p>
               <h2 className="text-[18px] font-bold text-zinc-950 leading-tight">Create a new form</h2>
               <p className="mt-2 text-[13px] text-zinc-600">Add columns, pick field types, and publish a sheet-backed form.</p>
             </button>
 
             <div className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mb-2">
-                Library
-              </p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mb-2">Library</p>
               <div className="flex items-end justify-between gap-3">
                 <div>
                   <h2 className="text-[18px] font-bold text-zinc-950 leading-tight">Saved forms</h2>
@@ -425,40 +435,18 @@ export default function Dashboard() {
             </div>
 
             <div className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mb-2">
-                Share
-              </p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mb-2">Share</p>
               {featuredShareUrl ? (
                 <div className="flex items-start gap-3">
                   <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-2">
-                    <QRCodeCanvas
-                      ref={qrRef}
-                      value={featuredShareUrl}
-                      size={88}
-                      bgColor="#ffffff"
-                      fgColor="#09090b"
-                      includeMargin
-                      level="M"
-                    />
+                    <QRCodeCanvas ref={qrRef} value={featuredShareUrl} size={88} bgColor="#ffffff" fgColor="#09090b" includeMargin level="M" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <h2 className="text-[18px] font-bold text-zinc-950 leading-tight">QR code ready</h2>
                     <p className="mt-2 text-[13px] text-zinc-600">Open the latest form, copy the share link, or jump to its editor.</p>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => router.push(featuredEditUrl)}
-                        className="rounded-full bg-zinc-950 px-3 py-2 text-[12px] font-medium text-white hover:bg-zinc-800"
-                      >
-                        Open QR
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => navigator.clipboard.writeText(featuredShareUrl)}
-                        className="rounded-full border border-zinc-200 bg-white px-3 py-2 text-[12px] font-medium text-zinc-700 hover:bg-zinc-50"
-                      >
-                        Copy link
-                      </button>
+                      <button type="button" onClick={() => router.push(featuredEditUrl)} className="rounded-full bg-zinc-950 px-3 py-2 text-[12px] font-medium text-white hover:bg-zinc-800">Open QR</button>
+                      <button type="button" onClick={() => navigator.clipboard.writeText(featuredShareUrl)} className="rounded-full border border-zinc-200 bg-white px-3 py-2 text-[12px] font-medium text-zinc-700 hover:bg-zinc-50">Copy link</button>
                     </div>
                   </div>
                 </div>
@@ -471,12 +459,10 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="mb-6 rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
+          <div className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between gap-3 mb-3">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mb-1">
-                  Workspace
-                </p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mb-1">Workspace</p>
                 <h2 className="text-[18px] font-bold text-zinc-950">Your forms library</h2>
               </div>
               <div className="text-right">
@@ -505,378 +491,117 @@ export default function Dashboard() {
                   </div>
                 ))}
               </div>
-            ) : visibleLibraryItems.length > 0 ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {visibleLibraryItems.map((item, index) => (
-                  <div
-                    key={item.id}
-                    className={`rounded-2xl border p-4 shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md ${
-                      index % 3 === 0
-                        ? "border-emerald-200 bg-emerald-50/60"
-                        : index % 3 === 1
-                        ? "border-sky-200 bg-sky-50/60"
-                        : "border-amber-200 bg-amber-50/60"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3 mb-4">
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mb-1">
-                          Form
-                        </p>
-                        <h3 className="text-[16px] font-bold text-zinc-950 truncate">
-                          {item.form_title}
-                        </h3>
-                        <p className="text-[12px] text-zinc-600 mt-1">
-                          {item.field_count} fields · {item.submission_count} responses
-                        </p>
+            ) : sortedVisibleLibrary.length > 0 ? (
+              <>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {pagedLibrary.map((item, index) => (
+                    <div key={item.id} className={`rounded-2xl border p-4 shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md ${index % 3 === 0 ? "border-emerald-200 bg-emerald-50/60" : index % 3 === 1 ? "border-sky-200 bg-sky-50/60" : "border-amber-200 bg-amber-50/60"}`}>
+                      <div className="flex items-start justify-between gap-3 mb-4">
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mb-1">Form</p>
+                          <h3 className="text-[16px] font-bold text-zinc-950 truncate">{item.form_title}</h3>
+                          <p className="text-[12px] text-zinc-600 mt-1">{item.field_count} fields · {item.submission_count} responses</p>
+                        </div>
+                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-950 text-white flex-shrink-0">
+                          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v7.5A2.25 2.25 0 005.25 18h13.5A2.25 2.25 0 0021 15.75V12M13.5 6l3-3m0 0l3 3m-3-3v9" />
+                          </svg>
+                        </div>
                       </div>
-                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-950 text-white flex-shrink-0">
-                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v7.5A2.25 2.25 0 005.25 18h13.5A2.25 2.25 0 0021 15.75V12M13.5 6l3-3m0 0l3 3m-3-3v9" />
-                        </svg>
-                      </div>
-                    </div>
 
-                    <div className="mb-4 space-y-2">
-                      <div className="flex items-center justify-between text-[12px] text-zinc-700">
-                        <span>Updated</span>
-                        <span className="font-medium">{formatUpdatedAt(item.updated_at)}</span>
+                      <div className="mb-4 space-y-2">
+                        <div className="flex items-center justify-between text-[12px] text-zinc-700">
+                          <span>Updated</span>
+                          <span className="font-medium">{formatUpdatedAt(item.updated_at)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[12px] text-zinc-700">
+                          <span>Sheet tab</span>
+                          <span className="font-medium truncate max-w-[140px]">{item.worksheet_name ?? "Sheet1"}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center justify-between text-[12px] text-zinc-700">
-                        <span>Sheet tab</span>
-                        <span className="font-medium truncate max-w-[140px]">{item.worksheet_name ?? "Sheet1"}</span>
-                      </div>
-                    </div>
 
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => router.push(item.form_url)}
-                        className="flex-1 rounded-xl bg-zinc-950 px-3 py-2.5 text-[13px] font-medium text-white hover:bg-zinc-800"
-                      >
-                        Open form
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => router.push(item.edit_url)}
-                        className="rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-[13px] font-medium text-zinc-700 hover:bg-zinc-50"
-                      >
-                        Edit / QR
-                      </button>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => router.push(item.form_url)} className="flex-1 rounded-xl bg-zinc-950 px-3 py-2.5 text-[13px] font-medium text-white hover:bg-zinc-800">Open form</button>
+                        <button type="button" onClick={() => router.push(item.edit_url)} className="rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-[13px] font-medium text-zinc-700 hover:bg-zinc-50">Edit / QR</button>
+                      </div>
                     </div>
+                  ))}
+                </div>
+                {pagedLibrary.length < sortedVisibleLibrary.length && (
+                  <div className="mt-4 flex justify-center">
+                    <button type="button" onClick={() => setPage((p) => p + 1)} className="px-4 py-2 border rounded">Show more</button>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             ) : (
               <div className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-5 text-center">
                 <p className="text-[14px] font-semibold text-zinc-900">No saved forms yet</p>
-                <p className="mt-1 text-[13px] text-zinc-500">
-                  Create your first app below and it will appear here like a Glide workspace.
-                </p>
+                <p className="mt-1 text-[13px] text-zinc-500">Create your first app below and it will appear here like a Glide workspace.</p>
               </div>
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-2 mb-6 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm">
-            <button
-              type="button"
-              onClick={() => setMode("paste")}
-              className={`rounded-lg px-3 py-3 text-[13px] font-medium transition-colors min-h-[48px] ${
-                mode === "paste"
-                  ? "bg-zinc-950 text-white"
-                  : "bg-transparent text-zinc-600 hover:bg-zinc-50"
-              }`}
-            >
-              Paste link
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("create")}
-              className={`rounded-lg px-3 py-3 text-[13px] font-medium transition-colors min-h-[48px] ${
-                mode === "create"
-                  ? "bg-zinc-950 text-white"
-                  : "bg-transparent text-zinc-600 hover:bg-zinc-50"
-              }`}
-            >
-              Create new form
-            </button>
+          <div className="grid grid-cols-2 gap-2 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm">
+            <button type="button" onClick={() => setMode("paste")} className={`rounded-lg px-3 py-3 text-[13px] font-medium transition-colors min-h-[48px] ${mode === "paste" ? "bg-zinc-950 text-white" : "bg-transparent text-zinc-600 hover:bg-zinc-50"}`}>Paste link</button>
+            <button type="button" onClick={() => setMode("create")} className={`rounded-lg px-3 py-3 text-[13px] font-medium transition-colors min-h-[48px] ${mode === "create" ? "bg-zinc-950 text-white" : "bg-transparent text-zinc-600 hover:bg-zinc-50"}`}>Create new form</button>
           </div>
 
           {mode === "create" && (
-            <div className="mb-6">
+            <div>
               <FormBuilder submitting={saving} onSubmit={handleCreateNewForm} />
             </div>
           )}
 
           {mode === "paste" && (
-            <>
-
-          {/* URL Input Card */}
-          <div className="mb-6">
-            <label
-              htmlFor="sheet-url"
-              className="block text-[13px] font-semibold text-zinc-800 mb-2"
-            >
-              Google Sheet URL
-            </label>
-            <div className="relative">
-              <input
-                id="sheet-url"
-                type="url"
-                inputMode="url"
-                value={sheetUrl}
-                onChange={(e) => handleUrlChange(e.target.value)}
-                onBlur={() => sheetUrl && validateUrl(sheetUrl)}
-                placeholder="https://docs.google.com/spreadsheets/d/..."
-                aria-invalid={!!urlError}
-                aria-describedby={urlError ? "url-error" : urlValid ? "url-success" : undefined}
-                className={`w-full rounded-lg border px-4 py-3.5 text-[16px] min-h-[52px] pr-10 focus:outline-none focus:ring-2 transition-all ${
-                  urlError
-                    ? "border-red-300 bg-red-50/50 focus:ring-red-500"
-                    : urlValid
-                    ? "border-emerald-300 bg-emerald-50/30 focus:ring-emerald-500"
-                    : "border-zinc-300 bg-white focus:ring-zinc-900"
-                }`}
-              />
-              {/* Validation icon */}
-              {urlValid && !urlError && (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                  <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center">
-                    <svg className="w-3 h-3 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  </div>
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="sheet-url" className="block text-[13px] font-semibold text-zinc-800 mb-2">Google Sheet URL</label>
+                <div className="relative">
+                  <input
+                    id="sheet-url"
+                    type="url"
+                    inputMode="url"
+                    value={sheetUrl}
+                    onChange={(e) => handleUrlChange(e.target.value)}
+                    onBlur={() => sheetUrl && validateUrl(sheetUrl)}
+                    placeholder="https://docs.google.com/spreadsheets/d/..."
+                    aria-invalid={!!urlError}
+                    aria-describedby={urlError ? "url-error" : urlValid ? "url-success" : undefined}
+                    className={`w-full rounded-lg border px-4 py-3.5 text-[16px] min-h-[52px] pr-10 focus:outline-none focus:ring-2 transition-all ${urlError ? "border-red-300 bg-red-50/50 focus:ring-red-500" : urlValid ? "border-emerald-300 bg-emerald-50/30 focus:ring-emerald-500" : "border-zinc-300 bg-white focus:ring-zinc-900"}`}
+                  />
                 </div>
-              )}
-            </div>
-            {urlError && (
-              <p id="url-error" className="text-red-500 text-[13px] mt-1.5 flex items-center gap-1" role="alert">
-                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                {urlError && <p id="url-error" className="text-red-500 text-[13px] mt-1.5" role="alert">{urlError}</p>}
+                {!urlValid && !urlError && <p className="text-gray-400 text-[13px] mt-1.5">Paste any Google Sheets link or spreadsheet ID</p>}
+              </div>
+
+              <div className="flex items-start gap-2 text-[12px] text-zinc-500">
+                <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
                 </svg>
-                {urlError}
-              </p>
-            )}
-            {urlValid && !urlError && (
-              <div id="url-status" className="mt-1.5 space-y-1">
-                {accessStatus === "checking" && (
-                  <p className="text-gray-500 text-[13px] flex items-center gap-1.5">
-                    <span className="w-3.5 h-3.5 border-2 border-gray-300 border-t-gray-500 rounded-full animate-spin"></span>
-                    Checking permissions...
-                  </p>
-                )}
-                {accessStatus === "none" && (
-                  <p className="text-red-600 text-[13px] flex items-start gap-1">
-                    <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                    </svg>
-                    <span><strong>No access.</strong> Please make sure this Google Sheet is shared with the logged-in account.</span>
-                  </p>
-                )}
-                {accessStatus === "read" && (
-                  <p className="text-amber-600 text-[13px] flex items-start gap-1">
-                    <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                    </svg>
-                    <span><strong>View only.</strong> We can read the sheet, but you must grant Editor access to collect responses.</span>
-                  </p>
-                )}
-                {accessStatus === "edit" && (
-                  <p className="text-emerald-600 text-[13px] flex items-center gap-1">
-                    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                    Valid Google Sheet (edit access confirmed)
-                  </p>
-                )}
+                <span>Your data stays in your Google Sheet. We never store spreadsheet content.</span>
               </div>
-            )}
-            {!urlValid && !urlError && (
-              <p className="text-gray-400 text-[13px] mt-1.5">
-                Paste any Google Sheets link or spreadsheet ID
-              </p>
-            )}
-          </div>
 
-          {/* How it works */}
-          <div className="mb-6">
-            <div className="flex items-center gap-4 text-[13px] text-gray-400">
-              <div className="flex items-center gap-1.5">
-                <span className="w-5 h-5 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center text-[11px] font-semibold">1</span>
-                <span>Paste link</span>
-              </div>
-              <svg className="w-3 h-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-              </svg>
-              <div className="flex items-center gap-1.5">
-                <span className="w-5 h-5 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center text-[11px] font-semibold">2</span>
-                <span>Customize</span>
-              </div>
-              <svg className="w-3 h-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-              </svg>
-              <div className="flex items-center gap-1.5">
-                <span className="w-5 h-5 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center text-[11px] font-semibold">3</span>
-                <span>Share</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Keyword rules (removed as requested) */}
-
-          {/* Check History — navigates to dedicated page */}
-          <button
-            type="button"
-            onClick={() => router.push("/history")}
-            className="w-full flex items-center gap-3 px-4 py-3.5 rounded-lg border border-zinc-200 bg-white hover:bg-zinc-50 hover:border-zinc-300 transition-all duration-150 mb-6"
-          >
-            <div className="w-9 h-9 rounded-lg bg-zinc-100 flex items-center justify-center flex-shrink-0">
-              <svg
-                className="w-4 h-4 text-zinc-700"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
-                />
-              </svg>
-            </div>
-            <div className="flex-1 text-left">
-                <span className="text-[14px] font-semibold text-zinc-900 block">
-                Check history
-              </span>
-              <span className="text-[12px] text-zinc-500">
-                Search previously submitted data
-              </span>
-            </div>
-            <svg
-              className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-            </svg>
-          </button>
-
-          {/* Recently Used Sheets */}
-          {recentSheets.length > 0 && (
-            <div className="mb-6 animate-fade-in">
-              <h3 className="text-[12px] font-bold text-zinc-500 mb-3 uppercase tracking-wider px-1">
-                Recently used sheets
-              </h3>
-              <div className="space-y-2.5">
-                {recentSheets.map((sheet, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => {
-                      setSheetUrl(sheet.url);
-                      validateUrl(sheet.url);
-                    }}
-                    className="w-full text-left p-3.5 rounded-lg border border-zinc-200 bg-white hover:border-zinc-400 hover:bg-zinc-50 transition-all duration-200 flex items-center gap-3.5 group"
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0 border border-emerald-100 group-hover:bg-emerald-100 group-hover:border-emerald-200 transition-colors">
-                      <svg className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                      </svg>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[14px] font-semibold text-zinc-950 truncate transition-colors">
-                        {sheet.title}
-                      </p>
-                      <p className="text-[12px] text-zinc-500 truncate mt-0.5">
-                        {sheet.url.replace("https://docs.google.com/spreadsheets/d/", "...")}
-                      </p>
-                    </div>
-                  </button>
-                ))}
+              <div className="fixed bottom-0 left-0 right-0 max-w-[560px] mx-auto px-5 pt-3 pb-3 bg-white border-t border-zinc-200 shadow-sticky z-40" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}>
+                <button
+                  onClick={handleGenerate}
+                  disabled={loadingPreview || !sheetUrl.trim() || accessStatus === "none" || accessStatus === "read"}
+                  className="w-full bg-zinc-950 hover:bg-zinc-800 active:bg-black disabled:bg-zinc-200 disabled:text-zinc-500 text-white font-semibold text-[15px] rounded-lg h-[52px] flex items-center justify-center gap-2 transition-all duration-150"
+                >
+                  {loadingPreview ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Reading sheet...</span>
+                    </>
+                  ) : (
+                    <span>Preview your form</span>
+                  )}
+                </button>
               </div>
             </div>
           )}
 
-          {/* Setup help (collapsed) */}
-          {serviceAccountEmail && (
-            <div className="mb-6">
-              <button
-                type="button"
-                onClick={() => setShowSetup(!showSetup)}
-                className="text-[13px] text-zinc-500 hover:text-zinc-800 transition-colors flex items-center gap-1.5"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
-                </svg>
-                Need to set up sheet access?
-              </button>
-              {showSetup && (
-                <div className="mt-3 rounded-lg border border-zinc-200 bg-white p-4 animate-fade-in">
-                  <p className="text-[13px] text-zinc-600 mb-2">
-                    Share your Google Sheet with this email (Editor access):
-                  </p>
-                  <div className="flex gap-2">
-                    <input
-                      readOnly
-                      value={serviceAccountEmail}
-                      className="flex-1 bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 text-[16px] text-zinc-700 font-mono select-all"
-                      onFocus={(e) => e.target.select()}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => navigator.clipboard.writeText(serviceAccountEmail)}
-                      className="px-3 py-2 rounded-lg bg-zinc-950 text-white text-xs font-medium min-h-[36px]"
-                    >
-                      Copy
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Trust note */}
-          <div className="flex items-start gap-2 text-[12px] text-zinc-500">
-            <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-            </svg>
-            <span>Your data stays in your Google Sheet. We never store spreadsheet content.</span>
-          </div>
-
-            </>
-          )}
-
+          <ErrorToast message={error} onDismiss={() => setError(null)} />
         </div>
-
-        {mode === "paste" && (
-          <>
-            {/* Sticky CTA */}
-            <div
-              className="fixed bottom-0 left-0 right-0 max-w-[560px] mx-auto px-5 pt-3 pb-3 bg-white border-t border-zinc-200 shadow-sticky z-40"
-              style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
-            >
-              <button
-                onClick={handleGenerate}
-                disabled={loadingPreview || !sheetUrl.trim() || accessStatus === "none" || accessStatus === "read"}
-                className="w-full bg-zinc-950 hover:bg-zinc-800 active:bg-black disabled:bg-zinc-200 disabled:text-zinc-500 text-white font-semibold text-[15px] rounded-lg h-[52px] flex items-center justify-center gap-2 transition-all duration-150"
-              >
-                {loadingPreview ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Reading sheet...</span>
-                  </>
-                ) : (
-                  <span>Preview your form</span>
-                )}
-              </button>
-            </div>
-          </>
-        )}
-
-        <ErrorToast message={error} onDismiss={() => setError(null)} />
       </div>
     );
   }
@@ -1072,24 +797,7 @@ export default function Dashboard() {
           <p className="text-[11px] text-zinc-500 mb-3">
             Keep this safe. Anyone with this link can edit your form.
           </p>
-          <div className="flex gap-2">
-            <input
-              readOnly
-              value={fullEditUrl}
-              className="flex-1 border border-zinc-200 rounded-lg px-3 py-2.5 text-[13px] text-zinc-600 bg-zinc-50 font-mono"
-              onFocus={(e) => e.target.select()}
-            />
-            <button
-              type="button"
-              onClick={() => handleCopy(fullEditUrl, "edit")}
-              className="px-4 py-2.5 rounded-lg border border-zinc-200 bg-white text-zinc-700 text-[13px] font-medium min-h-[40px] min-w-[60px] hover:bg-zinc-50"
-            >
-              {copiedEdit ? "Copied" : "Copy"}
-            </button>
-          </div>
         </div>
-
-        {/* Create another */}
         <button
           type="button"
           onClick={() => {

@@ -108,25 +108,11 @@ export default function AutofillBar({
 
   const handleSelect = useCallback(
     (row: Record<string, string>) => {
-      // Only auto-fill fields that are NOT active filters (preserve user's filter input)
-      const filteredRow: Record<string, string> = {};
-      for (const [key, val] of Object.entries(row)) {
-        if (!filters.includes(key)) {
-          filteredRow[key] = val;
-        }
-      }
-      // Also fill filter fields that the user hasn't typed in yet
-      for (const key of filters) {
-        const userVal = (values[key] ?? "").trim();
-        if (!userVal && row[key]) {
-          filteredRow[key] = row[key];
-        }
-      }
-      onAutofill(filteredRow);
+      onAutofill(row);
       setShowResults(false);
       setExpanded(false);
     },
-    [onAutofill, filters, values],
+    [onAutofill],
   );
 
   // Display label for a row

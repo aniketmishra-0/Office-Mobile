@@ -110,20 +110,8 @@ export default function DynamicForm({
   }, [suggestions, values, activeFilters]);
 
   const applyAutofillRow = useCallback((row: Record<string, string>) => {
-    const filteredRow: Record<string, string> = {};
-    for (const [key, val] of Object.entries(row)) {
-      if (!activeFilters.includes(key)) {
-        filteredRow[key] = val;
-      }
-    }
-    for (const key of activeFilters) {
-      const userVal = (values[key] ?? "").trim();
-      if (!userVal && row[key]) {
-        filteredRow[key] = row[key];
-      }
-    }
-    handleAutofill(filteredRow);
-  }, [activeFilters, values, handleAutofill]);
+    handleAutofill(row);
+  }, [handleAutofill]);
 
   const handleSubmit = () => {
     if (submitting) return;
@@ -285,22 +273,42 @@ export default function DynamicForm({
                               d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 00-1.883 2.542l.857 6a2.25 2.25 0 002.227 1.932H19.05a2.25 2.25 0 002.227-1.932l.857-6a2.25 2.25 0 00-1.883-2.542m-16.5 0V6A2.25 2.25 0 016 3.75h3.879a1.5 1.5 0 011.06.44l2.122 2.12a1.5 1.5 0 001.06.44H18A2.25 2.25 0 0120.25 9v.776"
                             />
                           </svg>
-                          <div className="overflow-x-auto">
-                            <div className="flex items-center gap-2 whitespace-nowrap">
-                              {sortedFields.map((f) => {
-                                const value = row[f.key] ?? "";
-                                return (
-                                  <span
-                                    key={f.key}
-                                    className="inline-flex items-center gap-1 rounded-md bg-zinc-100 px-2 py-1 text-[11px] text-zinc-600"
-                                  >
-                                    <span className="text-zinc-500">{f.label}:</span>
-                                    <span className={value ? "text-zinc-900" : "text-zinc-400 italic"}>
-                                      {value || "-"}
-                                    </span>
+                          <div className="min-w-0 flex-1 space-y-2">
+                            {(() => {
+                              const primaryField =
+                                sortedFields.find((f) => activeFilters.includes(f.key)) ??
+                                sortedFields[0];
+                              const primaryValue = primaryField ? (row[primaryField.key] ?? "") : "";
+
+                              if (!primaryField) return null;
+
+                              return (
+                                <div className="rounded-md bg-zinc-100 px-2 py-1 text-[11px] text-zinc-600">
+                                  <span className="font-medium text-zinc-500">{primaryField.label}:</span>{" "}
+                                  <span className={primaryValue ? "text-zinc-900 break-words" : "text-zinc-400 italic"}>
+                                    {primaryValue || "-"}
                                   </span>
-                                );
-                              })}
+                                </div>
+                              );
+                            })()}
+                            <div className="flex flex-wrap gap-2">
+                              {sortedFields
+                                .filter((f) => !activeFilters.includes(f.key))
+                                .slice(0, 4)
+                                .map((f) => {
+                                  const value = row[f.key] ?? "";
+                                  return (
+                                    <span
+                                      key={f.key}
+                                      className="inline-flex max-w-full items-start gap-1 rounded-md bg-zinc-100 px-2 py-1 text-[11px] text-zinc-600"
+                                    >
+                                      <span className="shrink-0 text-zinc-500">{f.label}:</span>
+                                      <span className={value ? "text-zinc-900 break-words" : "text-zinc-400 italic"}>
+                                        {value || "-"}
+                                      </span>
+                                    </span>
+                                  );
+                                })}
                             </div>
                           </div>
                         </div>

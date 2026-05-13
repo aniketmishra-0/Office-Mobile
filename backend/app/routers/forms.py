@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Body
 
 from app.config import get_settings
 from app.models.form import (
@@ -362,6 +362,51 @@ def get_public_form(form_id: str) -> PublicFormResponse:
         fields=record["fields"],
         autofill_columns=record.get("autofill_columns", []),
     )
+
+
+@router.delete("/forms/{form_id}")
+def delete_form_endpoint(form_id: str, payload: dict | None = Body(None)) -> dict:
+    """Delete a saved form and its submissions. Requires edit token if provided.
+    If an edit token is supplied it must match the form's edit token.
+    """
+    token = payload.get("token") if payload else None
+    record = _get_record_or_404(form_id)
+    if token and token != record.get("edit_token"):
+        raise HTTPException(status_code=403, detail="Invalid edit token")
+
+    success = form_store.delete_form(form_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Form not found")
+    return {"success": True}
+
+
+@router.post("/forms/{form_id}/unauthorize")
+def unauthorize_form_endpoint(form_id: str, payload: dict | None = Body(None)) -> dict:
+    """Unauthorize a form: clear its oauth_key and associated token if any.
+    Requires either the edit token or the current oauth session that owns the token.
+    """
+    token = payload.get("token") if payload else None
+    record = _get_record_or_404(form_id)
+
+    # If edit token provided, validate it
+    if token:
+        if token != record.get("edit_token"):
+            raise HTTPException(status_code=403, detail="Invalid edit token")
+    else:
+        # Otherwise require that the current oauth session matches the form's oauth_key
+        current_key = get_current_oauth_session_key()
+        if record.get("oauth_key") and record.get("oauth_key") != current_key:
+            raise HTTPException(status_code=403, detail="Not authorized to unauthorize this form")
+
+    # Clear the token and unset association
+    try:
+        if record.get("oauth_key"):
+            form_store.clear_oauth_token(record.get("oauth_key"))
+        form_store.unset_oauth_key(form_id)
+    except Exception as exc:
+        logger.warning(f"Failed to unauthorize form {form_id}: {exc}")
+
+    return {"success": True}
 
 
 @router.get("/forms/{form_id}/edit", response_model=EditFormResponse)

@@ -340,3 +340,26 @@ export async function getPublicConfig(): Promise<{
 }> {
   return jsonGet<{ service_account_email: string | null }>("/config/public");
 }
+
+/**
+ * POST /api/auth/logout
+ */
+export async function logout(): Promise<{ success: boolean }> {
+  return jsonRequest<{ success: boolean }>("POST", "/auth/logout", {});
+}
+
+/**
+ * DELETE /api/forms/:id
+ * Remove a form (requires edit token in body when applicable).
+ */
+export async function deleteForm(id: string, token?: string): Promise<{ success: boolean }> {
+  return jsonRequest<{ success: boolean }>("DELETE", `/forms/${encodeURIComponent(id)}`, { token });
+}
+
+/**
+ * POST /api/forms/:id/unauthorize
+ * Revoke authorization or unlink a form from the current session (server-side behavior may vary).
+ */
+export async function unauthorizeForm(id: string, token?: string): Promise<{ success: boolean }> {
+  return jsonRequest<{ success: boolean }>("POST", `/forms/${encodeURIComponent(id)}/unauthorize`, { token });
+}
