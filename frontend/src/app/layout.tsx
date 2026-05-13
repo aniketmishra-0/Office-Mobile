@@ -1,18 +1,27 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter } from 'next/font/google'
+import { Newsreader, IBM_Plex_Mono } from 'next/font/google'
 import Script from 'next/script'
 import './globals.css'
 import InstallPrompt from '@/components/InstallPrompt'
 
-const inter = Inter({
+const newsreader = Newsreader({
   subsets: ['latin'],
+  weight: ['300', '400', '500'],
+  style: ['normal', 'italic'],
   display: 'swap',
-  variable: '--font-inter',
+  variable: '--font-newsreader',
+})
+
+const plexMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  weight: ['300', '400', '500'],
+  display: 'swap',
+  variable: '--font-plex-mono',
 })
 
 export const metadata: Metadata = {
   title: 'Office Mobile — Google Sheet to Mobile Form',
-  description: 'Turn any Google Sheet into a beautiful mobile data entry form. Fast and free.',
+  description: 'Turn any Google Sheet into a mobile-first data entry form. Editorial, quiet, fast.',
   manifest: '/manifest.json',
   icons: {
     icon: [
@@ -29,7 +38,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: 'Office Mobile — Google Sheet to Mobile Form',
-    description: 'Turn any Google Sheet into a beautiful mobile data entry form.',
+    description: 'Turn any Google Sheet into a mobile-first data entry form.',
     type: 'website',
   },
 }
@@ -40,17 +49,19 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover',
-  themeColor: '#ffffff',
+  themeColor: '#F7F3EE',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={inter.variable}>
-      <body className={`${inter.className} antialiased`}>
+    <html lang="en" className={`${newsreader.variable} ${plexMono.variable}`}>
+      <body>
         <Script id="theme-init" strategy="beforeInteractive">
           {`(function(){try{var t=localStorage.getItem('om_theme');if(t==='dark'){document.documentElement.classList.add('dark')}else{document.documentElement.classList.remove('dark')}}catch(e){}})()`}
         </Script>
-        <div className="max-w-[560px] mx-auto min-h-[100dvh] relative bg-zinc-100 pb-safe">
+        {/* The editorial layout renders at the full viewport; individual
+            screens manage their own 390px mobile column. */}
+        <div className="min-h-[100dvh] relative pb-safe">
           {children}
           <InstallPrompt />
         </div>

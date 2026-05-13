@@ -2,6 +2,13 @@
 
 import React, { useEffect, useRef, useState } from "react";
 
+/**
+ * InstallPrompt — PWA install affordance.
+ *
+ * Rendered as a quiet editorial strip pinned to the bottom of the
+ * viewport. Appears after 5s on devices that support install, dismissed
+ * via session storage.
+ */
 export default function InstallPrompt() {
   const deferredPrompt = useRef<any>(null);
   const [show, setShow] = useState(false);
@@ -19,7 +26,6 @@ export default function InstallPrompt() {
       e.preventDefault();
       deferredPrompt.current = e;
     };
-
     window.addEventListener("beforeinstallprompt", handler);
 
     const timer = setTimeout(() => {
@@ -35,57 +41,118 @@ export default function InstallPrompt() {
     };
   }, []);
 
-  const handleDismiss = () => {
+  function dismiss() {
     setDismissed(true);
     sessionStorage.setItem("install_dismissed", "1");
-  };
-
-  const handleInstall = () => {
+  }
+  function install() {
     deferredPrompt.current?.prompt();
-  };
+  }
 
   if (!show || dismissed) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 max-w-[560px] mx-auto bg-white rounded-t-lg border-t border-zinc-200 shadow-medium px-5 py-5 z-40 animate-slide-up">
-      <p className="font-semibold text-zinc-950 text-sm mb-1">
-        Add to home screen
-      </p>
-      <p className="text-xs text-zinc-500 mb-4">
-        Install Office Mobile for quick access.
-      </p>
+    <div className="om-install">
+      <div className="om-install__body">
+        <p className="om-install__kicker">install</p>
+        <p className="om-install__title">add office mobile to your home screen</p>
+        <p className="om-install__note">
+          {isIOS
+            ? "tap share · then add to home screen."
+            : "quick access, works offline."}
+        </p>
+      </div>
+      <div className="om-install__actions">
+        <button type="button" onClick={dismiss} className="om-install__btn om-install__btn--ghost">
+          not now
+        </button>
+        {!isIOS && (
+          <button type="button" onClick={install} className="om-install__btn om-install__btn--solid">
+            install →
+          </button>
+        )}
+      </div>
 
-      {isIOS ? (
-        <div>
-          <p className="text-xs text-zinc-600 mb-3">
-            Tap Share, then &quot;Add to Home Screen&quot;.
-          </p>
-          <button
-            type="button"
-            onClick={handleDismiss}
-            className="w-full bg-zinc-100 text-zinc-700 font-medium rounded-lg h-11 text-sm"
-          >
-            Got it
-          </button>
-        </div>
-      ) : (
-        <div className="flex gap-2.5">
-          <button
-            type="button"
-            onClick={handleDismiss}
-            className="flex-1 bg-zinc-100 text-zinc-600 font-medium rounded-lg h-11 text-sm"
-          >
-            Not now
-          </button>
-          <button
-            type="button"
-            onClick={handleInstall}
-            className="flex-1 bg-zinc-950 text-white font-medium rounded-lg h-11 text-sm"
-          >
-            Install
-          </button>
-        </div>
-      )}
+      <style jsx>{`
+        .om-install {
+          position: fixed;
+          left: 16px;
+          right: 16px;
+          bottom: 16px;
+          max-width: 540px;
+          margin: 0 auto;
+          z-index: 70;
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+          padding: 18px 18px 16px 18px;
+          background: var(--cream);
+          border: 1px solid var(--ink);
+          animation: fadeIn 250ms ease-out;
+        }
+        .om-install__body {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .om-install__kicker {
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 500;
+          font-size: 10px;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: var(--stone);
+          margin: 0;
+        }
+        .om-install__title {
+          font-family: var(--font-newsreader), Georgia, serif;
+          font-weight: 400;
+          font-size: 16px;
+          line-height: 1.3;
+          color: var(--ink);
+          margin: 0;
+        }
+        .om-install__note {
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 300;
+          font-size: 11px;
+          letter-spacing: 0.04em;
+          color: var(--stone);
+          margin: 0;
+        }
+        .om-install__actions {
+          display: flex;
+          gap: 10px;
+        }
+        .om-install__btn {
+          flex: 1;
+          height: 40px;
+          background: transparent;
+          border: 1px solid var(--rule);
+          border-radius: 0;
+          padding: 0 14px;
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 500;
+          font-size: 11px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: var(--ink);
+          cursor: pointer;
+          transition: background-color 200ms ease-out, color 200ms ease-out, border-color 200ms ease-out;
+        }
+        .om-install__btn--ghost:hover {
+          background: var(--paper);
+        }
+        .om-install__btn--solid {
+          background: var(--ink);
+          border-color: var(--ink);
+          color: #ffffff;
+        }
+        .om-install__btn--solid:hover {
+          background: var(--clay);
+          border-color: var(--clay);
+        }
+      `}</style>
     </div>
   );
 }

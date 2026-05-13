@@ -14,6 +14,14 @@ interface Props {
   rightAction?: React.ReactNode;
 }
 
+/**
+ * AppHeader — editorial top strip.
+ *
+ * Single-row, flat, no shadow. Uses a 1px rule for separation and
+ * monospace for title text. The thin terracotta progress line sits below
+ * the strip on screens that supply a progress value (rendered by each
+ * page when needed).
+ */
 export default function AppHeader({
   title,
   showBack,
@@ -42,140 +50,250 @@ export default function AppHeader({
     let mounted = true;
     async function load() {
       try {
-        const res = await fetch((process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "") + "/api/auth/status", { credentials: "include" });
+        const res = await fetch(
+          (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "") + "/api/auth/status",
+          { credentials: "include" },
+        );
         const data = await res.json();
         if (!mounted) return;
         setUser(data.user ?? null);
-      } catch (e) {
-        // ignore
-      }
+      } catch {}
     }
     load();
-    return () => { mounted = false };
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   function handleBack() {
-    if (onBack) {
-      onBack();
-    } else {
-      router.back();
-    }
+    if (onBack) onBack();
+    else router.back();
   }
 
   return (
     <header
-      className="sticky top-0 z-50 bg-white border-b border-zinc-200"
+      className="om-header"
       style={{ paddingTop: "env(safe-area-inset-top)" }}
     >
-      <div className="flex items-center h-14 px-4 max-w-[560px] mx-auto">
-        {/* Left: back button and/or logo */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="om-header__row">
+        {/* Left: back + logo */}
+        <div className="om-header__left">
           {showBack && (
             <button
               type="button"
               onClick={handleBack}
               aria-label="Go back"
-              className="flex items-center justify-center w-9 h-9 -ml-1 rounded-lg
-                         hover:bg-zinc-100 active:bg-zinc-200 transition-colors"
+              className="om-header__back"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="w-5 h-5 text-zinc-800"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M15.75 19.5L8.25 12l7.5-7.5"
-                />
-              </svg>
+              <span aria-hidden>←</span>
+              <span className="om-header__back-label">back</span>
             </button>
           )}
-          {showLogo && <Logo size="sm" showText={!title} />}
+          {showLogo && !showBack && <Logo size="sm" showText={!title} />}
         </div>
 
-        {/* Center: title (if provided) */}
+        {/* Center: title */}
         {title && (
-          <div className="flex-1 flex items-center justify-center min-w-0 mx-2">
-            <span className="font-semibold text-sm text-zinc-950 truncate">
-              {title}
-            </span>
+          <div className="om-header__title">
+            <span>{title}</span>
           </div>
         )}
+        {!title && <div style={{ flex: 1 }} />}
 
-        {/* Spacer when no title */}
-        {!title && <div className="flex-1" />}
-
-        {/* Right: action slot */}
+        {/* Right: action slot or account menu */}
         {rightAction ? (
-          <div className="flex-shrink-0 flex items-center justify-end">{rightAction}</div>
+          <div className="om-header__right">{rightAction}</div>
         ) : (
-          <div className="flex-shrink-0 flex items-center justify-end" ref={menuRef}>
-            <div className="relative">
-              <button
-                type="button"
-                aria-label="Open menu"
-                onClick={() => setOpenMenu((s) => !s)}
-                className="flex items-center justify-center w-9 h-9 rounded-lg border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 transition-colors overflow-hidden"
-              >
-                {user && user.picture ? (
-                  <img src={user.picture} alt={(user.name ?? user.email) || "Profile"} className="w-9 h-9 object-cover rounded-md" />
-                ) : (
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zM6 20v-1c0-2.21 3.58-4 6-4s6 1.79 6 4v1" />
-                  </svg>
-                )}
-              </button>
-
-              {openMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-white border border-zinc-200 rounded-lg shadow-lg z-50">
-                  <button
-                    type="button"
-                    onClick={() => { setShowSettings(true); setOpenMenu(false); }}
-                    className="w-full text-left px-4 py-2 hover:bg-zinc-50"
-                  >
-                    Settings
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      // toggle theme
-                      try {
-                        if (document.documentElement.classList.contains("dark")) {
-                          document.documentElement.classList.remove("dark");
-                          localStorage.setItem("om_theme", "light");
-                        } else {
-                          document.documentElement.classList.add("dark");
-                          localStorage.setItem("om_theme", "dark");
-                        }
-                      } catch {}
-                      setOpenMenu(false);
-                    }}
-                    className="w-full text-left px-4 py-2 hover:bg-zinc-50"
-                  >
-                    Toggle theme
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await apiLogout();
-                      try { window.localStorage.removeItem("om_session"); } catch {}
-                      window.location.reload();
-                    }}
-                    className="w-full text-left px-4 py-2 text-red-600 hover:bg-zinc-50"
-                  >
-                    Log out
-                  </button>
-                </div>
+          <div className="om-header__right" ref={menuRef}>
+            <button
+              type="button"
+              aria-label="Open menu"
+              onClick={() => setOpenMenu((s) => !s)}
+              className="om-header__avatar"
+            >
+              {user && user.picture ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={user.picture} alt={(user.name ?? user.email) || "Profile"} />
+              ) : (
+                <span aria-hidden>●</span>
               )}
-            </div>
+            </button>
+
+            {openMenu && (
+              <div className="om-header__menu">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSettings(true);
+                    setOpenMenu(false);
+                  }}
+                >
+                  settings
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      if (document.documentElement.classList.contains("dark")) {
+                        document.documentElement.classList.remove("dark");
+                        localStorage.setItem("om_theme", "light");
+                      } else {
+                        document.documentElement.classList.add("dark");
+                        localStorage.setItem("om_theme", "dark");
+                      }
+                    } catch {}
+                    setOpenMenu(false);
+                  }}
+                >
+                  toggle theme
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await apiLogout();
+                    try {
+                      window.localStorage.removeItem("om_session");
+                    } catch {}
+                    window.location.reload();
+                  }}
+                  className="om-header__menu-danger"
+                >
+                  log out
+                </button>
+              </div>
+            )}
             {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
           </div>
         )}
       </div>
+
+      <style jsx>{`
+        .om-header {
+          position: sticky;
+          top: 0;
+          z-index: 40;
+          background: var(--cream);
+          border-bottom: 1px solid var(--rule);
+        }
+        .om-header__row {
+          display: flex;
+          align-items: center;
+          height: 52px;
+          padding: 0 18px;
+          max-width: 560px;
+          margin: 0 auto;
+          gap: 12px;
+        }
+        .om-header__left {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-shrink: 0;
+        }
+        .om-header__back {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 4px;
+          background: transparent;
+          border: 0;
+          color: var(--ink);
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 500;
+          font-size: 11px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          cursor: pointer;
+          transition: color 200ms ease-out;
+        }
+        .om-header__back:hover {
+          color: var(--clay);
+        }
+        .om-header__back-label {
+          display: inline-block;
+        }
+        .om-header__title {
+          flex: 1;
+          min-width: 0;
+          text-align: center;
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 500;
+          font-size: 11px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: var(--charcoal);
+        }
+        .om-header__title span {
+          display: inline-block;
+          max-width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .om-header__right {
+          position: relative;
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+        }
+        .om-header__avatar {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 32px;
+          height: 32px;
+          background: transparent;
+          border: 1px solid var(--rule);
+          border-radius: 0;
+          color: var(--stone);
+          font-size: 10px;
+          line-height: 1;
+          cursor: pointer;
+          overflow: hidden;
+          transition: border-color 200ms ease-out, color 200ms ease-out;
+        }
+        .om-header__avatar:hover {
+          border-color: var(--ink);
+          color: var(--ink);
+        }
+        .om-header__avatar img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+        .om-header__menu {
+          position: absolute;
+          right: 0;
+          top: calc(100% + 6px);
+          min-width: 160px;
+          background: var(--cream);
+          border: 1px solid var(--rule);
+          display: flex;
+          flex-direction: column;
+          padding: 4px 0;
+          z-index: 50;
+        }
+        .om-header__menu button {
+          background: transparent;
+          border: 0;
+          padding: 10px 14px;
+          text-align: left;
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 400;
+          font-size: 11px;
+          letter-spacing: 0.1em;
+          color: var(--ink);
+          cursor: pointer;
+          transition: background-color 200ms ease-out;
+        }
+        .om-header__menu button:hover {
+          background: var(--paper);
+        }
+        .om-header__menu-danger {
+          color: var(--error) !important;
+        }
+      `}</style>
     </header>
   );
 }

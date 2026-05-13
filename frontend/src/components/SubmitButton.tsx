@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 
 interface Props {
   label?: string;
@@ -10,6 +10,13 @@ interface Props {
   disabled?: boolean;
 }
 
+/**
+ * SubmitButton — full-width editorial band.
+ *
+ * Not a traditional button. A 56px tall horizontal strip fixed to the
+ * bottom of the viewport. While submitting, a terracotta fill sweeps
+ * left-to-right across the band (800ms linear). No spinner.
+ */
 export default function SubmitButton({
   label,
   submitting,
@@ -17,27 +24,107 @@ export default function SubmitButton({
   form,
   disabled,
 }: Props) {
+  const [showDone, setShowDone] = useState(false);
+
+  // When submitting flips true → false, briefly hold a "done" state so
+  // users see the completion. The parent screen owns the page-level
+  // transition; this is cosmetic polish.
+  useEffect(() => {
+    if (submitting) {
+      setShowDone(false);
+      return;
+    }
+    if (showDone) {
+      const t = setTimeout(() => setShowDone(false), 250);
+      return () => clearTimeout(t);
+    }
+  }, [submitting, showDone]);
+
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 max-w-[560px] mx-auto px-5 pt-3 pb-3 bg-white border-t border-zinc-200 shadow-sticky z-40"
-      style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
+      className="om-submit-wrap"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <button
         type={onClick ? "button" : "submit"}
         form={form}
         disabled={submitting || disabled}
         onClick={onClick}
-        className="w-full bg-zinc-950 hover:bg-zinc-800 active:bg-black disabled:bg-zinc-200 disabled:text-zinc-500 text-white font-semibold text-[15px] rounded-lg h-[52px] flex items-center justify-center gap-2 transition-all duration-150"
+        className={`om-submit ${submitting ? "is-submitting" : ""}`}
+        aria-label={label ?? "Submit"}
       >
-        {submitting ? (
-          <>
-            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            <span>Working...</span>
-          </>
-        ) : (
-          <span>{label ?? "Submit Response"}</span>
-        )}
+        <span className="om-submit__fill" aria-hidden />
+        <span className="om-submit__label">
+          {submitting ? (
+            <>working</>
+          ) : (
+            <>
+              {(label ?? "Submit").toUpperCase()}
+              <span className="om-submit__arrow" aria-hidden>→</span>
+            </>
+          )}
+        </span>
       </button>
+
+      <style jsx>{`
+        .om-submit-wrap {
+          position: fixed;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          z-index: 30;
+          background: var(--cream);
+          border-top: 1px solid var(--rule);
+        }
+        .om-submit {
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 100%;
+          height: 56px;
+          overflow: hidden;
+          background: var(--ink);
+          color: #ffffff;
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 500;
+          font-size: 12px;
+          letter-spacing: 0.22em;
+          text-transform: uppercase;
+          border: 0;
+          border-radius: 0;
+          cursor: pointer;
+          transition: background-color 200ms ease-out;
+        }
+        .om-submit:disabled {
+          cursor: not-allowed;
+        }
+        .om-submit__fill {
+          position: absolute;
+          inset: 0;
+          background: var(--clay);
+          transform: translateX(-100%);
+          transition: transform 800ms linear;
+          pointer-events: none;
+        }
+        .om-submit.is-submitting .om-submit__fill {
+          transform: translateX(0);
+        }
+        .om-submit__label {
+          position: relative;
+          z-index: 1;
+          display: inline-flex;
+          align-items: center;
+          gap: 14px;
+        }
+        .om-submit__arrow {
+          display: inline-block;
+          transition: transform 200ms ease-out;
+        }
+        .om-submit:hover:not(:disabled) .om-submit__arrow {
+          transform: translateX(3px);
+        }
+      `}</style>
     </div>
   );
 }

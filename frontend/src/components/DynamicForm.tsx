@@ -154,23 +154,58 @@ export default function DynamicForm({
       }}
       noValidate
     >
-      {/* Progress bar */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-[12px] font-medium text-zinc-500">
-            {filledCount} of {totalCount} filled
-          </span>
-          <span className="text-[12px] font-medium text-zinc-500">
-            {Math.round(progress)}%
-          </span>
-        </div>
-        <div className="h-1 bg-zinc-200 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-zinc-950 rounded-full transition-all duration-500 ease-out"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
+      {/* Progress rule — thin terracotta fill, no percent label */}
+      <div className="om-dform-progress" aria-hidden>
+        <div
+          className="om-dform-progress__fill"
+          style={{ width: `${progress}%` }}
+        />
       </div>
+      <p className="om-dform-meta">
+        {String(totalCount).padStart(2, "0")} fields · {filledCount} complete
+      </p>
+
+      <style jsx>{`
+        .om-dform-progress {
+          position: relative;
+          height: 2px;
+          background: var(--rule);
+          margin-bottom: 8px;
+        }
+        .om-dform-progress__fill {
+          height: 100%;
+          background: var(--clay);
+          transition: width 400ms ease-out;
+        }
+        .om-dform-meta {
+          margin: 0 0 24px 0;
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 300;
+          font-size: 11px;
+          letter-spacing: 0.04em;
+          color: var(--stone);
+        }
+        .om-dform-autofilled {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 10px 14px;
+          margin-bottom: 24px;
+          border: 1px solid var(--clay);
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 400;
+          font-size: 11px;
+          letter-spacing: 0.04em;
+          color: var(--ink);
+          animation: fadeIn 200ms ease-out;
+        }
+        .om-dform-autofilled__mark {
+          color: var(--clay);
+          font-family: var(--font-newsreader), Georgia, serif;
+          font-size: 14px;
+          line-height: 1;
+        }
+      `}</style>
 
       {/* Autofill suggestions */}
       {autofillColumns.length > 0 && !autofilled && (
@@ -190,19 +225,9 @@ export default function DynamicForm({
 
       {/* Autofill notice */}
       {autofilled && (
-        <div className="mb-4 px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2 animate-in">
-          <svg
-            className="w-4 h-4 text-emerald-600 flex-shrink-0"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
-          <span className="text-[12px] text-emerald-700 font-medium">
-            Auto-filled from existing data · Edit any field below
-          </span>
+        <div className="om-dform-autofilled" role="status">
+          <span className="om-dform-autofilled__mark" aria-hidden>✓</span>
+          <span>auto-filled from an existing row · edit any field below</span>
         </div>
       )}
 

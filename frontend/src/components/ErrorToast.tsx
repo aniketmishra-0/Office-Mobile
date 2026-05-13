@@ -7,6 +7,12 @@ interface Props {
   onDismiss: () => void;
 }
 
+/**
+ * ErrorToast — editorial inline error strip.
+ *
+ * Pinned above the submit band, full-width, 1px clay border. No shadow.
+ * Auto-dismisses in 8s with a 200ms fade.
+ */
 export default function ErrorToast({ message, onDismiss }: Props) {
   const [visible, setVisible] = useState(false);
 
@@ -27,31 +33,83 @@ export default function ErrorToast({ message, onDismiss }: Props) {
 
   return (
     <div
-      className={`fixed bottom-20 left-4 right-4 max-w-[448px] mx-auto z-50 transition-all duration-200 ${
-        visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"
-      }`}
+      className={`om-toast ${visible ? "is-visible" : ""}`}
+      role="alert"
+      aria-live="assertive"
     >
-      <div className="bg-zinc-950 text-white rounded-lg px-4 py-3.5 flex items-start gap-3 shadow-medium">
-        <div className="w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-          <svg className="w-3 h-3 text-red-400" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-          </svg>
-        </div>
-        <p className="flex-1 text-sm leading-snug">{message}</p>
-        <button
-          type="button"
-          onClick={() => {
-            setVisible(false);
-            setTimeout(onDismiss, 200);
-          }}
-          aria-label="Dismiss error"
-          className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-white/10 transition-colors flex-shrink-0"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
+      <span className="om-toast__mark" aria-hidden>✕</span>
+      <p className="om-toast__msg">{message}</p>
+      <button
+        type="button"
+        onClick={() => {
+          setVisible(false);
+          setTimeout(onDismiss, 200);
+        }}
+        aria-label="Dismiss"
+        className="om-toast__close"
+      >
+        close
+      </button>
+
+      <style jsx>{`
+        .om-toast {
+          position: fixed;
+          left: 16px;
+          right: 16px;
+          bottom: 80px;
+          max-width: 540px;
+          margin: 0 auto;
+          z-index: 60;
+          display: flex;
+          align-items: flex-start;
+          gap: 14px;
+          padding: 14px 16px;
+          background: var(--cream);
+          border: 1px solid var(--error);
+          opacity: 0;
+          transform: translateY(4px);
+          transition: opacity 200ms ease-out, transform 200ms ease-out;
+        }
+        .om-toast.is-visible {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        .om-toast__mark {
+          color: var(--error);
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 500;
+          font-size: 12px;
+          line-height: 1.2;
+          margin-top: 2px;
+        }
+        .om-toast__msg {
+          flex: 1;
+          margin: 0;
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 400;
+          font-size: 12px;
+          line-height: 1.5;
+          color: var(--ink);
+          letter-spacing: 0.02em;
+        }
+        .om-toast__close {
+          flex-shrink: 0;
+          background: transparent;
+          border: 0;
+          padding: 2px 4px;
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 500;
+          font-size: 10px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: var(--stone);
+          cursor: pointer;
+          transition: color 200ms ease-out;
+        }
+        .om-toast__close:hover {
+          color: var(--ink);
+        }
+      `}</style>
     </div>
   );
 }

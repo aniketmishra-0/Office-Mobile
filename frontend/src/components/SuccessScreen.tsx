@@ -1,87 +1,116 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import Logo from "@/components/Logo";
 
 interface Props {
   formTitle: string;
   onSubmitAnother: () => void;
 }
 
+function formatStamp(): string {
+  const d = new Date();
+  const months = [
+    "jan", "feb", "mar", "apr", "may", "jun",
+    "jul", "aug", "sep", "oct", "nov", "dec",
+  ];
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())} ${months[d.getMonth()]} ${d.getFullYear()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/**
+ * SuccessScreen — editorial completion state.
+ *
+ *   ✓
+ *   entry recorded.
+ *   sheet updated · 13 may 2026, 14:32
+ *   → submit another
+ *
+ * Large serif checkmark in clay, Newsreader title, mono meta line,
+ * single text link to start again. No other UI.
+ */
 export default function SuccessScreen({ formTitle, onSubmitAnother }: Props) {
-  const [show, setShow] = useState(false);
+  const [stamp, setStamp] = useState("");
 
   useEffect(() => {
-    const timer = setTimeout(() => setShow(true), 50);
-    return () => clearTimeout(timer);
+    setStamp(formatStamp());
   }, []);
 
   return (
-    <div className="min-h-screen bg-zinc-100 flex flex-col items-center justify-center px-6">
-      {/* Checkmark */}
-      <div
-        className={`transition-all duration-500 ease-out ${
-          show ? "opacity-100 scale-100" : "opacity-0 scale-75"
-        }`}
-      >
-        <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center border-2 border-emerald-100">
-          <svg
-            className="w-10 h-10 text-emerald-600"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M5 13l4 4L19 7"
-              style={{
-                strokeDasharray: 24,
-                strokeDashoffset: show ? 0 : 24,
-                transition: "stroke-dashoffset 0.5s ease-out 0.2s",
-              }}
-            />
-          </svg>
-        </div>
-      </div>
+    <div className="om-success" role="status" aria-live="polite">
+      <span className="om-success__check" aria-hidden>✓</span>
+      <h1 className="om-success__title">entry recorded.</h1>
+      <p className="om-success__meta">
+        sheet updated · {stamp}
+        {formTitle ? <><br />form · {formTitle.toLowerCase()}</> : null}
+      </p>
+      <button type="button" className="om-success__link" onClick={onSubmitAnother}>
+        → submit another
+      </button>
 
-      {/* Text */}
-      <div
-        className={`text-center mt-6 transition-all duration-400 delay-150 ${
-          show ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
-        }`}
-      >
-        <h1 className="text-xl font-bold text-zinc-950">Response recorded</h1>
-        <p className="text-zinc-600 mt-2 text-sm max-w-[260px]">
-          Your data has been saved to{" "}
-          <span className="font-medium text-zinc-800">{formTitle}</span>
-        </p>
-      </div>
-
-      {/* CTA */}
-      <div
-        className={`w-full max-w-[280px] mt-8 transition-all duration-400 delay-300 ${
-          show ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
-        }`}
-      >
-        <button
-          type="button"
-          onClick={onSubmitAnother}
-          className="w-full bg-zinc-950 hover:bg-zinc-800 text-white h-12 rounded-lg text-sm font-semibold transition-colors"
-        >
-          Submit another response
-        </button>
-      </div>
-
-      {/* Footer */}
-      <div
-        className={`mt-8 transition-all duration-400 delay-500 ${
-          show ? "opacity-100" : "opacity-0"
-        }`}
-      >
-        <Logo size="sm" showText={true} />
-      </div>
+      <style jsx>{`
+        .om-success {
+          position: fixed;
+          inset: 0;
+          background: var(--cream);
+          background-image: repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 2px,
+            rgba(26, 23, 20, 0.012) 2px,
+            rgba(26, 23, 20, 0.012) 4px
+          );
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 16px;
+          padding: 48px 32px;
+          text-align: center;
+          animation: fadeIn 250ms ease-out;
+        }
+        .om-success__check {
+          font-family: var(--font-newsreader), Georgia, serif;
+          font-weight: 300;
+          font-size: 64px;
+          line-height: 1;
+          color: var(--clay);
+          margin-bottom: 8px;
+        }
+        .om-success__title {
+          font-family: var(--font-newsreader), Georgia, serif;
+          font-weight: 400;
+          font-size: 24px;
+          line-height: 1.2;
+          color: var(--ink);
+          margin: 0;
+          letter-spacing: -0.005em;
+        }
+        .om-success__meta {
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 300;
+          font-size: 11px;
+          line-height: 1.6;
+          color: var(--stone);
+          letter-spacing: 0.04em;
+          margin: 0;
+        }
+        .om-success__link {
+          margin-top: 28px;
+          background: transparent;
+          border: 0;
+          padding: 4px 0;
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 500;
+          font-size: 13px;
+          color: var(--clay);
+          letter-spacing: 0.02em;
+          cursor: pointer;
+          transition: color 200ms ease-out;
+        }
+        .om-success__link:hover {
+          color: var(--clay-dark);
+        }
+      `}</style>
     </div>
   );
 }
