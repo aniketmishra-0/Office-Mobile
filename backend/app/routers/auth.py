@@ -66,9 +66,12 @@ def _clear_session_cookie(response: Response, request: Request) -> None:
 
 
 def _ensure_session_key(request: Request, response: Response) -> str:
-    session_key = request.cookies.get(OAUTH_SESSION_COOKIE)
+    session_key = request.cookies.get(OAUTH_SESSION_COOKIE) or request.headers.get(
+        "x-session-key"
+    )
     if not session_key:
         session_key = secrets.token_urlsafe(32)
+    if request.cookies.get(OAUTH_SESSION_COOKIE) != session_key:
         _set_session_cookie(response, request, session_key)
     return session_key
 
@@ -101,12 +104,14 @@ def _frontend_origin() -> str:
 def status(request: Request, response: Response) -> dict:
     session_key = _ensure_session_key(request, response)
     token = form_store.get_oauth_token(session_key)
-    return {"connected": token is not None}
+    return {"connected": token is not None, "session_key": session_key}
 
 
 @router.post("/logout")
 def logout(request: Request, response: Response) -> dict:
-    session_key = request.cookies.get(OAUTH_SESSION_COOKIE)
+    session_key = request.cookies.get(OAUTH_SESSION_COOKIE) or request.headers.get(
+        "x-session-key"
+    )
     if session_key:
         form_store.clear_oauth_token(session_key)
     _clear_session_cookie(response, request)

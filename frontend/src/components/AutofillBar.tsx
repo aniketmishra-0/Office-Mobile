@@ -9,6 +9,9 @@ interface Props {
   suggestions: Record<string, string>[];
   autofillColumns: string[];
   loading?: boolean;
+  activeFilters?: string[];
+  onActiveFiltersChange?: (keys: string[]) => void;
+  resultsPlacement?: "bar" | "inline" | "both";
   onAutofill: (row: Record<string, string>) => void;
   onOpen?: () => void;
 }
@@ -31,13 +34,19 @@ export default function AutofillBar({
   suggestions,
   autofillColumns,
   loading = false,
+  activeFilters,
+  onActiveFiltersChange,
+  resultsPlacement = "bar",
   onAutofill,
   onOpen,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
-  const [activeFilters, setActiveFilters] = useState<string[]>([]);
+  const [internalFilters, setInternalFilters] = useState<string[]>([]);
   const [showResults, setShowResults] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const filters = activeFilters ?? internalFilters;
+  const setFilters = onActiveFiltersChange ?? setInternalFilters;
+  const showResultsInBar = resultsPlacement === "bar" || resultsPlacement === "both";
 
   // Only show columns that the form creator marked as filterable
   const filterableFields = useMemo(
@@ -47,21 +56,21 @@ export default function AutofillBar({
 
   // Toggle a filter column on/off
   const toggleFilter = useCallback((key: string) => {
-    setActiveFilters((prev) => {
+    setFilters((prev) => {
       if (prev.includes(key)) {
         return prev.filter((k) => k !== key);
       }
       return [...prev, key];
     });
     setShowResults(true);
-  }, []);
+  }, [setFilters]);
 
   // Filter suggestions based on active filter columns that have values
   const matches = useMemo(() => {
-    if (!suggestions.length || !activeFilters.length) return [];
+    if (!suggestions.length || !filters.length) return [];
 
     // Get typed values in active filter columns
-    const typedFilters = activeFilters
+    const typedFilters = filters
       .map((key) => ({ key, value: (values[key] ?? "").trim().toLowerCase() }))
       .filter((entry) => entry.value.length > 0);
 
@@ -87,29 +96,29 @@ export default function AutofillBar({
     }
 
     return unique.slice(0, 10);
-  }, [suggestions, values, activeFilters]);
+  }, [suggestions, values, filters]);
 
   // Auto-show results when user types in an active filter
   useEffect(() => {
-    const hasTypedInFilter = activeFilters.some(
+    const hasTypedInFilter = filters.some(
       (key) => (values[key] ?? "").trim().length > 0,
     );
     if (hasTypedInFilter) {
       setShowResults(true);
     }
-  }, [values, activeFilters]);
+  }, [values, filters]);
 
   const handleSelect = useCallback(
     (row: Record<string, string>) => {
       // Only auto-fill fields that are NOT active filters (preserve user's filter input)
       const filteredRow: Record<string, string> = {};
       for (const [key, val] of Object.entries(row)) {
-        if (!activeFilters.includes(key)) {
+        if (!filters.includes(key)) {
           filteredRow[key] = val;
         }
       }
       // Also fill filter fields that the user hasn't typed in yet
-      for (const key of activeFilters) {
+      for (const key of filters) {
         const userVal = (values[key] ?? "").trim();
         if (!userVal && row[key]) {
           filteredRow[key] = row[key];
@@ -119,7 +128,7 @@ export default function AutofillBar({
       setShowResults(false);
       setExpanded(false);
     },
-    [onAutofill, activeFilters, values],
+    [onAutofill, filters, values],
   );
 
   // Display label for a row
@@ -127,20 +136,20 @@ export default function AutofillBar({
     (row: Record<string, string>) => {
       const parts: string[] = [];
       // Show active filter values first
-      for (const key of activeFilters) {
+      for (const key of filters) {
         const val = row[key];
         if (val?.trim()) parts.push(val.trim());
       }
       // Then other fields
       for (const f of fields) {
-        if (activeFilters.includes(f.key)) continue;
+        if (filters.includes(f.key)) continue;
         if (parts.length >= 4) break;
         const val = row[f.key];
         if (val?.trim()) parts.push(val.trim());
       }
       return parts.join(" · ");
     },
-    [fields, activeFilters],
+    [fields, filters],
   );
 
   // Get field label by key
@@ -193,9 +202,9 @@ export default function AutofillBar({
           <span className={`text-[13px] font-medium ${expanded ? "text-zinc-950" : "text-zinc-700"}`}>
             Auto-fill from existing data
           </span>
-          {activeFilters.length > 0 && (
+          {filters.length > 0 && (
             <span className="text-[11px] text-zinc-500 ml-2">
-              {activeFilters.length} filter{activeFilters.length > 1 ? "s" : ""} active
+              {filters.length} filter{filters.length > 1 ? "s" : ""} active
             </span>
           )}
         </div>
@@ -219,7 +228,7 @@ export default function AutofillBar({
           </p>
           <div className="flex flex-wrap gap-2 mb-3">
             {filterableFields.map((field) => {
-              const isActive = activeFilters.includes(field.key);
+              const isActive = filters.includes(field.key);
               return (
                 <button
                   key={field.key}
@@ -252,10 +261,10 @@ export default function AutofillBar({
           </div>
 
           {/* Active filter indicators */}
-          {activeFilters.length > 0 && (
+          {filters.length > 0 && (
             <div className="mb-3 px-1">
               <div className="flex flex-wrap gap-1.5">
-                {activeFilters.map((key) => {
+                {filters.map((key) => {
                   const val = (values[key] ?? "").trim();
                   return (
                     <span
@@ -277,7 +286,7 @@ export default function AutofillBar({
           )}
 
           {/* Results */}
-          {showResults && activeFilters.length > 0 && matches.length > 0 && (
+          {showResultsInBar && showResults && filters.length > 0 && matches.length > 0 && (
             <div className="animate-in" style={{ animationDuration: "150ms" }}>
               <div className="flex items-center justify-between mb-1.5 px-1">
                 <span className="text-[11px] font-medium text-zinc-600">
@@ -319,20 +328,20 @@ export default function AutofillBar({
             </div>
           )}
 
-          {loading && (
+          {showResultsInBar && loading && (
             <div className="text-center py-4">
               <p className="text-[12px] text-zinc-500">Loading past entries...</p>
             </div>
           )}
 
-          {!loading && suggestions.length === 0 && (
+          {showResultsInBar && !loading && suggestions.length === 0 && (
             <div className="text-center py-4">
               <p className="text-[12px] text-zinc-500">No previous entries found yet.</p>
             </div>
           )}
 
           {/* No results message */}
-          {showResults && activeFilters.length > 0 && matches.length === 0 && (
+          {showResultsInBar && showResults && filters.length > 0 && matches.length === 0 && (
             <div className="text-center py-4">
               <p className="text-[12px] text-zinc-500">
                 No matching entries found. Try different filter values.
@@ -341,7 +350,7 @@ export default function AutofillBar({
           )}
 
           {/* No filters selected hint */}
-          {activeFilters.length === 0 && (
+          {showResultsInBar && filters.length === 0 && (
             <div className="text-center py-3">
               <p className="text-[12px] text-zinc-500">
                 Tick one or more columns above to start filtering

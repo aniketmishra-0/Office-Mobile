@@ -255,6 +255,9 @@ export default function Dashboard() {
       credentials: "include",
     })
       .then(() => {
+        try {
+          window.localStorage.removeItem("om_session");
+        } catch {}
         window.location.reload();
       })
       .catch(() => {});

@@ -15,6 +15,11 @@ export default function HomePage() {
         credentials: "include",
       });
       const data = await res.json();
+      if (data.session_key) {
+        try {
+          window.localStorage.setItem("om_session", data.session_key);
+        } catch {}
+      }
       setConnected(Boolean(data.connected));
     } catch {
       setConnected(false);

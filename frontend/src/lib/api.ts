@@ -26,6 +26,15 @@ const BASE_URL = (
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 ).replace(/\/$/, "");
 
+const SESSION_STORAGE_KEY = "om_session";
+
+function sessionHeaders(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  const sessionKey = window.localStorage.getItem(SESSION_STORAGE_KEY);
+  if (!sessionKey) return {};
+  return { "X-Session-Key": sessionKey };
+}
+
 /** Build a full API URL from a path (always prefixed with /api). */
 function url(path: string): string {
   return `${BASE_URL}/api${path}`;
@@ -74,7 +83,7 @@ async function jsonRequest<T>(
 ): Promise<T> {
   const res = await fetchWithRetry(url(path), {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...sessionHeaders() },
     body: JSON.stringify(body),
     credentials: "include",
   });
@@ -85,7 +94,7 @@ async function jsonRequest<T>(
 async function jsonGet<T>(path: string): Promise<T> {
   const res = await fetchWithRetry(url(path), {
     method: "GET",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...sessionHeaders() },
     credentials: "include",
   });
   return handleResponse<T>(res);

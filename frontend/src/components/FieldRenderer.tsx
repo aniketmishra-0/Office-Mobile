@@ -8,6 +8,7 @@ interface Props {
   value: string;
   onChange: (key: string, value: string) => void;
   onBlur?: (key: string) => void;
+  onFocus?: (key: string) => void;
   error?: string;
   touched?: boolean;
 }
@@ -23,6 +24,7 @@ export default function FieldRenderer({
   value,
   onChange,
   onBlur,
+  onFocus,
   error,
   touched,
 }: Props) {
@@ -36,6 +38,7 @@ export default function FieldRenderer({
   ) => onChange(field.key, e.target.value);
 
   const handleBlur = () => onBlur?.(field.key);
+  const handleFocus = () => onFocus?.(field.key);
 
   const [uploading, setUploading] = React.useState(false);
   const [uploadError, setUploadError] = React.useState<string | null>(null);
@@ -80,6 +83,7 @@ export default function FieldRenderer({
       placeholder: field.placeholder,
       value,
       onChange: handle,
+      onFocus: handleFocus,
       onBlur: handleBlur,
       "aria-invalid": showError ? (true as const) : undefined,
       "aria-describedby": showError ? `${id}-error` : undefined,
@@ -141,6 +145,7 @@ export default function FieldRenderer({
                       accept="image/*,application/pdf"
                       capture="environment"
                       onChange={handleFileUpload}
+                      onFocus={handleFocus}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     />
                     <div className="flex flex-col items-center gap-2 pointer-events-none">

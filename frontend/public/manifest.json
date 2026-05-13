@@ -4,8 +4,8 @@
   "description": "Turn any Google Sheet into a mobile data entry form",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#4F46E5",
+  "background_color": "#f4f4f5",
+  "theme_color": "#f4f4f5",
   "orientation": "portrait",
   "categories": ["productivity", "utilities"],
   "icons": [

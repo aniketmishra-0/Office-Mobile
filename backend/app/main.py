@@ -64,7 +64,10 @@ async def limit_request_size(request: Request, call_next):
 
 @app.middleware("http")
 async def attach_oauth_session(request: Request, call_next):
-    token = set_oauth_session_key(request.cookies.get(OAUTH_SESSION_COOKIE))
+    session_key = request.cookies.get(OAUTH_SESSION_COOKIE) or request.headers.get(
+        "x-session-key"
+    )
+    token = set_oauth_session_key(session_key)
     try:
         response = await call_next(request)
     finally:
@@ -93,6 +96,7 @@ app.add_middleware(
         "Authorization",
         "Idempotency-Key",
         "X-Requested-With",
+        "X-Session-Key",
     ],
     max_age=86400,
 )

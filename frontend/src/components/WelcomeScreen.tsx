@@ -51,6 +51,11 @@ export default function WelcomeScreen({ onAuthenticated }: Props) {
             credentials: "include",
           });
           const data = await res.json();
+          if (data.session_key) {
+            try {
+              window.localStorage.setItem("om_session", data.session_key);
+            } catch {}
+          }
           if (data.connected) {
             setAuthState("success");
             setTimeout(() => {
