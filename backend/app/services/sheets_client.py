@@ -37,6 +37,42 @@ SCOPES = [
 _ROWS_CACHE_TTL_SECONDS = 60
 _ROWS_CACHE: dict[tuple, tuple[float, list[dict[str, str]]]] = {}
 
+# In-process cache for the header row (row 1) of a sheet/tab. Submissions only
+# need the header mapping to decide which column each field writes to, and that
+# mapping rarely changes. A 5-minute TTL turns most repeat submissions into
+# a single Sheets API call (the append itself) instead of three.
+_HEADERS_CACHE_TTL_SECONDS = 300
+_HEADERS_CACHE: dict[tuple[str, str], tuple[float, list[str]]] = {}
+
+
+def _headers_cache_key(spreadsheet_id: str, worksheet_name: str | None) -> tuple[str, str]:
+    return (spreadsheet_id, worksheet_name or "")
+
+
+def _invalidate_headers_cache(spreadsheet_id: str, worksheet_name: str | None) -> None:
+    _HEADERS_CACHE.pop(_headers_cache_key(spreadsheet_id, worksheet_name), None)
+
+
+def _get_cached_headers(
+    spreadsheet_id: str, worksheet_name: str | None
+) -> list[str] | None:
+    cached = _HEADERS_CACHE.get(_headers_cache_key(spreadsheet_id, worksheet_name))
+    if cached is None:
+        return None
+    ts, headers = cached
+    if time.time() - ts >= _HEADERS_CACHE_TTL_SECONDS:
+        return None
+    return headers
+
+
+def _store_cached_headers(
+    spreadsheet_id: str, worksheet_name: str | None, headers: list[str]
+) -> None:
+    _HEADERS_CACHE[_headers_cache_key(spreadsheet_id, worksheet_name)] = (
+        time.time(),
+        headers,
+    )
+
 
 def _rows_cache_key(
     spreadsheet_id: str, worksheet_name: str | None, fields: list[FieldSchema]
@@ -437,6 +473,9 @@ def sync_sheet_headers(
         return
 
     worksheet.update("A1", [headers], value_input_option="RAW")
+    # Headers just changed on disk, drop any cached copy so the next append
+    # reads the fresh layout rather than routing data to stale columns.
+    _invalidate_headers_cache(spreadsheet_id, worksheet_name)
 
 
 # ---------------------------------------------------------------------------
@@ -473,84 +512,32 @@ def _col_index_to_letter(col_index: int) -> str:
     return result
 
 
-def _find_next_empty_row(worksheet: Any, header_count: int) -> int:
-    """
-    Smart next-row detection using binary search on the actual data range.
-    
-    Strategy:
-    1. Use Google Sheets API COUNTA approach — check a small range at the end
-       to find where data stops.
-    2. Binary search between row 2 and the sheet's row_count to find the
-       first completely empty row.
-    
-    This avoids fetching all 30k+ rows which is slow and error-prone.
-    """
-    total_rows = worksheet.row_count
-
-    # Quick check: use the Sheets API to get the last row with data
-    # by reading column A (most reliable — usually always has data)
-    # But limit to a smart range to avoid fetching 30k cells
-    
-    # Strategy: Use Google Sheets' native append detection via COUNTA
-    # Read a formula result that tells us the last row
-    try:
-        # Use the spreadsheets.values.get with a large range but let
-        # Google handle the trimming — it only returns up to last data row
-        end_col = _col_index_to_letter(min(header_count - 1, 25))
-        data_range = f"A1:{end_col}{total_rows}"
-        
-        # gspread's get() returns only cells with data (trims trailing empty rows)
-        all_data = worksheet.get(data_range)
-        
-        if not all_data:
-            return 2  # Empty sheet, start after header
-        
-        # all_data length = number of rows returned (including header)
-        # The last row with data is at index len(all_data)
-        last_data_row = len(all_data)
-        
-        logger.info(
-            f"Sheet has {total_rows} total rows, last data at row {last_data_row}, "
-            f"next empty row: {last_data_row + 1}"
-        )
-        
-        return last_data_row + 1
-        
-    except Exception as e:
-        logger.warning(f"Smart row detection failed, using fallback: {e}")
-        # Fallback: use col_values which is still better than get_all_values
-        col_a = worksheet.col_values(1)
-        # Reverse search for last non-empty
-        for i in range(len(col_a) - 1, -1, -1):
-            if col_a[i].strip():
-                return i + 2  # i is 0-indexed, +1 for 1-indexed, +1 for next row
-        return 2
+def _read_live_headers(worksheet: Any, spreadsheet_id: str, worksheet_name: str | None) -> list[str]:
+    """Return the header row, using the cached copy when available."""
+    cached = _get_cached_headers(spreadsheet_id, worksheet_name)
+    if cached is not None:
+        return cached
+    headers = worksheet.row_values(1)
+    _store_cached_headers(spreadsheet_id, worksheet_name, headers)
+    return headers
 
 
-def _build_row_from_live_headers(
-    worksheet: Any,
+def _build_row_from_headers(
+    live_headers: list[str],
     fields: list[FieldSchema],
     values: dict[str, Any],
 ) -> list[Any]:
-    """
-    Read the current header row from the sheet and place each field's value
-    in the column that matches its source_header. This ensures data always
-    goes into the correct column even if columns were reordered.
-    """
-    live_headers = worksheet.row_values(1)
-
+    """Place each field's value in the column that matches its source_header.
+    Ensures data lands in the correct column even if columns were reordered."""
     if not live_headers:
         return _build_append_row_simple(fields, values)
 
-    # Build a map: normalized header text → column index (0-based)
     header_to_col: dict[str, int] = {}
     for idx, header in enumerate(live_headers):
         normalized = header.strip()
         if normalized and normalized not in header_to_col:
             header_to_col[normalized] = idx
 
-    # Only build row up to the last column we actually need to write to
-    # (not the full header width — avoids exceeding grid limits)
     max_needed_col = 0
     col_assignments: list[tuple[int, str]] = []
 
@@ -559,26 +546,20 @@ def _build_row_from_live_headers(
         value_str = str(raw_value) if raw_value not in (None, "") else ""
         value_str = _sanitize_cell(value_str)
 
-        # Match by source_header (exact)
         col_idx = header_to_col.get(field.source_header.strip())
-
         if col_idx is None:
-            # Case-insensitive fallback
             source_lower = field.source_header.strip().lower()
             for h, idx in header_to_col.items():
                 if h.lower() == source_lower:
                     col_idx = idx
                     break
-
         if col_idx is None:
-            # Last fallback: stored column_index
             col_idx = field.column_index
 
         col_assignments.append((col_idx, value_str))
         if col_idx > max_needed_col:
             max_needed_col = col_idx
 
-    # Build the row array only as wide as needed
     row_values: list[Any] = [""] * (max_needed_col + 1)
     for col_idx, value_str in col_assignments:
         row_values[col_idx] = value_str
@@ -602,23 +583,6 @@ def _build_append_row_simple(fields: list[FieldSchema], values: dict[str, Any]) 
     return row_values
 
 
-def _ensure_sheet_capacity(worksheet: Any, target_row: int, num_cols: int) -> None:
-    """
-    Ensure the worksheet has enough rows and columns for the write.
-    Adds rows/cols in bulk to minimize API calls.
-    """
-    if target_row > worksheet.row_count:
-        # Add 500 extra rows as buffer to reduce future expansions
-        rows_to_add = target_row - worksheet.row_count + 500
-        worksheet.add_rows(rows_to_add)
-        logger.info(f"Expanded sheet by {rows_to_add} rows (new total: {worksheet.row_count + rows_to_add})")
-
-    if num_cols > worksheet.col_count:
-        cols_to_add = num_cols - worksheet.col_count + 5
-        worksheet.add_cols(cols_to_add)
-        logger.info(f"Expanded sheet by {cols_to_add} columns")
-
-
 def append_form_row(
     *,
     spreadsheet_id: str,
@@ -627,15 +591,17 @@ def append_form_row(
     values: dict[str, Any],
 ) -> str | None:
     """
-    Append a row to the backing Google Sheet.
-    
-    Smart features:
-    - Uses efficient row detection (doesn't fetch entire sheet)
-    - Matches columns by header name (handles reordered columns)
-    - Auto-expands sheet if at capacity
-    - Only writes to columns that have data (avoids exceeding grid limits)
-    - Retries once on transient errors
-    
+    Append a row to the backing Google Sheet using the server-side append API.
+
+    This is a single round-trip to Google in the hot path:
+      spreadsheets.values.append  →  Google picks the next empty row, grows
+      the grid as needed, and returns the updated range.
+
+    The previous implementation did 3-5 round-trips per submission (open sheet,
+    read headers, scan for last row, expand capacity, write). The header read
+    is now cached for 5 minutes and column matching happens locally, so a warm
+    submission issues exactly one Sheets API call.
+
     Returns the updated range string, or None if no credentials.
     """
     if not _has_credentials():
@@ -645,56 +611,67 @@ def append_form_row(
     spreadsheet = client.open_by_key(spreadsheet_id)
     worksheet = _select_worksheet(spreadsheet, worksheet_name)
 
-    # Build row by matching field source_header to live sheet headers
-    row_values = _build_row_from_live_headers(worksheet, fields, values)
+    live_headers = _read_live_headers(worksheet, spreadsheet_id, worksheet_name)
+    row_values = _build_row_from_headers(live_headers, fields, values)
 
-    # Trim trailing empty cells to minimize the range we write
+    # Trim trailing empty cells so the written range is as narrow as possible.
     while row_values and row_values[-1] == "":
         row_values.pop()
 
     if not row_values:
-        # Nothing to write
         return None
 
-    # Find the next empty row efficiently
-    next_row = _find_next_empty_row(worksheet, len(row_values))
-
-    # Ensure sheet has capacity
-    _ensure_sheet_capacity(worksheet, next_row, len(row_values))
-
-    # Build the exact range (only as wide as our data)
-    start_col = "A"
     end_col = _col_index_to_letter(len(row_values) - 1)
-    cell_range = f"{start_col}{next_row}:{end_col}{next_row}"
-
-    logger.info(f"Writing to {worksheet.title}!{cell_range}")
-
-    # Write with retry on transient failure
+    # Sheets' append_rows uses the worksheet's whole data range as the search
+    # area when table_range is omitted, which is exactly what we want: Google
+    # locates the next empty row below the existing data for us.
     try:
-        worksheet.update(
-            cell_range,
+        result = worksheet.append_rows(
             [row_values],
             value_input_option="USER_ENTERED",
+            insert_data_option="INSERT_ROWS",
+            table_range=f"A1:{end_col}",
+            include_values_in_response=False,
         )
     except APIError as exc:
         status = getattr(getattr(exc, "response", None), "status_code", None)
         if status == 429:
-            # Rate limited — wait and retry once
-            import time
             time.sleep(2)
-            worksheet.update(
-                cell_range,
+            result = worksheet.append_rows(
                 [row_values],
                 value_input_option="USER_ENTERED",
+                insert_data_option="INSERT_ROWS",
+                table_range=f"A1:{end_col}",
+                include_values_in_response=False,
             )
         else:
+            # A 400 here often means the header row moved or was deleted, so
+            # any cached header map is stale. Drop it before bubbling the
+            # error up so the next submission rebuilds the mapping.
+            if status == 400:
+                _invalidate_headers_cache(spreadsheet_id, worksheet_name)
             raise
 
-    # Invalidate any cached reads for this sheet/tab so subsequent autofill
+    # Pull the updated range out of the API response so the caller can echo
+    # it back to the client (and store it with the submission).
+    updated_range: str | None = None
+    try:
+        updates = (result or {}).get("updates") or {}
+        updated_range = updates.get("updatedRange")
+    except Exception:
+        updated_range = None
+
+    if not updated_range:
+        # Fall back to a best-effort string; the write did succeed.
+        updated_range = f"{worksheet.title}!A:{end_col}"
+
+    logger.info("sheets.append ok range=%s", updated_range)
+
+    # Invalidate cached reads for this sheet/tab so subsequent autofill
     # queries see the row we just wrote.
     _invalidate_rows_cache(spreadsheet_id, worksheet_name)
 
-    return f"{worksheet.title}!{cell_range}"
+    return updated_range
 
 
 # ---------------------------------------------------------------------------
@@ -735,8 +712,8 @@ def read_sheet_rows(
         spreadsheet = client.open_by_key(spreadsheet_id)
         worksheet = _select_worksheet(spreadsheet, worksheet_name)
 
-        # Read headers to map columns
-        live_headers = worksheet.row_values(1)
+        # Read headers to map columns (cached)
+        live_headers = _read_live_headers(worksheet, spreadsheet_id, worksheet_name)
         if not live_headers:
             return []
 

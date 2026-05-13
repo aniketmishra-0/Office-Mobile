@@ -73,7 +73,7 @@ export default function SubmitButton({
       <style jsx>{`
         .om-submit-wrap {
           /* Flows inline with the page so scrolling reveals every part of
-             the app. The outer layout already applies `pb-safe` at the
+             the app. The outer layout already applies 'pb-safe' at the
              root (see app/layout.tsx), which keeps the iPhone home-
              indicator clear and collapses to zero on Android. */
           width: 100%;

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -46,6 +47,13 @@ def _sheet_error(exc: Exception) -> HTTPException:
 
 def _get_record_or_404(form_id: str) -> dict:
     record = form_store.get_form(form_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Form not found")
+    return record
+
+
+async def _get_record_or_404_async(form_id: str) -> dict:
+    record = await asyncio.to_thread(form_store.get_form, form_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Form not found")
     return record
