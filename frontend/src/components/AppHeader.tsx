@@ -375,7 +375,27 @@ export default function AppHeader({
           display: flex;
           flex-direction: column;
           z-index: 60;
-          animation: fadeIn 200ms ease-out;
+          transform-origin: top right;
+          animation: omMenuReveal 280ms cubic-bezier(0.22, 1, 0.36, 1);
+          will-change: transform, opacity;
+        }
+        @keyframes omMenuReveal {
+          0% {
+            opacity: 0;
+            transform: translate3d(4px, -6px, 0) scale(0.9);
+          }
+          60% {
+            opacity: 1;
+          }
+          100% {
+            opacity: 1;
+            transform: translate3d(0, 0, 0) scale(1);
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .om-header__menu {
+            animation: fadeIn 160ms ease-out;
+          }
         }
 
         .om-header__profile {

@@ -1,10 +1,10 @@
 /* ------------------------------------------------------------------ *
  * Office Mobile Service Worker                                        *
  * Strategy: network-first with shell-cache fallback                  *
- * Cache name: officemobile-v2                                        *
+ * Cache name: officemobile-v3                                        *
  * ------------------------------------------------------------------ */
 
-const CACHE_NAME = "officemobile-v2";
+const CACHE_NAME = "officemobile-v3";
 
 /* ------------------------------------------------------------------ *
  * INSTALL — activate immediately (no pre-caching in dev)             *
@@ -35,6 +35,12 @@ self.addEventListener("activate", (event) => {
 
 /* ------------------------------------------------------------------ *
  * FETCH — network-first, fall back to cache                          *
+ *                                                                    *
+ * HTML navigation requests deliberately bypass the cache so users    *
+ * never see a stale pre-hydration shell from a previous deploy. If   *
+ * the network fails entirely we still return the cached root as an   *
+ * offline fallback, but the cache is never allowed to preempt a      *
+ * successful fresh navigation.                                       *
  * ------------------------------------------------------------------ */
 self.addEventListener("fetch", (event) => {
   // Only handle GET requests; let everything else pass through
@@ -46,6 +52,27 @@ self.addEventListener("fetch", (event) => {
 
   // Skip Next.js internal requests (HMR, webpack, etc.)
   if (url.pathname.startsWith("/_next/")) return;
+
+  // Navigations (HTML) — always go to the network. Only use cache as
+  // an offline fallback. This prevents the flash of a previous build.
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request)
+        .then((res) => res)
+        .catch(() =>
+          caches.match(event.request).then(
+            (cached) =>
+              cached ??
+              caches.match("/") ??
+              new Response("Offline", {
+                status: 503,
+                statusText: "Service Unavailable",
+              })
+          )
+        )
+    );
+    return;
+  }
 
   event.respondWith(
     fetch(event.request)
@@ -64,10 +91,7 @@ self.addEventListener("fetch", (event) => {
         caches.match(event.request).then(
           (cachedResponse) =>
             cachedResponse ??
-            // Last resort: return the cached root page for navigation requests
-            (event.request.mode === "navigate"
-              ? caches.match("/")
-              : new Response("Offline", { status: 503, statusText: "Service Unavailable" }))
+            new Response("Offline", { status: 503, statusText: "Service Unavailable" })
         )
       )
   );

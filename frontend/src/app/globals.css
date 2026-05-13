@@ -91,35 +91,37 @@ body {
     rgba(26, 23, 20, 0.012) 2px,
     rgba(26, 23, 20, 0.012) 4px
   );
-  transition: background-color 200ms ease-out, color 200ms ease-out;
 }
 
 /* ============================================================
-   Theme swap — smooth cross-fade
+   Theme swap — smooth cross-fade via a full-viewport overlay.
    When the user toggles light ↔ dark we briefly decorate <html>
-   with `theme-transitioning`. During that window every element
-   animates its colour, background, and borders so the flip reads
-   as a gentle fade rather than a hard snap. The class is removed
-   after ~300ms so the app's own interaction transitions stay snappy.
+   with `theme-transitioning` and snapshot the *previous* surface
+   colour into `--theme-from`. A fixed, GPU-accelerated overlay
+   paints that old colour on top of the new theme and fades to 0,
+   giving us a smooth crossfade on mobile without asking every
+   element in the DOM to animate its own colour tokens (which
+   stutters on lower-end devices).
    ============================================================ */
-.theme-transitioning,
-.theme-transitioning *,
-.theme-transitioning *::before,
-.theme-transitioning *::after {
-  transition: background-color 260ms ease-out,
-              color 260ms ease-out,
-              border-color 260ms ease-out,
-              fill 260ms ease-out,
-              stroke 260ms ease-out,
-              box-shadow 260ms ease-out !important;
+.theme-transitioning::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background: var(--theme-from, transparent);
+  opacity: 1;
+  animation: themeFade 380ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  will-change: opacity;
+  transform: translateZ(0);
+}
+@keyframes themeFade {
+  to { opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .theme-transitioning,
-  .theme-transitioning *,
-  .theme-transitioning *::before,
-  .theme-transitioning *::after {
-    transition: none !important;
+  .theme-transitioning::before {
+    display: none;
   }
 }
 

@@ -59,10 +59,20 @@ export function setTheme(theme: Theme): void {
   // doesn't snap. Removed after the animation settles.
   if (typeof document !== "undefined") {
     const root = document.documentElement;
+    // Snapshot the *current* background so the overlay can crossfade
+    // from the previous theme on top of the new one. This gives mobile
+    // a GPU-accelerated fade even while CSS variables repaint the DOM.
+    try {
+      const prevBg = getComputedStyle(root).getPropertyValue("--cream").trim();
+      if (prevBg) root.style.setProperty("--theme-from", prevBg);
+    } catch {}
     root.classList.add("theme-transitioning");
     window.setTimeout(() => {
       root.classList.remove("theme-transitioning");
-    }, 320);
+      try {
+        root.style.removeProperty("--theme-from");
+      } catch {}
+    }, 420);
   }
   applyTheme(theme);
   emitChange();

@@ -98,11 +98,22 @@ def create_sheet(payload: CreateSheetRequest) -> CreateSheetResponse:
 
     try:
         client = get_client()
+    except Exception as exc:
+        logger.exception("sheet.create.client_init_failed")
+        raise _sheet_error(exc) from exc
+
+    try:
         spreadsheet = client.create(payload.form_title)
         worksheet = spreadsheet.sheet1
         headers = [field.source_header for field in payload.fields]
         worksheet.update("A1", [headers], value_input_option="RAW")
     except Exception as exc:
+        logger.warning(
+            "sheet.create.failed title=%r type=%s msg=%s",
+            payload.form_title,
+            type(exc).__name__,
+            str(exc)[:300],
+        )
         raise _sheet_error(exc) from exc
 
     spreadsheet_id = spreadsheet.id

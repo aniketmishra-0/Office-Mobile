@@ -20,6 +20,7 @@ export default function FillFormPage() {
   const [formData, setFormData] = useState<PublicFormResponse | null>(null);
   const [suggestions, setSuggestions] = useState<Record<string, string>[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,16 +43,27 @@ export default function FillFormPage() {
     if (suggestionsRequested.current) return;
     suggestionsRequested.current = true;
     setSuggestionsLoading(true);
+    setSuggestionsError(null);
     try {
       const res = await getFormSuggestions(id);
       setSuggestions(res.rows ?? []);
-    } catch {
+    } catch (e: any) {
       // Autofill is optional — allow retry on next open.
       suggestionsRequested.current = false;
+      setSuggestionsError(e?.message ?? "Could not load past entries.");
     } finally {
       setSuggestionsLoading(false);
     }
   }, [id]);
+
+  // Pre-load suggestions as soon as the form is known to have filterable
+  // columns. Without this, users who type directly into a filter field
+  // (without tapping the autofill bar first) would see an empty state.
+  useEffect(() => {
+    if (formData && (formData.autofill_columns?.length ?? 0) > 0) {
+      void loadSuggestions();
+    }
+  }, [formData, loadSuggestions]);
 
   const handleSubmit = useCallback(
     async (values: Record<string, string>) => {
@@ -118,8 +130,13 @@ export default function FillFormPage() {
           resetKey={resetKey}
           suggestions={suggestions}
           suggestionsLoading={suggestionsLoading}
+          suggestionsError={suggestionsError}
           autofillColumns={formData!.autofill_columns ?? []}
           onAutofillOpen={loadSuggestions}
+          onRetrySuggestions={() => {
+            suggestionsRequested.current = false;
+            void loadSuggestions();
+          }}
         />
       </div>
       <SubmitButton submitting={submitting} form="dynamic-form" />

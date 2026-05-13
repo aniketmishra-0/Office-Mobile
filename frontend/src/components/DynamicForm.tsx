@@ -12,8 +12,10 @@ interface Props {
   resetKey?: number;
   suggestions?: Record<string, string>[];
   suggestionsLoading?: boolean;
+  suggestionsError?: string | null;
   autofillColumns?: string[];
   onAutofillOpen?: () => void;
+  onRetrySuggestions?: () => void;
 }
 
 export default function DynamicForm({
@@ -23,8 +25,10 @@ export default function DynamicForm({
   resetKey = 0,
   suggestions = [],
   suggestionsLoading = false,
+  suggestionsError = null,
   autofillColumns = [],
   onAutofillOpen,
+  onRetrySuggestions,
 }: Props) {
   const sortedFields = useMemo(
     () => [...fields].sort((a, b) => a.order - b.order),
@@ -255,13 +259,37 @@ export default function DynamicForm({
                 </div>
               )}
 
-              {!suggestionsLoading && suggestions.length === 0 && (
+              {!suggestionsLoading && suggestionsError && (
+                <div className="text-center py-3">
+                  <p className="text-[12px] text-zinc-500">
+                    Could not load past entries.
+                  </p>
+                  {onRetrySuggestions && (
+                    <button
+                      type="button"
+                      onClick={onRetrySuggestions}
+                      className="mt-1 text-[11px] font-medium uppercase tracking-[0.12em]"
+                      style={{
+                        fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                        color: "var(--clay)",
+                        background: "transparent",
+                        border: 0,
+                        cursor: "pointer",
+                      }}
+                    >
+                      retry
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {!suggestionsLoading && !suggestionsError && suggestions.length === 0 && (
                 <div className="text-center py-3">
                   <p className="text-[12px] text-zinc-500">No previous entries found yet.</p>
                 </div>
               )}
 
-              {!suggestionsLoading && suggestions.length > 0 && autofillMatches.length === 0 && (
+              {!suggestionsLoading && !suggestionsError && suggestions.length > 0 && autofillMatches.length === 0 && (
                 <div className="text-center py-3">
                   <p className="text-[12px] text-zinc-500">
                     No matching entries found. Try different filter values.
@@ -269,7 +297,7 @@ export default function DynamicForm({
                 </div>
               )}
 
-              {!suggestionsLoading && autofillMatches.length > 0 && (
+              {!suggestionsLoading && !suggestionsError && autofillMatches.length > 0 && (
                 <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden">
                   <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-100">
                     <span className="text-[11px] font-medium text-zinc-600">
