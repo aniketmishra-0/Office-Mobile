@@ -47,7 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={inter.variable}>
       <body className={`${inter.className} antialiased`}>
-        <div className="max-w-[480px] mx-auto min-h-screen relative bg-white shadow-[0_0_40px_rgba(0,0,0,0.03)]">
+        <div className="max-w-[560px] mx-auto min-h-screen relative bg-zinc-100">
           {children}
           <InstallPrompt />
         </div>

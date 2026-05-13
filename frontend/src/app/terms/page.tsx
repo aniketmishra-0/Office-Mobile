@@ -7,19 +7,19 @@ export const metadata: Metadata = {
 
 export default function TermsPage() {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-zinc-100">
       <div className="max-w-2xl mx-auto px-5 py-12">
         {/* Header */}
         <div className="mb-10">
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+          <h1 className="text-2xl font-bold text-zinc-950 tracking-tight">
             Terms of Service
           </h1>
-          <p className="text-sm text-gray-400 mt-2">
+          <p className="text-sm text-zinc-500 mt-2">
             Last updated: May 13, 2025
           </p>
         </div>
 
-        <div className="prose prose-gray prose-sm max-w-none space-y-8 text-[15px] leading-relaxed text-gray-700">
+        <div className="prose prose-zinc prose-sm max-w-none space-y-8 text-[15px] leading-relaxed text-zinc-700">
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-3">1. Acceptance of Terms</h2>
             <p>
@@ -44,7 +44,7 @@ export default function TermsPage() {
               To use certain features, you may connect your Google Account. You are
               responsible for maintaining the security of your account credentials.
               We access your Google data only as described in our{" "}
-              <a href="/privacy" className="text-accent-600 hover:underline">
+              <a href="/privacy" className="text-zinc-950 hover:underline">
                 Privacy Policy
               </a>.
             </p>
@@ -99,7 +99,7 @@ export default function TermsPage() {
               For questions about these Terms, contact us at{" "}
               <a
                 href="mailto:aniketmishra492@gmail.com"
-                className="text-accent-600 hover:text-accent-700 font-medium"
+                className="text-zinc-950 hover:underline font-medium"
               >
                 aniketmishra492@gmail.com
               </a>

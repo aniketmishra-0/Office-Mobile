@@ -19,6 +19,7 @@ export default function FillFormPage() {
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState<PublicFormResponse | null>(null);
   const [suggestions, setSuggestions] = useState<Record<string, string>[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,12 +41,15 @@ export default function FillFormPage() {
   const loadSuggestions = useCallback(async () => {
     if (suggestionsRequested.current) return;
     suggestionsRequested.current = true;
+    setSuggestionsLoading(true);
     try {
       const res = await getFormSuggestions(id);
       setSuggestions(res.rows ?? []);
     } catch {
       // Autofill is optional — allow retry on next open.
       suggestionsRequested.current = false;
+    } finally {
+      setSuggestionsLoading(false);
     }
   }, [id]);
 
@@ -113,6 +117,7 @@ export default function FillFormPage() {
           submitting={submitting}
           resetKey={resetKey}
           suggestions={suggestions}
+          suggestionsLoading={suggestionsLoading}
           autofillColumns={formData!.autofill_columns ?? []}
           onAutofillOpen={loadSuggestions}
         />

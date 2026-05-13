@@ -8,6 +8,7 @@ interface Props {
   values: Record<string, string>;
   suggestions: Record<string, string>[];
   autofillColumns: string[];
+  loading?: boolean;
   onAutofill: (row: Record<string, string>) => void;
   onOpen?: () => void;
 }
@@ -29,6 +30,7 @@ export default function AutofillBar({
   values,
   suggestions,
   autofillColumns,
+  loading = false,
   onAutofill,
   onOpen,
 }: Props) {
@@ -150,7 +152,7 @@ export default function AutofillBar({
     [fields],
   );
 
-  if (!autofillColumns.length || !suggestions.length) return null;
+  if (!autofillColumns.length) return null;
 
   return (
     <div ref={containerRef} className="mb-5">
@@ -314,6 +316,18 @@ export default function AutofillBar({
               <p className="text-[11px] text-zinc-500 mt-1.5 px-1">
                 Tap to auto-fill all fields · You can edit any value after
               </p>
+            </div>
+          )}
+
+          {loading && (
+            <div className="text-center py-4">
+              <p className="text-[12px] text-zinc-500">Loading past entries...</p>
+            </div>
+          )}
+
+          {!loading && suggestions.length === 0 && (
+            <div className="text-center py-4">
+              <p className="text-[12px] text-zinc-500">No previous entries found yet.</p>
             </div>
           )}
 

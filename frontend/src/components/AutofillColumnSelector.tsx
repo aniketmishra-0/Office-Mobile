@@ -33,14 +33,14 @@ export default function AutofillColumnSelector({ fields, selected, onChange }: P
   return (
     <div>
       <div className="flex items-center gap-2 mb-2">
-        <label className="block text-[13px] font-medium text-gray-700">
+        <label className="block text-[13px] font-semibold text-zinc-800">
           Autofill filter columns
         </label>
-        <span className="text-[11px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+        <span className="text-[11px] text-zinc-600 bg-zinc-100 px-1.5 py-0.5 rounded">
           {selected.length}/{MAX_COLUMNS}
         </span>
       </div>
-      <p className="text-[12px] text-gray-500 mb-3">
+      <p className="text-[12px] text-zinc-600 mb-3">
         Select up to {MAX_COLUMNS} columns as master filters. When users type in these fields,
         matching entries from the sheet will appear as suggestions to auto-fill the form.
       </p>
@@ -56,20 +56,20 @@ export default function AutofillColumnSelector({ fields, selected, onChange }: P
               type="button"
               onClick={() => toggleColumn(field.key)}
               disabled={isDisabled}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl border text-left transition-all duration-150 ${
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg border text-left transition-all duration-150 ${
                 isSelected
-                  ? "border-accent-300 bg-accent-50 ring-1 ring-accent-200"
+                  ? "border-zinc-950 bg-zinc-50"
                   : isDisabled
-                    ? "border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed"
-                    : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
+                    ? "border-zinc-100 bg-zinc-50 opacity-50 cursor-not-allowed"
+                    : "border-zinc-200 bg-white hover:border-zinc-400 hover:bg-zinc-50"
               }`}
             >
               {/* Checkbox */}
               <div
                 className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
                   isSelected
-                    ? "border-accent-500 bg-accent-500"
-                    : "border-gray-300 bg-white"
+                    ? "border-zinc-950 bg-zinc-950"
+                    : "border-zinc-300 bg-white"
                 }`}
               >
                 {isSelected && (
@@ -82,16 +82,16 @@ export default function AutofillColumnSelector({ fields, selected, onChange }: P
               {/* Label */}
               <div className="flex-1 min-w-0">
                 <span className={`text-[13px] font-medium truncate block ${
-                  isSelected ? "text-accent-700" : "text-gray-700"
+                  isSelected ? "text-zinc-950" : "text-zinc-700"
                 }`}>
                   {field.label}
                 </span>
-                <span className="text-[11px] text-gray-400">{field.type}</span>
+                <span className="text-[11px] text-zinc-500">{field.type}</span>
               </div>
 
               {/* Order badge */}
               {isSelected && (
-                <span className="text-[11px] font-bold text-accent-600 bg-accent-100 w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0">
+                <span className="text-[11px] font-bold text-white bg-zinc-950 w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0">
                   {selected.indexOf(field.key) + 1}
                 </span>
               )}
@@ -101,7 +101,7 @@ export default function AutofillColumnSelector({ fields, selected, onChange }: P
       </div>
 
       {selected.length === 0 && (
-        <p className="text-[11px] text-gray-400 mt-2 px-1">
+        <p className="text-[11px] text-zinc-500 mt-2 px-1">
           No columns selected — autofill will be disabled for this form.
         </p>
       )}

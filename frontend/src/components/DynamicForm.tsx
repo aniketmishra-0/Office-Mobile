@@ -11,6 +11,7 @@ interface Props {
   submitting: boolean;
   resetKey?: number;
   suggestions?: Record<string, string>[];
+  suggestionsLoading?: boolean;
   autofillColumns?: string[];
   onAutofillOpen?: () => void;
 }
@@ -21,6 +22,7 @@ export default function DynamicForm({
   submitting,
   resetKey = 0,
   suggestions = [],
+  suggestionsLoading = false,
   autofillColumns = [],
   onAutofillOpen,
 }: Props) {
@@ -137,6 +139,7 @@ export default function DynamicForm({
           values={values}
           suggestions={suggestions}
           autofillColumns={autofillColumns}
+          loading={suggestionsLoading}
           onAutofill={handleAutofill}
           onOpen={onAutofillOpen}
         />

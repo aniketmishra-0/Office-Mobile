@@ -106,30 +106,30 @@ export default function EditFormPage() {
 
   if (loadError) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-8 text-center bg-white">
+      <div className="min-h-screen flex flex-col items-center justify-center px-8 text-center bg-zinc-100">
         <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mb-4">
           <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
           </svg>
         </div>
-        <h1 className="text-base font-semibold text-gray-900 mb-1.5">Cannot open editor</h1>
-        <p className="text-[13px] text-gray-500 mb-6 max-w-[260px]">{loadError}</p>
-        <a href="/" className="text-accent-600 text-[13px] font-medium">
-          Go to Office Mobile →
+        <h1 className="text-base font-semibold text-zinc-950 mb-1.5">Cannot open editor</h1>
+        <p className="text-[13px] text-zinc-600 mb-6 max-w-[260px]">{loadError}</p>
+        <a href="/" className="text-zinc-900 text-[13px] font-medium">
+          Go to Office Mobile
         </a>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-white">
+    <div className="flex flex-col min-h-screen bg-zinc-100">
       <AppHeader title="Edit form" showBack onBack={() => window.location.href = "/"} />
       {reapplying && <LoadingOverlay message="Updating fields..." />}
 
       {/* Saved toast */}
       {saved && (
         <div className="fixed top-14 left-4 right-4 max-w-[448px] mx-auto z-50 animate-fade-in">
-          <div className="bg-gray-900 text-white rounded-xl px-4 py-3 flex items-center gap-2.5 shadow-medium">
+          <div className="bg-zinc-950 text-white rounded-lg px-4 py-3 flex items-center gap-2.5 shadow-medium">
             <svg className="w-4 h-4 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
             </svg>
@@ -138,10 +138,10 @@ export default function EditFormPage() {
         </div>
       )}
 
-      <div className="flex-1 px-5 pt-5 pb-32 space-y-5">
+      <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-5 pb-32 space-y-5">
         {/* Warnings */}
         {warnings.length > 0 && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3.5">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5">
             <p className="text-[13px] font-medium text-amber-800 mb-1">Heads up</p>
             {warnings.map((w, i) => (
               <p key={i} className="text-[12px] text-amber-600">{w}</p>
@@ -151,12 +151,12 @@ export default function EditFormPage() {
 
         {/* Form title */}
         <div>
-          <label className="block text-[13px] font-medium text-gray-700 mb-2">Form title</label>
+          <label className="block text-[13px] font-semibold text-zinc-800 mb-2">Form title</label>
           <input
             type="text"
             value={formTitle}
             onChange={(e) => setFormTitle(e.target.value)}
-            className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-[15px] min-h-[48px] focus:outline-none focus:ring-2 focus:ring-accent-500"
+            className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-[15px] min-h-[48px] focus:outline-none focus:ring-2 focus:ring-zinc-900"
           />
         </div>
 
@@ -176,7 +176,7 @@ export default function EditFormPage() {
               type="button"
               onClick={handleReapply}
               disabled={reapplying}
-              className="w-full flex items-center justify-center gap-1.5 border border-gray-200 text-gray-600 rounded-xl py-2.5 text-[13px] font-medium hover:bg-gray-50 transition-colors min-h-[40px] disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-1.5 border border-zinc-200 bg-white text-zinc-700 rounded-lg py-2.5 text-[13px] font-medium hover:bg-zinc-50 transition-colors min-h-[40px] disabled:opacity-50"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
@@ -187,7 +187,7 @@ export default function EditFormPage() {
         </div>
 
         {/* Autofill column selector */}
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
+        <div className="rounded-lg border border-zinc-200 bg-white p-4">
           <AutofillColumnSelector
             fields={fields}
             selected={autofillColumns}
@@ -197,11 +197,11 @@ export default function EditFormPage() {
 
         {/* Sheet info */}
         {formData && (
-          <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-3.5">
-            <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1.5">Connected sheet</p>
-            <p className="text-[12px] text-gray-500 break-all font-mono">{formData.sheet_url}</p>
+          <div className="rounded-lg border border-zinc-200 bg-white p-3.5">
+            <p className="text-[11px] font-medium text-zinc-500 uppercase tracking-wide mb-1.5">Connected sheet</p>
+            <p className="text-[12px] text-zinc-600 break-all font-mono">{formData.sheet_url}</p>
             {formData.worksheet_name && (
-              <p className="text-[12px] text-gray-400 mt-1">Tab: {formData.worksheet_name}</p>
+              <p className="text-[12px] text-zinc-500 mt-1">Tab: {formData.worksheet_name}</p>
             )}
           </div>
         )}
