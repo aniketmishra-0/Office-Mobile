@@ -829,11 +829,72 @@ def map_sheet_exception(exc: Exception) -> tuple[int, str]:
             # is only correct when the backend is running on service-account
             # credentials. Detecting this up-front avoids misleading users.
             has_oauth = form_store.get_oauth_token() is not None
+            body_lower = response_body.lower()
+
+            # Pull Google's own reason out of the body so the UI can show
+            # something more useful than "access denied". Google's v3 error
+            # envelope is {"error":{"code":403,"message":"...","errors":[...]}}.
+            google_reason: str | None = None
+            google_status: str | None = None
+            try:
+                parsed = json.loads(response_body) if response_body else None
+                if isinstance(parsed, dict):
+                    err = parsed.get("error") or {}
+                    if isinstance(err, dict):
+                        google_reason = err.get("message") or None
+                        google_status = err.get("status") or None
+                        errors = err.get("errors") or []
+                        if not google_reason and errors:
+                            google_reason = (errors[0] or {}).get("message")
+            except Exception:
+                google_reason = None
+
             if has_oauth:
-                # Google sometimes embeds a scope hint ("insufficient authentication
-                # scopes" / "insufficientPermissions") in the body.
-                hint_scope = "insufficient" in response_body.lower() or "scope" in response_body.lower()
-                if hint_scope:
+                # Drive API / Sheets API not enabled on the OAuth project.
+                # Google's message contains "has not been used in project" or
+                # "disabled" plus a link to the Cloud Console.
+                if (
+                    "has not been used in project" in body_lower
+                    or "api has not been used" in body_lower
+                    or ("api" in body_lower and "disabled" in body_lower)
+                ):
+                    msg = (
+                        "Google Drive or Sheets API is disabled for the app's OAuth project. "
+                        "An administrator needs to enable them in the Google Cloud Console."
+                    )
+                    if google_reason:
+                        msg += f" (Google said: {google_reason[:200]})"
+                    return 403, msg
+
+                # User ran out of Drive storage.
+                if "storage quota" in body_lower or "storagequotaexceeded" in body_lower:
+                    return 403, (
+                        "Your Google Drive storage is full, so Google refused to create the "
+                        "spreadsheet. Free up space in Drive and try again."
+                    )
+
+                # Workspace policy / admin restriction.
+                if (
+                    "admin" in body_lower
+                    or "workspace" in body_lower
+                    or "policy" in body_lower
+                    or "domain" in body_lower
+                ):
+                    msg = (
+                        "Your Google Workspace administrator has blocked this action. "
+                        "Ask them to allow third-party apps to create Sheets on your account."
+                    )
+                    if google_reason:
+                        msg += f" (Google said: {google_reason[:200]})"
+                    return 403, msg
+
+                # Missing scope — user unchecked a permission box on consent.
+                if (
+                    "insufficient" in body_lower
+                    or "scope" in body_lower
+                    or google_status == "PERMISSION_DENIED"
+                    and "scope" in (google_reason or "").lower()
+                ):
                     return 403, (
                         "Google refused this request because your sign-in is missing the "
                         "Sheets or Drive permission. Sign out and sign in again, and make "
@@ -841,6 +902,12 @@ def map_sheet_exception(exc: Exception) -> tuple[int, str]:
                         "'See, edit, create, and delete only the specific Google Drive files "
                         "you use with this app' stay checked on the consent screen."
                     )
+
+                # Fall back to Google's own message if we have one — much more
+                # useful than the old generic "sign out and sign in again" blurb.
+                if google_reason:
+                    return 403, f"Google denied this request: {google_reason[:300]}"
+
                 return 403, (
                     "Google denied access to this sheet or to your Drive. "
                     "If you're trying to open an existing sheet, make sure you have access to it in Google Drive. "

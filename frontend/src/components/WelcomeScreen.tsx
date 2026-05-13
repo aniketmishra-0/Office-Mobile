@@ -84,6 +84,15 @@ export default function WelcomeScreen({ onAuthenticated }: Props) {
 
     function handleMessage(event: MessageEvent) {
       if (event.data?.type === "oauth-success") {
+        // Persist the session key the backend handed back so the next
+        // request can send it via `X-Session-Key`. Safari drops our
+        // cross-site session cookie under ITP, so this header path is what
+        // keeps the user logged in.
+        if (event.data.sessionKey) {
+          try {
+            window.localStorage.setItem("om_session", event.data.sessionKey);
+          } catch {}
+        }
         setAuthState("success");
         window.removeEventListener("message", handleMessage);
         setTimeout(() => onAuthenticated(), 700);
@@ -95,7 +104,19 @@ export default function WelcomeScreen({ onAuthenticated }: Props) {
       if (!popup || popup.closed) {
         clearInterval(interval);
         try {
-          const res = await fetch(`${API_BASE}/api/auth/status`, { credentials: "include" });
+          // Send any locally-stored session key so Safari's ITP-dropped
+          // cookie does not make us wrongly conclude the user isn't
+          // signed in. The postMessage listener above already wrote the
+          // freshly-minted key to localStorage on success.
+          const headers: Record<string, string> = {};
+          try {
+            const sk = window.localStorage.getItem("om_session");
+            if (sk) headers["X-Session-Key"] = sk;
+          } catch {}
+          const res = await fetch(`${API_BASE}/api/auth/status`, {
+            credentials: "include",
+            headers,
+          });
           const data = await res.json();
           if (data.session_key) {
             try {

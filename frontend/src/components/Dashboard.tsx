@@ -695,6 +695,17 @@ export default function Dashboard() {
               >
                 your data stays in your sheet · we never store contents
               </p>
+
+              {/* Inline preview trigger — sits right under the URL input so
+                  users don't have to scroll past the library to generate. */}
+              <div style={{ paddingTop: 4 }}>
+                <SubmitButton
+                  label={copy.submit_label ?? "Preview your form"}
+                  submitting={loadingPreview}
+                  onClick={handleGenerate}
+                  disabled={!sheetUrl.trim() || accessStatus === "none" || accessStatus === "read"}
+                />
+              </div>
             </div>
           )}
 
@@ -923,16 +934,6 @@ export default function Dashboard() {
 
           <ErrorToast message={error} onDismiss={() => setError(null)} />
         </div>
-
-        {/* Submit band — generate form */}
-        {mode === "paste" && (
-          <SubmitButton
-            label={copy.submit_label ?? "Preview your form"}
-            submitting={loadingPreview}
-            onClick={handleGenerate}
-            disabled={!sheetUrl.trim() || accessStatus === "none" || accessStatus === "read"}
-          />
-        )}
       </div>
     );
   }

@@ -42,11 +42,38 @@ export default function HomePage() {
   }
 
   useEffect(() => {
+    // Pick up a session key handed back by the OAuth callback. Safari ITP
+    // often drops cross-site cookies, so the backend also passes the key in
+    // the URL fragment on the same-tab fallback, and via postMessage for
+    // the popup flow. Stash it in localStorage and let `X-Session-Key`
+    // header-auth take over from there.
+    try {
+      if (typeof window !== "undefined" && window.location.hash) {
+        const hash = window.location.hash.replace(/^#/, "");
+        const params = new URLSearchParams(hash);
+        const sk = params.get("om_session");
+        if (sk) {
+          window.localStorage.setItem("om_session", sk);
+          // Clean the fragment so the key never lingers in the address bar
+          // or gets shared via copy-paste.
+          history.replaceState(null, "", window.location.pathname + window.location.search);
+        }
+      }
+    } catch {}
+
     checkStatus();
 
     function handleMessage(event: MessageEvent) {
       if (event.data?.type === "oauth-success") {
+        if (event.data.sessionKey) {
+          try {
+            window.localStorage.setItem("om_session", event.data.sessionKey);
+          } catch {}
+        }
         setConnected(true);
+        // Re-check so the header (user name/avatar) gets populated from
+        // /api/auth/status — connected=true alone is not enough.
+        checkStatus();
       }
     }
     // Re-check auth when the tab becomes visible again (iOS back/forward

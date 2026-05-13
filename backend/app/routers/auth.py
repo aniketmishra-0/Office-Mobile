@@ -271,6 +271,46 @@ def google_callback(
 
     token = res.json()
     token["obtained_at"] = int(time.time())
+
+    # Verify the user actually granted the Sheets + Drive scopes. If they
+    # unchecked a permission box on the consent screen the OAuth exchange
+    # still succeeds, but the access_token is useless for creating sheets.
+    # Catching it here gives a clear error at sign-in time instead of a
+    # confusing 403 later when they try to create a form.
+    granted_scopes = set((token.get("scope") or "").split())
+    required_scopes = {
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive.file",
+    }
+    missing_scopes = required_scopes - granted_scopes
+    if missing_scopes:
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "oauth.missing_scopes granted=%s missing=%s",
+            sorted(granted_scopes),
+            sorted(missing_scopes),
+        )
+        # Don't persist a partial token; force the user to try again.
+        missing_label = (
+            "Google Sheets"
+            if "https://www.googleapis.com/auth/spreadsheets" in missing_scopes
+            else "Google Drive"
+        )
+        return HTMLResponse(
+            "<!doctype html><html><body style='font-family:system-ui;padding:40px;"
+            "max-width:520px;margin:0 auto;color:#18181b'>"
+            "<h2 style='margin-top:0'>Sign-in incomplete</h2>"
+            f"<p>You didn't grant permission to {missing_label}, so the app can't "
+            "create or write to your sheets.</p>"
+            "<p><strong>Close this tab, click Sign in again, and make sure both "
+            "checkboxes stay checked on the Google consent screen.</strong></p>"
+            f"<p><a href='{_frontend_origin()}' "
+            "style='color:#2563eb'>Back to the app</a></p>"
+            "</body></html>",
+            status_code=400,
+        )
+
     session_key = request.cookies.get(OAUTH_SESSION_COOKIE) or secrets.token_urlsafe(32)
     form_store.set_oauth_token(token, key=session_key)
 
@@ -280,23 +320,35 @@ def google_callback(
     # same-tab flow on iOS/Safari), fall back to a direct redirect so the
     # user lands back on the app instead of being stranded on the backend
     # URL seeing "Sign-in successful".
+    #
+    # We also hand the session key back to the frontend explicitly (via
+    # postMessage for the popup flow, and via a URL fragment for the same-tab
+    # redirect). Safari's ITP commonly drops third-party cookies on
+    # cross-site XHRs, so the frontend persists this key to localStorage and
+    # forwards it as `X-Session-Key` on every request — bypassing the cookie
+    # block. The key stays in the URL fragment (not the query), so it is
+    # never sent to the server and never logged.
     frontend_origin = _frontend_origin()
+    # JS-safe literal for the session key (secrets.token_urlsafe → [A-Za-z0-9_-]).
+    session_key_js = json.dumps(session_key)
 
     html = (
         "<!doctype html><html><body>"
         "<script>"
         "(function(){"
+        f"  var sk = {session_key_js};"
+        f"  var origin = {frontend_origin!r};"
         "  try {"
         "    if (window.opener && !window.opener.closed) {"
-        f"      window.opener.postMessage({{ type: 'oauth-success' }}, {frontend_origin!r});"
+        "      window.opener.postMessage({ type: 'oauth-success', sessionKey: sk }, origin);"
         "      window.close();"
         "      setTimeout(function(){"
-        f"        if (!window.closed) window.location.replace({frontend_origin!r});"
+        "        if (!window.closed) window.location.replace(origin + '/#om_session=' + encodeURIComponent(sk));"
         "      }, 300);"
         "      return;"
         "    }"
         "  } catch (e) {}"
-        f"  window.location.replace({frontend_origin!r});"
+        "  window.location.replace(origin + '/#om_session=' + encodeURIComponent(sk));"
         "})();"
         "</script>"
         "<p>Sign-in successful. Redirecting…</p>"
