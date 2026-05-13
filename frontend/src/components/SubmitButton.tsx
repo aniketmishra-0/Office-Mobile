@@ -14,9 +14,11 @@ interface Props {
 /**
  * SubmitButton — full-width editorial band.
  *
- * Not a traditional button. A 56px tall horizontal strip fixed to the
- * bottom of the viewport. While submitting, a terracotta fill sweeps
- * left-to-right across the band (800ms linear). No spinner.
+ * Flows inline at the end of the page (not fixed) so scrolling reveals
+ * the entire app. A terracotta fill sweeps left-to-right across the band
+ * while submitting (800ms linear). No spinner. Bottom padding respects
+ * the device safe-area so the iPhone home-indicator stays clear while
+ * Android devices collapse the inset to zero.
  */
 export default function SubmitButton({
   label,
@@ -46,10 +48,7 @@ export default function SubmitButton({
   }, [submitting, showDone]);
 
   return (
-    <div
-      className="om-submit-wrap"
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-    >
+    <div className="om-submit-wrap">
       <button
         type={onClick ? "button" : "submit"}
         form={form}
@@ -73,13 +72,11 @@ export default function SubmitButton({
 
       <style jsx>{`
         .om-submit-wrap {
-          position: fixed;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          z-index: 30;
-          background: var(--cream);
-          border-top: 1px solid var(--rule);
+          /* Flows inline with the page so scrolling reveals every part of
+             the app. The outer layout already applies `pb-safe` at the
+             root (see app/layout.tsx), which keeps the iPhone home-
+             indicator clear and collapses to zero on Android. */
+          width: 100%;
         }
         .om-submit {
           position: relative;
