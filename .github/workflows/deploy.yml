@@ -22,8 +22,5 @@ jobs:
 
 
 
-            # ---- Backend: Kill old & Start new ----
-            sudo pkill -f uvicorn || true
-            sleep 2
-            cd backend
-            sudo nohup /usr/local/bin/python3.12 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &
+            # ---- Backend: Restart ----
+            pm2 restart backend
