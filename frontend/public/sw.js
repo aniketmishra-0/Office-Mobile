@@ -14,8 +14,8 @@
  * edited so old shells are evicted on activate.                      *
  * ------------------------------------------------------------------ */
 
-const SHELL_CACHE = "om-shell-v4";
-const RUNTIME_CACHE = "om-runtime-v4";
+const SHELL_CACHE = "om-shell-v5";
+const RUNTIME_CACHE = "om-runtime-v5";
 const CACHE_WHITELIST = [SHELL_CACHE, RUNTIME_CACHE];
 
 // Kept intentionally short. Anything the app needs to render an empty
