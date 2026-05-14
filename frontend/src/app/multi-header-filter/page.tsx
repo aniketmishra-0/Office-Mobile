@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useEffect, useLayoutEffect, useState, useRef, useCallback } from "react";
+import React, { Suspense, useEffect, useState, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import ErrorToast from "@/components/ErrorToast";
@@ -45,16 +45,15 @@ function CalendarPopup({ anchorRef, onClose }: { anchorRef: React.RefObject<HTML
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
 
   const popupRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ top: 0, right: 16 });
-  const [ready, setReady] = useState(false);
 
-  useLayoutEffect(() => {
-    if (anchorRef.current) {
-      const rect = anchorRef.current.getBoundingClientRect();
-      setPos({ top: rect.bottom + 8, right: Math.max(16, window.innerWidth - rect.right) });
-      setReady(true);
-    }
-  }, [anchorRef]);
+  // Compute position synchronously — no effect, no flicker
+  let top = 0;
+  let right = 16;
+  if (anchorRef.current) {
+    const rect = anchorRef.current.getBoundingClientRect();
+    top = rect.bottom + 8;
+    right = Math.max(16, window.innerWidth - rect.right);
+  }
 
   useEffect(() => {
     function handle(e: MouseEvent) {
@@ -67,12 +66,10 @@ function CalendarPopup({ anchorRef, onClose }: { anchorRef: React.RefObject<HTML
     return () => document.removeEventListener("mousedown", handle);
   }, [onClose, anchorRef]);
 
-  if (!ready) return null;
-
   return (
     <>
       <div ref={popupRef} className="om-calendar-popup" style={{
-        position: "fixed", top: pos.top, right: pos.right, zIndex: 99999,
+        position: "fixed", top, right, zIndex: 99999,
         width: 270, background: "var(--cream)", border: "1px solid var(--rule)",
         borderRadius: 10, boxShadow: "0 8px 32px rgba(0,0,0,0.15)", padding: 16,
       }}>
@@ -101,7 +98,8 @@ function CalendarPopup({ anchorRef, onClose }: { anchorRef: React.RefObject<HTML
         .om-calendar-popup {
           transform-origin: top right;
           will-change: transform, opacity;
-          animation: omCalendarReveal 280ms cubic-bezier(0.22, 1, 0.36, 1);
+          animation: omCalendarReveal 280ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+          opacity: 0;
         }
         @keyframes omCalendarReveal {
           0% {
@@ -119,6 +117,7 @@ function CalendarPopup({ anchorRef, onClose }: { anchorRef: React.RefObject<HTML
         @media (prefers-reduced-motion: reduce) {
           .om-calendar-popup {
             animation: none;
+            opacity: 1;
           }
         }
       `}</style>
