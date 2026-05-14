@@ -31,7 +31,9 @@ export default function HomePage() {
         } catch {}
       }
       setConnected(Boolean(data.connected));
-      // If user is connected, sync their preferences from backend
+      // If user is connected, sync their preferences from backend.
+      // This is a re-check (visibility/pageshow), NOT first sign-in,
+      // so we don't let the backend override local theme.
       if (data.connected) {
         syncPrefsFromBackend();
       }
@@ -112,8 +114,8 @@ export default function HomePage() {
         // Re-check so the header (user name/avatar) gets populated from
         // /api/auth/status — connected=true alone is not enough.
         checkStatus();
-        // Sync user preferences from backend after sign-in
-        syncPrefsFromBackend();
+        // Sync user preferences from backend after sign-in (first sign-in)
+        syncPrefsFromBackend({ isFirstSignIn: true });
       }
     }
     // Re-check auth when the tab becomes visible again (iOS back/forward

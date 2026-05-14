@@ -256,12 +256,19 @@ function _sessionHeaders(): Record<string, string> {
  * Load preferences from the backend and apply them locally.
  * Call this after sign-in to hydrate from the user's saved prefs.
  *
- * NOTE: If a preference already exists locally (e.g. the user just
- * changed their theme), we treat the local value as authoritative and
- * push it back to the backend instead of overwriting it. This prevents
- * a stale backend value from reverting a recent local change on refresh.
+ * NOTE: Local preferences are ALWAYS authoritative for theme. The user's
+ * in-session theme choice must never be overridden by a stale backend
+ * value (e.g. when navigating back triggers a re-check). We only apply
+ * the backend theme on first sign-in when no local theme has been set.
+ *
+ * Pass `isFirstSignIn: true` when calling after an OAuth flow completes
+ * to allow the backend to seed local prefs. For subsequent visibility/
+ * pageshow re-checks, omit it (defaults to false) so the backend never
+ * reverts the user's in-session choice.
  */
-export async function syncPrefsFromBackend(): Promise<void> {
+export async function syncPrefsFromBackend(opts?: { isFirstSignIn?: boolean }): Promise<void> {
+  const isFirstSignIn = opts?.isFirstSignIn ?? false;
+
   try {
     const res = await fetch(`${API_BASE}/api/preferences`, {
       headers: { ...(_sessionHeaders()) },
@@ -271,32 +278,23 @@ export async function syncPrefsFromBackend(): Promise<void> {
     const data = await res.json();
     const prefs = data.preferences || {};
 
-    // Check if we have unsaved local changes (set within the last 5 seconds).
-    // This handles the edge case where the user changed a pref and the PUT
-    // hadn't completed before the page refreshed.
-    const lastLocalWrite = (() => {
-      try { return parseInt(window.localStorage.getItem("om_prefs_ts") || "0", 10); } catch { return 0; }
-    })();
-    const isRecentLocalWrite = (Date.now() - lastLocalWrite) < 5000;
-
-    // Theme: if we have a recent local write, local wins; otherwise DB wins.
+    // Theme: local always wins UNLESS this is the very first sign-in
+    // and the user hasn't explicitly set a theme in this session yet.
     const localTheme = (() => {
       try { return window.localStorage.getItem(THEME_KEY); } catch { return null; }
     })();
 
-    if (isRecentLocalWrite && localTheme) {
-      // Local change is very recent — push to backend to ensure DB is in sync
-      if (prefs.theme !== localTheme) {
-        syncPrefsToBackend();
-      }
-    } else if (prefs.theme) {
-      // DB is authoritative — apply backend value
+    if (isFirstSignIn && !localTheme && prefs.theme) {
+      // First sign-in, no local theme — seed from backend
       try { window.localStorage.setItem(THEME_KEY, prefs.theme); } catch {}
       applyTheme(prefs.theme as Theme);
+    } else if (localTheme && prefs.theme !== localTheme) {
+      // Local theme differs from backend — push local to backend
+      syncPrefsToBackend();
     }
 
-    // Apply display prefs (skip if recent local write)
-    if (!isRecentLocalWrite) {
+    // Display & copy prefs: only apply from backend on first sign-in
+    if (isFirstSignIn) {
       const display: Partial<DisplayPrefs> = {};
       if (prefs.font_family) display.font_family = prefs.font_family;
       if (prefs.font_size) display.font_size = prefs.font_size;
@@ -307,10 +305,7 @@ export async function syncPrefsFromBackend(): Promise<void> {
         try { window.localStorage.setItem(DISPLAY_KEY, JSON.stringify(merged)); } catch {}
         applyDisplay(merged);
       }
-    }
 
-    // Apply editorial copy (skip if recent local write)
-    if (!isRecentLocalWrite) {
       const copy: Partial<EditorialCopy> = {};
       if (prefs.hero_title !== undefined) copy.hero_title = prefs.hero_title;
       if (prefs.hero_sub !== undefined) copy.hero_sub = prefs.hero_sub;

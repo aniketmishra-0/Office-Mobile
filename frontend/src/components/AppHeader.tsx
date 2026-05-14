@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Logo from "@/components/Logo";
 import SettingsPanel from "@/components/SettingsPanel";
 import { logout as apiLogout } from "@/lib/api";
-import { getStoredTheme, setTheme } from "@/lib/prefs";
+import { getStoredTheme, setTheme, syncPrefsToBackend } from "@/lib/prefs";
 import { usePrefs } from "@/lib/usePrefs";
 
 interface Props {
@@ -118,6 +118,7 @@ export default function AppHeader({
   function toggleTheme() {
     const next = getStoredTheme() === "dark" ? "light" : "dark";
     setTheme(next);
+    syncPrefsToBackend();
   }
 
   const displayName = user?.name || user?.email || "Account";
