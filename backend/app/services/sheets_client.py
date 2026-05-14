@@ -943,7 +943,14 @@ def map_sheet_exception(exc: Exception) -> tuple[int, str]:
             response_body,
         )
         if status_code == 400:
-            detail = response_body[:300] if response_body else str(exc)[:300]
+            # Always include both response body and exception string for maximum debug info
+            detail_parts = []
+            if response_body:
+                detail_parts.append(response_body[:300])
+            exc_str = str(exc)[:300]
+            if exc_str and exc_str not in (response_body or ""):
+                detail_parts.append(exc_str)
+            detail = " | ".join(detail_parts) if detail_parts else "No additional detail from Google"
             # Provide a more actionable message when possible
             if "exceeds" in detail.lower() or "range" in detail.lower() or "grid" in detail.lower():
                 return 400, f"The update range exceeds the sheet dimensions. The row may not exist in the sheet. Detail: {detail}"
