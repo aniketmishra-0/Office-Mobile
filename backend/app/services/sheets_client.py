@@ -722,10 +722,10 @@ def _is_header_or_title_row(
     Detect if a row is a repeated header row or a section title row that
     should be skipped during data reading.
 
-    CONSERVATIVE approach — only skips rows that are very clearly NOT data:
-    1. Exact or near-exact match of the known header row (90%+ match with 5+ headers), OR
-    2. A single merged-cell-style title (1 cell filled with 40+ chars, rest empty,
-       in a sheet with 10+ columns, and the cell is NOT a date/time/number)
+    Skips rows that are:
+    1. A single merged-cell-style title (1 cell filled with 30+ chars, rest empty)
+    2. A repeated header row where most non-empty cells exactly match known headers
+       AND the row contains NO data-like values (emails, numbers, times, dates)
 
     Returns True if the row should be SKIPPED (it's not real data).
     """
@@ -738,58 +738,60 @@ def _is_header_or_title_row(
     if num_non_empty == 0:
         return False
 
-    # --- Check 1: Section title row (very strict) ---
-    # Only skip if: 10+ total columns, exactly 1 cell filled, that cell is 40+ chars,
-    # and it does NOT look like data (not a date, time, or number).
-    if total_columns >= 10 and num_non_empty == 1:
+    # --- Check 1: Section title row ---
+    # Only 1 cell filled with long text (like "UPSC Online Schedule - 18 May...")
+    if total_columns >= 8 and num_non_empty == 1:
         the_cell = non_empty_cells[0]
-        if len(the_cell) >= 40:
+        if len(the_cell) >= 30:
             is_data_like = (
                 _TIME_PATTERN.match(the_cell)
                 or _DATE_PATTERN.match(the_cell)
                 or the_cell.replace(".", "").replace(",", "").replace(" ", "").isdigit()
+                or "@" in the_cell  # email
             )
             if not is_data_like:
                 return True
 
-    # --- Check 2: Repeated header row (very strict) ---
-    # Must match 90%+ of known headers AND have no data-like values AND
-    # have a high fill ratio (looks like a full header row, not sparse data).
-    if not known_headers or num_non_empty < 5:
+    # --- Check 2: Repeated header row ---
+    # The key insight: a repeated header row contains ONLY values that match
+    # known headers. Real data rows contain emails, numbers, times, dates,
+    # long descriptions, codes, etc. that are NOT header names.
+    if not known_headers or num_non_empty < 3:
         return False
 
     known_headers_lower = {h.strip().lower() for h in known_headers if h.strip()}
-    if not known_headers_lower or len(known_headers_lower) < 5:
-        return False
-
-    # Row must have at least 50% of columns filled to look like a header
-    fill_ratio = num_non_empty / max(total_columns, 1)
-    if fill_ratio < 0.4:
+    if not known_headers_lower or len(known_headers_lower) < 3:
         return False
 
     match_count = 0
+    non_match_count = 0
     has_data_value = False
+
     for cell in non_empty_cells:
-        cell_lower = cell.lower()
+        cell_lower = cell.lower().strip()
+
         if cell_lower in known_headers_lower:
             match_count += 1
         else:
-            # If any cell looks like actual data (number, time, date),
-            # this is definitely a data row — bail out immediately
+            non_match_count += 1
+            # Check if this non-matching cell looks like actual data
             if (
                 _TIME_PATTERN.match(cell)
                 or _DATE_PATTERN.match(cell)
+                or "@" in cell  # email address
                 or cell.replace(".", "").replace(",", "").replace(" ", "").isdigit()
+                or len(cell) > 50  # long text = data, not header
             ):
                 has_data_value = True
                 break
 
+    # If we found any data-like value, this is NOT a header row
     if has_data_value:
         return False
 
-    # Require 90%+ match for very high confidence
-    match_ratio = match_count / max(len(known_headers_lower), 1)
-    if match_ratio >= 0.9 and match_count >= 5:
+    # A header row should have most cells matching known headers
+    # and very few (or zero) non-matching cells
+    if match_count >= 3 and match_count > non_match_count:
         return True
 
     return False

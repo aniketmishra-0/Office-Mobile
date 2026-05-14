@@ -648,11 +648,22 @@ function MultiHeaderFilterInner() {
                   {textFilterColumns.slice(0, 5).map((field) => {
                     const header = field.source_header || field.label || field.key;
                     const currentFilter = columnFilters[field.key] ?? "";
+                    // Get all known header names to exclude them from filter chips
+                    const allHeaders = new Set(
+                      loaded.fields.map((f) =>
+                        (f.source_header || f.label || f.key).trim().toLowerCase()
+                      )
+                    );
                     const uniqueValues = Array.from(
                       new Set(
                         loaded.rows
                           .map((row) => (row[field.key] ?? "").trim())
-                          .filter((v) => v)
+                          .filter((v) => {
+                            if (!v) return false;
+                            // Exclude values that are header names (repeated headers in data)
+                            if (allHeaders.has(v.toLowerCase())) return false;
+                            return true;
+                          })
                       )
                     ).sort().slice(0, 15); // Max 15 values per column
 
