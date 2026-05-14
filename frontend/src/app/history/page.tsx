@@ -233,8 +233,8 @@ function HistoryPageInner() {
   );
 
   const handleReset = useCallback(() => {
-    // Navigate back to clean history page (no query params)
-    router.push("/history");
+    // Go back in browser history instead of pushing a new entry
+    router.back();
   }, [router]);
 
   const handleBackToTabs = useCallback(() => {
@@ -421,7 +421,7 @@ function HistoryPageInner() {
   if (sheetParam && !loaded && !availableTabs && !error) {
     return (
       <div className="flex flex-col min-h-screen">
-        <AppHeader title="History" showBack onBack={() => router.push("/history")} />
+        <AppHeader title="History" showBack onBack={() => router.back()} />
         <LoadingOverlay message="Loading sheet..." />
       </div>
     );
@@ -431,7 +431,7 @@ function HistoryPageInner() {
   if (sheetParam && availableTabs) {
     return (
       <div className="flex flex-col min-h-screen">
-        <AppHeader title="History" showBack onBack={() => router.push("/history")} />
+        <AppHeader title="History" showBack onBack={() => router.back()} />
         <div className="flex-1 w-full max-w-[560px] mx-auto px-6 pt-14 pb-10 space-y-8">
           <section>
             <p
@@ -491,7 +491,7 @@ function HistoryPageInner() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <AppHeader title="History" showBack />
+      <AppHeader title="History" showBack onBack={() => router.push("/")} />
       {loading && <LoadingOverlay message="Loading sheet..." />}
 
       <div className="flex-1 w-full max-w-[560px] mx-auto px-6 pt-14 pb-32 space-y-8">
