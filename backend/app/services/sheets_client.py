@@ -213,22 +213,46 @@ def get_client() -> gspread.Client:
     settings = get_settings()
 
     if settings.google_service_account_json:
-        try:
-            credentials = json.loads(settings.google_service_account_json)
-        except json.JSONDecodeError as exc:
-            raise GoogleSheetsConfigurationError(
-                "GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON"
-            ) from exc
-        return gspread.service_account_from_dict(credentials, scopes=SCOPES)
+        return _get_service_account_client()
 
     if settings.google_service_account_file:
-        return gspread.service_account(
-            filename=settings.google_service_account_file, scopes=SCOPES
-        )
+        return _get_service_account_client()
 
     raise GoogleSheetsConfigurationError(
         "Set GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_SERVICE_ACCOUNT_FILE before using Google Sheets."
     )
+
+
+# Cached service-account client — avoids re-parsing credentials on every request.
+_sa_client: gspread.Client | None = None
+_sa_client_lock = __import__("threading").Lock()
+
+
+def _get_service_account_client() -> gspread.Client:
+    global _sa_client
+    if _sa_client is not None:
+        return _sa_client
+    with _sa_client_lock:
+        if _sa_client is not None:
+            return _sa_client
+        settings = get_settings()
+        if settings.google_service_account_json:
+            try:
+                credentials = json.loads(settings.google_service_account_json)
+            except json.JSONDecodeError as exc:
+                raise GoogleSheetsConfigurationError(
+                    "GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON"
+                ) from exc
+            _sa_client = gspread.service_account_from_dict(credentials, scopes=SCOPES)
+        elif settings.google_service_account_file:
+            _sa_client = gspread.service_account(
+                filename=settings.google_service_account_file, scopes=SCOPES
+            )
+        else:
+            raise GoogleSheetsConfigurationError(
+                "Set GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_SERVICE_ACCOUNT_FILE."
+            )
+        return _sa_client
 
 
 def _fetch_public_xlsx(spreadsheet_id: str) -> bytes:
@@ -241,7 +265,7 @@ def _fetch_public_xlsx(spreadsheet_id: str) -> bytes:
     req = urllib.request.Request(
         url,
         headers={
-            "User-Agent": "AllinForm/1.0",
+            "User-Agent": "OfficeMobile/1.0",
             "Accept": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/octet-stream,*/*",
         },
     )
@@ -320,7 +344,7 @@ def _fetch_gviz_json(spreadsheet_id: str, worksheet_name: str | None) -> dict:
     req = urllib.request.Request(
         url,
         headers={
-            "User-Agent": "AllinForm/1.0",
+            "User-Agent": "OfficeMobile/1.0",
             "Accept": "*/*",
         },
     )
@@ -739,15 +763,16 @@ def read_sheet_rows(
             field_col_map[field.key] = col_idx
 
         # Read data rows (skip header row).
-        # Read ALL rows from the sheet — no artificial cap.
+        # Cap to max_rows to avoid fetching entire massive sheets.
         total_rows = max(worksheet.row_count - 1, 0)
         if total_rows == 0:
             return []
+        rows_to_read = min(total_rows, max_rows)
         end_col = _col_index_to_letter(max(field_col_map.values()))
-        data_range = f"A2:{end_col}{total_rows + 1}"
+        data_range = f"A2:{end_col}{rows_to_read + 1}"
 
         logger.info(
-            f"Reading all {total_rows} rows from {worksheet.title}!{data_range}"
+            f"Reading {rows_to_read} rows from {worksheet.title}!{data_range}"
         )
         all_data = worksheet.get(data_range)
 

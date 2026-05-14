@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Terms of Service — AllinForm",
-  description: "Terms of Service for AllinForm.",
+  title: "Terms of Service — Office Mobile",
+  description: "Terms of Service for Office Mobile.",
 };
 
 export default function TermsPage() {
@@ -23,7 +23,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-3">1. Acceptance of Terms</h2>
             <p>
-              By using AllinForm, you agree to these Terms of Service. If you do not
+              By using Office Mobile, you agree to these Terms of Service. If you do not
               agree, please do not use the app.
             </p>
           </section>
@@ -31,7 +31,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-3">2. Description of Service</h2>
             <p>
-              AllinForm is a tool that converts Google Sheets into mobile-friendly
+              Office Mobile is a tool that converts Google Sheets into mobile-friendly
               forms for field data collection. The service allows users to create
               forms, collect responses, and have data automatically saved to their
               Google Sheets.
@@ -79,7 +79,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-3">7. Limitation of Liability</h2>
             <p>
-              AllinForm is provided &quot;as is&quot; without warranty of any kind.
+              Office Mobile is provided &quot;as is&quot; without warranty of any kind.
               We shall not be liable for any indirect, incidental, or consequential
               damages arising from your use of the service.
             </p>
@@ -110,7 +110,7 @@ export default function TermsPage() {
         {/* Footer */}
         <div className="mt-12 pt-6 border-t border-gray-100">
           <p className="text-xs text-gray-400 text-center">
-            © {new Date().getFullYear()} AllinForm. All rights reserved.
+            © {new Date().getFullYear()} Office Mobile. All rights reserved.
           </p>
         </div>
       </div>

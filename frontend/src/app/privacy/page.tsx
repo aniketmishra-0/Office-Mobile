@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — AllinForm",
-  description: "Privacy Policy for AllinForm — how we handle your data.",
+  title: "Privacy Policy — Office Mobile",
+  description: "Privacy Policy for Office Mobile — how we handle your data.",
 };
 
 export default function PrivacyPolicyPage() {
@@ -24,7 +24,7 @@ export default function PrivacyPolicyPage() {
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-3">1. Introduction</h2>
             <p>
-              AllinForm (&quot;we&quot;, &quot;our&quot;, or &quot;the app&quot;) is a tool that
+              Office Mobile (&quot;we&quot;, &quot;our&quot;, or &quot;the app&quot;) is a tool that
               converts Google Sheets into mobile-friendly data entry forms. This Privacy Policy
               explains how we collect, use, protect, and share your information when you use our service.
             </p>
@@ -54,7 +54,7 @@ export default function PrivacyPolicyPage() {
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-3">3. Google API Services User Data Policy (Limited Use)</h2>
             <p>
-              AllinForm&apos;s use and transfer to any other app of information received from Google APIs will adhere to the{" "}
+              Office Mobile&apos;s use and transfer to any other app of information received from Google APIs will adhere to the{" "}
               <a 
                 href="https://developers.google.com/terms/api-services-user-data-policy" 
                 target="_blank" 
@@ -166,7 +166,7 @@ export default function PrivacyPolicyPage() {
         {/* Footer */}
         <div className="mt-12 pt-6 border-t border-gray-100">
           <p className="text-xs text-gray-400 text-center">
-            © {new Date().getFullYear()} AllinForm. All rights reserved.
+            © {new Date().getFullYear()} Office Mobile. All rights reserved.
           </p>
         </div>
       </div>

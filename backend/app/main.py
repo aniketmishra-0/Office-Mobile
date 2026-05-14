@@ -32,7 +32,7 @@ if "*" in settings.allowed_origins:
     )
 
 app = FastAPI(
-    title="AllinForm API",
+    title="Office Mobile API",
     description="Convert Google Sheets into mobile-first data entry forms.",
     version="0.1.0",
     lifespan=lifespan,
