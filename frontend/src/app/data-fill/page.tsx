@@ -5,7 +5,6 @@ import AppHeader from "@/components/AppHeader";
 import ErrorToast from "@/components/ErrorToast";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import ClearButton from "@/components/ClearButton";
-import SubmitButton from "@/components/SubmitButton";
 import type { FieldSchema } from "@/types/field";
 import {
   getSheetHistory,
@@ -136,38 +135,6 @@ export default function DataFillPage() {
     return () => clearTimeout(timer);
   }, [formInput, urlValid]);
 
-  // Load history preview when URL becomes valid
-  useEffect(() => {
-    if (!urlValid || !formInput.trim()) {
-      setHistoryRows([]);
-      setHistoryFields([]);
-      return;
-    }
-    const timer = setTimeout(async () => {
-      setHistoryLoading(true);
-      try {
-        const result = await lookupFormsBySheet(formInput.trim());
-        if (result.items.length > 0) {
-          const firstTab = result.items[0];
-          if (firstTab.has_form && firstTab.id) {
-            const data = await getFormSuggestions(firstTab.id);
-            setHistoryFields(firstTab.fields);
-            setHistoryRows(data.rows ?? []);
-          } else {
-            const data = await getSheetHistory(formInput.trim(), firstTab.worksheet_name);
-            setHistoryFields(data.fields);
-            setHistoryRows(data.rows ?? []);
-          }
-        }
-      } catch {
-        // silently fail — history is optional
-      } finally {
-        setHistoryLoading(false);
-      }
-    }, 800);
-    return () => clearTimeout(timer);
-  }, [formInput, urlValid]);
-
   // ---------------------------------------------------------------------------
   // URL validation
   // ---------------------------------------------------------------------------
@@ -203,6 +170,19 @@ export default function DataFillPage() {
         form_title: item.form_title, fields: item.fields, has_form: item.has_form,
       }));
       if (!tabs.length) { setError("No tabs found in this sheet"); return; }
+      // Load history from first tab
+      const firstTab = tabs[0];
+      try {
+        if (firstTab.has_form && firstTab.id) {
+          const hData = await getFormSuggestions(firstTab.id);
+          setHistoryFields(firstTab.fields);
+          setHistoryRows(hData.rows ?? []);
+        } else {
+          const hData = await getSheetHistory(trimmed, firstTab.worksheet_name);
+          setHistoryFields(hData.fields);
+          setHistoryRows(hData.rows ?? []);
+        }
+      } catch { /* history is optional */ }
       if (tabs.length === 1) { await selectTab(tabs[0], trimmed); }
       else { setAvailableTabs(tabs); }
     } catch (e: any) { setError(e.message ?? "Failed to load sheet"); }
@@ -787,12 +767,34 @@ export default function DataFillPage() {
         )}
         {!availableTabs && (
           <div className="mb-6">
-            <SubmitButton
-              label="Load Sheet"
-              submitting={loading}
+            <button
+              type="button"
               onClick={handleLoadSheet}
-              disabled={!formInput.trim()}
-            />
+              disabled={!formInput.trim() || loading}
+              style={{
+                position: "relative",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "100%",
+                height: 48,
+                overflow: "hidden",
+                background: "var(--ink)",
+                color: "var(--on-ink, #fff)",
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontWeight: 500,
+                fontSize: 11,
+                letterSpacing: "0.2em",
+                textTransform: "uppercase",
+                border: 0,
+                borderRadius: 0,
+                cursor: !formInput.trim() || loading ? "not-allowed" : "pointer",
+                opacity: !formInput.trim() ? 0.4 : 1,
+                transition: "opacity 200ms ease-out",
+              }}
+            >
+              {loading ? "WORKING..." : "LOAD SHEET →"}
+            </button>
           </div>
         )}
         {!availableTabs && (
