@@ -245,7 +245,7 @@ export default function AppHeader({
                   role="menuitem"
                   className="om-header__menu-item"
                   onClick={() => {
-                    router.push("/");
+                    router.push("/form-fill");
                     setOpenMenu(false);
                   }}
                 >

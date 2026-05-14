@@ -132,8 +132,7 @@ export default function MySheetsPage() {
         router.push(`/data-fill?sheet=${sheetUrl}`);
         break;
       case "form-fill":
-        // Navigate to home page with sheet pre-filled for form creation
-        router.push(`/?sheet=${sheetUrl}`);
+        router.push(`/form-fill?sheet=${sheetUrl}`);
         break;
       case "multi-header":
         router.push(`/multi-header-filter?sheet=${sheetUrl}`);

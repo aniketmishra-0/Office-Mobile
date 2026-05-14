@@ -1009,7 +1009,7 @@ export default function Dashboard() {
                 const encodedUrl = encodeURIComponent(sheetUrl);
                 switch (optionId) {
                   case "form-fill":
-                    handleGenerate();
+                    router.push(`/form-fill?sheet=${encodedUrl}`);
                     break;
                   case "quick-view":
                     router.push(`/history?sheet=${encodedUrl}`);
