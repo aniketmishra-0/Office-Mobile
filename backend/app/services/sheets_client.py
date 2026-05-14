@@ -722,11 +722,10 @@ def _is_header_or_title_row(
     Detect if a row is a repeated header row or a section title row that
     should be skipped during data reading.
 
-    A row is considered a header/title if:
-    1. It matches 70%+ of the known header values AND has no data-like values
-       (numbers, times, dates in cells that aren't headers), OR
-    2. It has only 1-2 non-empty cells out of many columns AND the content
-       looks like a section title (not a data value)
+    CONSERVATIVE approach — only skips rows that are very clearly NOT data:
+    1. Exact or near-exact match of the known header row (90%+ match with 5+ headers), OR
+    2. A single merged-cell-style title (1 cell filled with 40+ chars, rest empty,
+       in a sheet with 10+ columns, and the cell is NOT a date/time/number)
 
     Returns True if the row should be SKIPPED (it's not real data).
     """
@@ -739,37 +738,33 @@ def _is_header_or_title_row(
     if num_non_empty == 0:
         return False
 
-    # --- Check 1: Section title row ---
-    # If only 1-2 cells are filled in a row that has many columns,
-    # and the filled cell is long text that does NOT look like data
-    # (not a date, not a time, not a number), skip it.
-    if total_columns >= 8 and num_non_empty <= 2:
-        longest_cell = max(non_empty_cells, key=len)
-        # Must be long AND not look like a data value
-        if len(longest_cell) > 30:
-            # Check it's not a date/time/number
+    # --- Check 1: Section title row (very strict) ---
+    # Only skip if: 10+ total columns, exactly 1 cell filled, that cell is 40+ chars,
+    # and it does NOT look like data (not a date, time, or number).
+    if total_columns >= 10 and num_non_empty == 1:
+        the_cell = non_empty_cells[0]
+        if len(the_cell) >= 40:
             is_data_like = (
-                _TIME_PATTERN.match(longest_cell)
-                or _DATE_PATTERN.match(longest_cell)
-                or longest_cell.replace(".", "").replace(",", "").isdigit()
+                _TIME_PATTERN.match(the_cell)
+                or _DATE_PATTERN.match(the_cell)
+                or the_cell.replace(".", "").replace(",", "").replace(" ", "").isdigit()
             )
             if not is_data_like:
                 return True
 
-    # --- Check 2: Repeated header row ---
-    # Compare row values against known headers. Must be a very strong match
-    # (70%+ of known headers found in this row) AND the row must have enough
-    # cells filled to look like a header row (at least 40% of columns filled).
-    if not known_headers or num_non_empty < 3:
+    # --- Check 2: Repeated header row (very strict) ---
+    # Must match 90%+ of known headers AND have no data-like values AND
+    # have a high fill ratio (looks like a full header row, not sparse data).
+    if not known_headers or num_non_empty < 5:
         return False
 
     known_headers_lower = {h.strip().lower() for h in known_headers if h.strip()}
-    if not known_headers_lower:
+    if not known_headers_lower or len(known_headers_lower) < 5:
         return False
 
-    # Row must have a reasonable fill ratio to be a header
+    # Row must have at least 50% of columns filled to look like a header
     fill_ratio = num_non_empty / max(total_columns, 1)
-    if fill_ratio < 0.3:
+    if fill_ratio < 0.4:
         return False
 
     match_count = 0
@@ -779,8 +774,8 @@ def _is_header_or_title_row(
         if cell_lower in known_headers_lower:
             match_count += 1
         else:
-            # Check if this non-matching cell looks like actual data
-            # (number, time, date) — if so, this is likely a data row
+            # If any cell looks like actual data (number, time, date),
+            # this is definitely a data row — bail out immediately
             if (
                 _TIME_PATTERN.match(cell)
                 or _DATE_PATTERN.match(cell)
@@ -789,13 +784,12 @@ def _is_header_or_title_row(
                 has_data_value = True
                 break
 
-    # If we found data-like values, this is NOT a header row
     if has_data_value:
         return False
 
+    # Require 90%+ match for very high confidence
     match_ratio = match_count / max(len(known_headers_lower), 1)
-    # Require 70%+ match AND at least 4 matching headers for confidence
-    if match_ratio >= 0.7 and match_count >= 4:
+    if match_ratio >= 0.9 and match_count >= 5:
         return True
 
     return False

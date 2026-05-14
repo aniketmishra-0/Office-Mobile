@@ -10,7 +10,6 @@ import {
   getFormSuggestions,
   getSheetHistory,
   lookupFormsBySheet,
-  checkSheetAccess,
 } from "@/lib/api";
 
 interface TabOption {
@@ -155,14 +154,17 @@ function MultiHeaderFilterInner() {
     try {
       if (tab.has_form && tab.id) {
         const data = await getFormSuggestions(tab.id);
+        const rows = data.rows ?? [];
+        console.log("[MultiHeaderFilter] Loaded via form suggestions:", rows.length, "rows");
         setLoaded({
           worksheet_name: tab.worksheet_name || tab.form_title,
           fields: tab.fields,
-          rows: data.rows ?? [],
+          rows,
         });
       } else {
         const url = sheet_url ?? sheetUrl;
         const data = await getSheetHistory(url, tab.worksheet_name);
+        console.log("[MultiHeaderFilter] Loaded via sheet history:", data.rows?.length ?? 0, "rows,", data.fields?.length ?? 0, "fields");
         setLoaded({
           worksheet_name: data.worksheet_name,
           fields: data.fields,
@@ -170,6 +172,7 @@ function MultiHeaderFilterInner() {
         });
       }
     } catch (e: any) {
+      console.error("[MultiHeaderFilter] Error loading tab:", e);
       setError(e.message ?? "Failed to load entries");
     } finally {
       setLoading(false);
