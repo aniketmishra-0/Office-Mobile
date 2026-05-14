@@ -542,7 +542,10 @@ function DataFillPageInner() {
           <div className="rounded-lg border border-zinc-200 bg-white divide-y divide-zinc-100 overflow-hidden desktop-detail-fields">
             {sortedFields.map((field, fieldIdx) => {
               const val = editValues[field.key] ?? "";
-              const isFilled = field.type === "checkbox" ? true : !!val.trim();
+              // Treat as checkbox if field type is checkbox OR value is TRUE/FALSE
+              const isCheckboxField = field.type === "checkbox" || 
+                (field.type === "text" && (val.trim().toUpperCase() === "TRUE" || val.trim().toUpperCase() === "FALSE"));
+              const isFilled = isCheckboxField ? true : !!val.trim();
               const isMissing = !isFilled;
               const isProtected = protectedHeaders.has(field.key);
               return (
@@ -569,7 +572,7 @@ function DataFillPageInner() {
                       </p>
                     </div>
                   ) : editMode ? (
-                    field.type === "checkbox" ? (
+                    isCheckboxField ? (
                       <button
                         type="button"
                         role="switch"
@@ -596,7 +599,7 @@ function DataFillPageInner() {
                       className={`w-full mt-1 px-3 py-2 text-[14px] rounded-md border ${isMissing ? "border-red-300 bg-red-50/30" : "border-zinc-200"} focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent`} />
                     )
                   ) : (
-                    field.type === "checkbox" ? (
+                    isCheckboxField ? (
                       <div className="flex items-center gap-2 ml-5.5 mt-1">
                         <span className={`inline-flex w-[18px] h-[18px] rounded border-2 items-center justify-center ${val.toUpperCase() === "TRUE" ? "bg-emerald-500 border-emerald-500" : "bg-white border-zinc-300"}`}>
                           {val.toUpperCase() === "TRUE" && (
