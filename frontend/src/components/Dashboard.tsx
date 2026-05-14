@@ -12,6 +12,7 @@ import FormBuilder from "@/components/FormBuilder";
 import MobileDropdown from "@/components/MobileDropdown";
 import SubmitButton from "@/components/SubmitButton";
 import ClearButton from "@/components/ClearButton";
+import OpenInModal from "@/components/OpenInModal";
 import { QRCodeCanvas } from "qrcode.react";
 import { usePrefs } from "@/lib/usePrefs";
 import {
@@ -159,6 +160,7 @@ export default function Dashboard() {
   const [showSetup, setShowSetup] = useState(false);
   const [autofillColumns, setAutofillColumns] = useState<string[]>([]);
   const [accessStatus, setAccessStatus] = useState<"checking" | "edit" | "read" | "none" | null>(null);
+  const [showOpenIn, setShowOpenIn] = useState(false);
 
   useEffect(() => {
     getPublicConfig()
@@ -464,7 +466,7 @@ export default function Dashboard() {
                 <>
                   Your Spreadsheet.
                   <br />
-                  Your <em style={{ fontStyle: "italic", fontWeight: 400 }}>Form.</em>
+                  Your <em style={{ fontStyle: "italic", fontWeight: 400 }}>Way.</em>
                 </>
               )}
             </h1>
@@ -478,7 +480,7 @@ export default function Dashboard() {
                 margin: "18px 0 0 0",
               }}
             >
-              {copy.hero_sub ?? "// connect a google sheet. collect data. done."}
+              {copy.hero_sub ?? "// connect a google sheet. view, fill, correct, filter."}
             </p>
           </section>
 
@@ -731,9 +733,12 @@ export default function Dashboard() {
                   users don't have to scroll past the library to generate. */}
               <div style={{ paddingTop: 4 }}>
                 <SubmitButton
-                  label={copy.submit_label ?? "Preview your form"}
+                  label={copy.submit_label ?? "Open this sheet"}
                   submitting={loadingPreview}
-                  onClick={handleGenerate}
+                  onClick={() => {
+                    if (!validateUrl(sheetUrl)) return;
+                    setShowOpenIn(true);
+                  }}
                   disabled={!sheetUrl.trim() || accessStatus === "none" || accessStatus === "read"}
                 />
               </div>
@@ -994,6 +999,35 @@ export default function Dashboard() {
           )}
 
           <ErrorToast message={error} onDismiss={() => setError(null)} />
+
+          {/* Open In modal — shown when user clicks "Open this sheet" */}
+          {showOpenIn && (
+            <OpenInModal
+              sheetTitle={sheetUrl.length > 50 ? "Your Sheet" : sheetUrl}
+              onSelect={(optionId) => {
+                setShowOpenIn(false);
+                const encodedUrl = encodeURIComponent(sheetUrl);
+                switch (optionId) {
+                  case "form-fill":
+                    handleGenerate();
+                    break;
+                  case "quick-view":
+                    router.push(`/history?sheet=${encodedUrl}`);
+                    break;
+                  case "data-correction":
+                    router.push(`/data-fill?sheet=${encodedUrl}`);
+                    break;
+                  case "multi-header":
+                    router.push(`/multi-header-filter?sheet=${encodedUrl}`);
+                    break;
+                  default:
+                    router.push(`/history?sheet=${encodedUrl}`);
+                    break;
+                }
+              }}
+              onClose={() => setShowOpenIn(false)}
+            />
+          )}
 
           {/* Clear All confirmation modal */}
           {clearAllConfirm && (
