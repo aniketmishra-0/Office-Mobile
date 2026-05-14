@@ -145,7 +145,11 @@ export default function AppHeader({
               <span className="om-header__back-label">back</span>
             </button>
           )}
-          {showLogo && !showBack && <Logo size="sm" showText={!title} />}
+          {showLogo && !showBack && (
+            <a href="/" style={{ textDecoration: "none", display: "inline-flex" }}>
+              <Logo size="sm" showText={!title} />
+            </a>
+          )}
         </div>
 
         {title && (
@@ -163,7 +167,7 @@ export default function AppHeader({
               type="button"
               aria-label="Open account menu"
               aria-expanded={openMenu}
-              onClick={() => setOpenMenu((s) => !s)}
+              onClick={(e) => { e.stopPropagation(); setOpenMenu((s) => !s); }}
               className={`om-header__avatar ${openMenu ? "is-open" : ""}`}
             >
               {user && user.picture ? (
@@ -300,13 +304,14 @@ export default function AppHeader({
           /* Ensure header always renders above scrolling content on iOS */
           transform: translateZ(0);
           -webkit-transform: translateZ(0);
+          overflow: visible;
         }
         .om-header__row {
           display: flex;
           align-items: center;
           height: 52px;
           padding: 0 18px;
-          max-width: 560px;
+          max-width: 900px;
           margin: 0 auto;
           gap: 12px;
         }
@@ -403,9 +408,11 @@ export default function AppHeader({
           border: 1px solid var(--rule);
           display: flex;
           flex-direction: column;
-          z-index: 60;
+          z-index: 9999;
           transform-origin: top right;
           will-change: transform, opacity;
+          opacity: 1;
+          box-shadow: 0 4px 24px rgba(0,0,0,0.12);
         }
         .om-header__menu.is-open {
           animation: omMenuReveal 280ms cubic-bezier(0.22, 1, 0.36, 1);
