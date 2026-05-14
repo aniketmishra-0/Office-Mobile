@@ -286,10 +286,20 @@ async def get_sheet_history(
     except InvalidGoogleSheetUrl as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    # Use authenticated header reading when credentials are available to ensure
+    # consistency with the PATCH /sheet/row endpoint. The public gviz endpoint
+    # can return different column labels than the actual row 1 values, causing
+    # field key mismatches between load and save operations.
+    from app.services.sheets_client import read_headers_authenticated, _has_credentials as has_creds
     try:
-        spreadsheet_title, actual_worksheet, headers = await asyncio.to_thread(
-            read_headers, spreadsheet_id, worksheet_name
-        )
+        if has_creds():
+            spreadsheet_title, actual_worksheet, headers = await asyncio.to_thread(
+                read_headers_authenticated, spreadsheet_id, worksheet_name
+            )
+        else:
+            spreadsheet_title, actual_worksheet, headers = await asyncio.to_thread(
+                read_headers, spreadsheet_id, worksheet_name
+            )
     except Exception as exc:
         raise _sheet_error(exc) from exc
 
@@ -361,16 +371,38 @@ async def update_sheet_row_endpoint(
         raise HTTPException(status_code=400, detail="No usable headers found in the sheet.")
 
     # Build complete values dict ensuring all fields have a value.
-    # Also pass through any keys from the frontend that match field keys,
-    # converting boolean-like values to proper strings for Google Sheets.
+    # The frontend may send keys generated from a previous header read (e.g.,
+    # stored form fields or a prior /sheet/history call). If the live headers
+    # produce slightly different keys, we need a flexible matching strategy:
+    #   1. Exact key match (fastest path)
+    #   2. Case-insensitive key match
+    #   3. Normalized key match (strip underscores/numbers suffix)
+    # This prevents "sheet structure changed" errors when headers haven't
+    # actually changed but key generation differs between endpoints.
+    
+    # Build a lookup from incoming value keys for flexible matching
+    incoming_keys_lower: dict[str, str] = {k.lower(): k for k in values}
+    
     complete_values = {}
     for field in fields:
-        raw_val = values.get(field.key, "")
-        # Ensure the value is always a string for consistency
+        # Try exact match first
+        raw_val = values.get(field.key)
+        
+        # Try case-insensitive match
+        if raw_val is None:
+            original_key = incoming_keys_lower.get(field.key.lower())
+            if original_key is not None:
+                raw_val = values[original_key]
+        
+        # Default to empty string if no match found
         if raw_val is None:
             raw_val = ""
-        elif isinstance(raw_val, bool):
+            
+        # Ensure the value is always a string for consistency
+        if isinstance(raw_val, bool):
             raw_val = "TRUE" if raw_val else "FALSE"
+        elif raw_val is None:
+            raw_val = ""
         else:
             raw_val = str(raw_val)
         complete_values[field.key] = raw_val

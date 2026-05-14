@@ -828,6 +828,17 @@ def update_sheet_row(
     if not row_values:
         return None
 
+    # Ensure we don't write beyond the sheet's actual column count.
+    # Google Sheets returns 400 if the range exceeds the grid dimensions.
+    sheet_col_count = worksheet.col_count
+    if len(row_values) > sheet_col_count:
+        row_values = row_values[:sheet_col_count]
+        # Re-trim trailing empty cells after truncation
+        while row_values and row_values[-1] == "":
+            row_values.pop()
+        if not row_values:
+            return None
+
     end_col = _col_index_to_letter(len(row_values) - 1)
     cell_range = f"A{row_index}:{end_col}{row_index}"
 

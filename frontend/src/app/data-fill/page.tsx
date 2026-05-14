@@ -273,7 +273,7 @@ export default function DataFillPage() {
       });
       const updatedRows = [...loaded.rows];
       const originalIdx = loaded.rows.indexOf(filteredAndSortedRows[selectedRowIdx]);
-      if (originalIdx >= 0) { updatedRows[originalIdx] = { ...editValues }; }
+      if (originalIdx >= 0) { updatedRows[originalIdx] = { ...editValues, _row_index: String(rowIndex) }; }
       setLoaded({ ...loaded, rows: updatedRows });
       setEditMode(false);
       setSuccessMsg("Row updated successfully!");
