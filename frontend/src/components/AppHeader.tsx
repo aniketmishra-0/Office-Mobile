@@ -224,18 +224,6 @@ export default function AppHeader({
                   role="menuitem"
                   className="om-header__menu-item"
                   onClick={() => {
-                    router.push("/history");
-                    setOpenMenu(false);
-                  }}
-                >
-                  <span className="om-header__menu-icon" aria-hidden>☰</span>
-                  <span>Submission history</span>
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="om-header__menu-item"
-                  onClick={() => {
                     router.push("/data-fill");
                     setOpenMenu(false);
                   }}
@@ -243,19 +231,6 @@ export default function AppHeader({
                   <span className="om-header__menu-icon" aria-hidden>✎</span>
                   <span>Data Correction</span>
                 </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="om-header__menu-item"
-                  onClick={() => {
-                    router.push("/submissions");
-                    setOpenMenu(false);
-                  }}
-                >
-                  <span className="om-header__menu-icon" aria-hidden>▦</span>
-                  <span>Your submissions</span>
-                </button>
-
                 <hr className="om-header__menu-rule" />
 
                 {/* Secondary */}

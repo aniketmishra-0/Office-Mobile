@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import ErrorToast from "@/components/ErrorToast";
 import LoadingOverlay from "@/components/LoadingOverlay";
@@ -30,6 +31,18 @@ interface LoadedTab {
 }
 
 export default function HistoryPage() {
+  return (
+    <Suspense fallback={<LoadingOverlay message="Loading..." />}>
+      <HistoryPageInner />
+    </Suspense>
+  );
+}
+
+function HistoryPageInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const sheetParam = searchParams.get("sheet");
+
   const [formInput, setFormInput] = useState("");
   const [urlValid, setUrlValid] = useState(false);
   const [urlError, setUrlError] = useState("");
@@ -42,6 +55,14 @@ export default function HistoryPage() {
   const [selectedRow, setSelectedRow] = useState<Record<string, string> | null>(null);
   const [accessStatus, setAccessStatus] = useState<"checking" | "edit" | "read" | "none" | null>(null);
   const [serviceAccountEmail, setServiceAccountEmail] = useState<string | null>(null);
+
+  // Auto-load sheet from URL param on mount
+  useEffect(() => {
+    if (sheetParam) {
+      loadSheetFromUrl(sheetParam);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheetParam]);
 
   // Fetch service account email on mount
   useEffect(() => {
@@ -108,7 +129,12 @@ export default function HistoryPage() {
   async function handleLoadSheet() {
     if (!validateUrl(formInput)) return;
     const trimmed = formInput.trim();
+    // Navigate to the same page with sheet URL as query param
+    // This opens a "new view" so the input page stays fresh
+    router.push(`/history?sheet=${encodeURIComponent(trimmed)}`);
+  }
 
+  async function loadSheetFromUrl(url: string) {
     setLoading(true);
     setError(null);
     setAvailableTabs(null);
@@ -117,8 +143,8 @@ export default function HistoryPage() {
     setSelectedRow(null);
 
     try {
-      const result = await lookupFormsBySheet(trimmed);
-      setSheetUrl(trimmed);
+      const result = await lookupFormsBySheet(url);
+      setSheetUrl(url);
 
       const tabs: TabOption[] = result.items.map((item) => ({
         id: item.id,
@@ -135,7 +161,7 @@ export default function HistoryPage() {
 
       // If only one tab, auto-select it
       if (tabs.length === 1) {
-        await selectTab(tabs[0], trimmed);
+        await selectTab(tabs[0], url);
       } else {
         setAvailableTabs(tabs);
       }
@@ -207,17 +233,9 @@ export default function HistoryPage() {
   );
 
   const handleReset = useCallback(() => {
-    setLoaded(null);
-    setAvailableTabs(null);
-    setSearchQuery("");
-    setSelectedRow(null);
-    setFormInput("");
-    setSheetUrl("");
-    setUrlValid(false);
-    setUrlError("");
-    setError(null);
-    setAccessStatus(null);
-  }, []);
+    // Navigate back to clean history page (no query params)
+    router.push("/history");
+  }, [router]);
 
   const handleBackToTabs = useCallback(() => {
     setLoaded(null);
@@ -281,7 +299,7 @@ export default function HistoryPage() {
   if (loaded) {
     return (
       <div className="flex flex-col min-h-screen bg-zinc-100">
-        <AppHeader title="Check history" showBack onBack={handleBackToTabs} />
+        <AppHeader title="History" showBack onBack={handleBackToTabs} />
         {loading && <LoadingOverlay message="Loading entries..." />}
 
         <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-10">
@@ -399,289 +417,402 @@ export default function HistoryPage() {
   }
 
   // ═══════════════════════ Initial / Tab picker ═══════════════════════
+  // If we have a sheet param, show loading state instead of input form
+  if (sheetParam && !loaded && !availableTabs && !error) {
+    return (
+      <div className="flex flex-col min-h-screen">
+        <AppHeader title="History" showBack onBack={() => router.push("/history")} />
+        <LoadingOverlay message="Loading sheet..." />
+      </div>
+    );
+  }
+
+  // Show tab picker if we have tabs from URL param
+  if (sheetParam && availableTabs) {
+    return (
+      <div className="flex flex-col min-h-screen">
+        <AppHeader title="History" showBack onBack={() => router.push("/history")} />
+        <div className="flex-1 w-full max-w-[560px] mx-auto px-6 pt-14 pb-10 space-y-8">
+          <section>
+            <p
+              style={{
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontWeight: 500,
+                fontSize: 10,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                color: "var(--charcoal)",
+                marginBottom: 12,
+              }}
+            >
+              Pick a tab
+            </p>
+            <div style={{ border: "1px solid var(--rule)" }}>
+              {availableTabs.map((tab, idx) => (
+                <button
+                  key={`${tab.worksheet_name}-${idx}`}
+                  type="button"
+                  onClick={() => selectTab(tab)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    width: "100%",
+                    padding: "14px 16px",
+                    background: "transparent",
+                    border: 0,
+                    borderBottom: idx < availableTabs.length - 1 ? "1px solid var(--rule)" : "none",
+                    textAlign: "left",
+                    cursor: "pointer",
+                    transition: "background-color 200ms ease-out",
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--paper)"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+                >
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <p style={{ fontFamily: "var(--font-newsreader), Georgia, serif", fontWeight: 400, fontSize: 15, color: "var(--ink)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {tab.worksheet_name || tab.form_title}
+                    </p>
+                    <p style={{ fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontWeight: 300, fontSize: 10, letterSpacing: "0.04em", color: "var(--stone)", margin: "2px 0 0 0" }}>
+                      {tab.has_form ? `${tab.fields.length} columns · has form` : "no form yet · read-only"}
+                    </p>
+                  </div>
+                  <span style={{ color: "var(--stone)", fontSize: 14 }} aria-hidden>→</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        </div>
+        <ErrorToast message={error} onDismiss={() => setError(null)} />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col min-h-screen bg-zinc-100">
-      <AppHeader title="Check history" showBack />
+    <div className="flex flex-col min-h-screen">
+      <AppHeader title="History" showBack />
       {loading && <LoadingOverlay message="Loading sheet..." />}
 
-      <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-14 pb-32">
-        {/* Hero */}
-        <div className="mb-8">
-          <h1 className="text-[26px] font-bold text-zinc-950 leading-tight tracking-tight">
+      <div className="flex-1 w-full max-w-[560px] mx-auto px-6 pt-14 pb-32 space-y-8">
+        {/* Editorial hero */}
+        <section>
+          <p
+            style={{
+              fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+              fontWeight: 500,
+              fontSize: 10,
+              letterSpacing: "0.18em",
+              textTransform: "uppercase",
+              color: "var(--stone)",
+              margin: "0 0 18px 0",
+            }}
+          >
+            Submission History
+          </p>
+          <h1
+            style={{
+              fontFamily: "var(--font-newsreader), Georgia, serif",
+              fontWeight: 300,
+              fontSize: 32,
+              lineHeight: 1.1,
+              letterSpacing: "-0.01em",
+              color: "var(--ink)",
+              margin: 0,
+            }}
+          >
             Search your
             <br />
-            submission history
+            past <em style={{ fontStyle: "italic", fontWeight: 400 }}>entries.</em>
           </h1>
-          <p className="text-[15px] text-zinc-600 mt-2.5 leading-relaxed">
-            Paste your sheet link. Find any past entry in seconds by searching across all columns.
+          <p
+            style={{
+              fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+              fontWeight: 300,
+              fontSize: 12,
+              letterSpacing: "0.04em",
+              color: "var(--stone)",
+              margin: "18px 0 0 0",
+            }}
+          >
+            {"// paste a sheet link. find any entry in seconds."}
           </p>
-        </div>
+        </section>
+
+        <hr style={{ border: 0, borderTop: "1px solid var(--rule)", margin: 0 }} />
 
         {/* URL Input */}
-        <div className="mb-6">
-          <label
-            htmlFor="history-url"
-            className="block text-[13px] font-semibold text-zinc-800 mb-2"
-          >
-            Google Sheet URL
-          </label>
-          <div className="relative">
-            <input
-              id="history-url"
-              type="url"
-              inputMode="url"
-              value={formInput}
-              onChange={(e) => handleUrlChange(e.target.value)}
-              onBlur={() => formInput && validateUrl(formInput)}
-              onKeyDown={(e) => e.key === "Enter" && handleLoadSheet()}
-              placeholder="https://docs.google.com/spreadsheets/d/..."
-              aria-invalid={!!urlError}
-              className={`w-full rounded-lg border px-4 py-3.5 text-[15px] min-h-[52px] pr-10 focus:outline-none focus:ring-2 transition-all ${
-                urlError
-                  ? "border-red-300 bg-red-50/50 focus:ring-red-500"
-                  : urlValid
-                  ? "border-emerald-300 bg-emerald-50/30 focus:ring-emerald-500"
-                  : "border-zinc-300 bg-white focus:ring-zinc-900"
-              }`}
-            />
-            {formInput && !urlValid && (
-              <ClearButton
-                onClick={() => {
-                  setFormInput("");
-                  setUrlValid(false);
-                  setUrlError("");
-                  setAccessStatus(null);
+        <div className="space-y-4">
+          <div>
+            <label
+              htmlFor="history-url"
+              style={{
+                display: "block",
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontWeight: 500,
+                fontSize: 10,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                color: "var(--charcoal)",
+                marginBottom: 8,
+              }}
+            >
+              Google Sheet URL
+            </label>
+            <div style={{ position: "relative" }}>
+              <input
+                id="history-url"
+                type="url"
+                inputMode="url"
+                value={formInput}
+                onChange={(e) => handleUrlChange(e.target.value)}
+                onBlur={() => formInput && validateUrl(formInput)}
+                onKeyDown={(e) => e.key === "Enter" && handleLoadSheet()}
+                placeholder="https://docs.google.com/spreadsheets/d/..."
+                aria-invalid={!!urlError}
+                style={{
+                  width: "100%",
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  fontWeight: 400,
+                  fontSize: 14,
+                  color: "var(--ink)",
+                  background: "transparent",
+                  border: 0,
+                  borderBottom: `2px solid ${urlError ? "var(--error)" : "var(--ink)"}`,
+                  borderRadius: 0,
+                  padding: "8px 28px 8px 0",
+                  outline: "none",
+                  transition: "border-color 200ms ease-out",
                 }}
-                ariaLabel="Clear URL"
+                onFocus={(e) => {
+                  if (!urlError) e.currentTarget.style.borderBottomColor = "var(--clay)";
+                }}
               />
-            )}
-            {urlValid && !urlError && (
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                <button
-                  type="button"
+              {formInput && (
+                <ClearButton
                   onClick={() => {
                     setFormInput("");
                     setUrlValid(false);
                     setUrlError("");
                     setAccessStatus(null);
                   }}
-                  aria-label="Clear URL"
-                  className="w-5 h-5 rounded-full text-gray-400 hover:text-gray-700 flex items-center justify-center"
-                >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-                <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center">
-                  <svg className="w-3 h-3 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
+                  ariaLabel="Clear URL"
+                  top="calc(50% - 2px)"
+                />
+              )}
+            </div>
+            {urlError && (
+              <p
+                style={{
+                  margin: "8px 0 0 0",
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  fontSize: 10,
+                  letterSpacing: "0.04em",
+                  color: "var(--error)",
+                }}
+                role="alert"
+              >
+                ✕ {urlError}
+              </p>
+            )}
+            {!urlValid && !urlError && (
+              <p
+                style={{
+                  margin: "8px 0 0 0",
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  fontWeight: 300,
+                  fontSize: 10,
+                  letterSpacing: "0.04em",
+                  color: "var(--stone)",
+                }}
+              >
+                paste any google sheets link or spreadsheet id
+              </p>
+            )}
+            {accessStatus === "checking" && (
+              <p
+                style={{
+                  margin: "10px 0 0 0",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  fontWeight: 400,
+                  fontSize: 10,
+                  letterSpacing: "0.04em",
+                  color: "var(--stone)",
+                }}
+              >
+                <span
+                  style={{
+                    width: 10,
+                    height: 10,
+                    border: "1.5px solid var(--rule)",
+                    borderTopColor: "var(--ink)",
+                    borderRadius: "50%",
+                    display: "inline-block",
+                    animation: "spin 0.8s linear infinite",
+                  }}
+                />
+                checking permissions…
+              </p>
+            )}
+            {accessStatus === "edit" && (
+              <p
+                style={{
+                  margin: "10px 0 0 0",
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  fontWeight: 500,
+                  fontSize: 10,
+                  letterSpacing: "0.04em",
+                  color: "#047857",
+                }}
+              >
+                ✓ edit access confirmed
+              </p>
+            )}
+            {accessStatus === "read" && (
+              <p
+                style={{
+                  margin: "10px 0 0 0",
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  fontWeight: 400,
+                  fontSize: 10,
+                  letterSpacing: "0.04em",
+                  color: "#b45309",
+                }}
+              >
+                <strong style={{ fontWeight: 500 }}>view only.</strong>{" "}
+                read access confirmed — you can search history.
+              </p>
+            )}
+            {accessStatus === "none" && (
+              <p
+                style={{
+                  margin: "10px 0 0 0",
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  fontWeight: 400,
+                  fontSize: 10,
+                  letterSpacing: "0.04em",
+                  color: "var(--clay)",
+                }}
+              >
+                <strong style={{ fontWeight: 500 }}>no access.</strong>{" "}
+                {serviceAccountEmail ? (
+                  <>
+                    share the sheet with{" "}
+                    <strong style={{ fontWeight: 500 }}>{serviceAccountEmail}</strong>{" "}
+                    or sign in with google.
+                  </>
+                ) : (
+                  <>sign in with google or share the sheet with the app.</>
+                )}
+              </p>
             )}
           </div>
-          {urlError && (
-            <p className="text-red-500 text-[13px] mt-1.5 flex items-center gap-1" role="alert">
-              <svg className="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-              {urlError}
-            </p>
-          )}
-          {!urlValid && !urlError && (
-            <p className="text-gray-400 text-[13px] mt-1.5">
-              Paste any Google Sheets link
-            </p>
-          )}
-          {accessStatus === "checking" && (
-            <p
-              style={{
-                margin: "10px 0 0 0",
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                fontWeight: 400,
-                fontSize: 10,
-                letterSpacing: "0.04em",
-                color: "var(--stone)",
-              }}
-            >
-              <span
-                style={{
-                  width: 10,
-                  height: 10,
-                  border: "1.5px solid var(--rule)",
-                  borderTopColor: "var(--ink)",
-                  borderRadius: "50%",
-                  display: "inline-block",
-                  animation: "spin 0.8s linear infinite",
-                }}
-              />
-              checking permissions…
-            </p>
-          )}
-          {accessStatus === "edit" && (
-            <p
-              style={{
-                margin: "10px 0 0 0",
-                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                fontWeight: 500,
-                fontSize: 10,
-                letterSpacing: "0.04em",
-                color: "#047857",
-              }}
-            >
-              ✓ edit access confirmed
-            </p>
-          )}
-          {accessStatus === "read" && (
-            <p
-              style={{
-                margin: "10px 0 0 0",
-                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                fontWeight: 400,
-                fontSize: 10,
-                letterSpacing: "0.04em",
-                color: "#b45309",
-              }}
-            >
-              <strong style={{ fontWeight: 500 }}>view only.</strong>{" "}
-              read access confirmed — you can search history.
-            </p>
-          )}
-          {accessStatus === "none" && (
-            <p
-              style={{
-                margin: "10px 0 0 0",
-                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                fontWeight: 400,
-                fontSize: 10,
-                letterSpacing: "0.04em",
-                color: "var(--clay)",
-              }}
-            >
-              <strong style={{ fontWeight: 500 }}>no access.</strong>{" "}
-              {serviceAccountEmail ? (
-                <>
-                  share the sheet with{" "}
-                  <strong style={{ fontWeight: 500 }}>{serviceAccountEmail}</strong>{" "}
-                  or sign in with google.
-                </>
-              ) : (
-                <>sign in with google or share the sheet with the app.</>
-              )}
-            </p>
-          )}
-        </div>
 
-        {/* Step indicator */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-4 text-[13px] text-gray-400 min-w-0 overflow-x-auto">
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold ${step >= 1 ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500"}`}>1</span>
-                <span className={step >= 1 ? "text-gray-700 font-medium" : ""}>Paste link</span>
-              </div>
-              <svg className="w-3 h-3 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-              </svg>
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold ${step >= 2 ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500"}`}>2</span>
-                <span className={step >= 2 ? "text-gray-700 font-medium" : ""}>Pick tab</span>
-              </div>
-              <svg className="w-3 h-3 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-              </svg>
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold ${step >= 3 ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500"}`}>3</span>
-                <span className={step >= 3 ? "text-gray-700 font-medium" : ""}>Search</span>
-              </div>
-            </div>
-            {(formInput || availableTabs) && (
-              <button
-                type="button"
-                onClick={handleReset}
-                className="flex-shrink-0 text-[11px] font-medium uppercase tracking-[0.12em] text-stone hover:text-clay transition-colors"
+          <p
+            style={{
+              margin: 0,
+              fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+              fontWeight: 300,
+              fontSize: 10,
+              letterSpacing: "0.06em",
+              color: "var(--stone)",
+            }}
+          >
+            your data stays in your sheet · we only read what you search
+          </p>
+
+          {/* Tab picker */}
+          {availableTabs && (
+            <div style={{ paddingTop: 8 }}>
+              <p
                 style={{
                   fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                  color: "var(--stone)",
-                  background: "transparent",
-                  border: 0,
-                  padding: 0,
-                  cursor: "pointer",
+                  fontWeight: 500,
+                  fontSize: 10,
+                  letterSpacing: "0.14em",
+                  textTransform: "uppercase",
+                  color: "var(--charcoal)",
+                  marginBottom: 12,
                 }}
-                aria-label="Clear all fields and start over"
               >
-                ✕ clear all
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Tab picker */}
-        {availableTabs && (
-          <div className="mb-6 animate-fade-in">
-            <p className="text-[13px] font-semibold text-gray-700 mb-2.5">
-              Pick a sheet tab
-            </p>
-            <div className="space-y-1.5">
-              {availableTabs.map((tab, idx) => (
-                <button
-                  key={`${tab.worksheet_name}-${idx}`}
-                  type="button"
-                  onClick={() => selectTab(tab)}
-                  className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-zinc-200 bg-white hover:border-zinc-400 hover:bg-zinc-50 transition-all text-left group"
-                >
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${tab.has_form ? "bg-emerald-50" : "bg-gray-100"}`}>
-                      <svg className={`w-4 h-4 ${tab.has_form ? "text-emerald-600" : "text-gray-400"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.375 19.5h17.25M3.375 5.625h17.25M3.375 12h17.25M3.375 19.5c-.621 0-1.125-.504-1.125-1.125V5.625c0-.621.504-1.125 1.125-1.125h17.25c.621 0 1.125.504 1.125 1.125v12.75c0 .621-.504 1.125-1.125 1.125H3.375z" />
-                      </svg>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-semibold text-gray-900 truncate">
+                Pick a tab
+              </p>
+              <div style={{ border: "1px solid var(--rule)" }}>
+                {availableTabs.map((tab, idx) => (
+                  <button
+                    key={`${tab.worksheet_name}-${idx}`}
+                    type="button"
+                    onClick={() => selectTab(tab)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      width: "100%",
+                      padding: "14px 16px",
+                      background: "transparent",
+                      border: 0,
+                      borderBottom: idx < availableTabs.length - 1 ? "1px solid var(--rule)" : "none",
+                      textAlign: "left",
+                      cursor: "pointer",
+                      transition: "background-color 200ms ease-out",
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--paper)"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+                  >
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <p
+                        style={{
+                          fontFamily: "var(--font-newsreader), Georgia, serif",
+                          fontWeight: 400,
+                          fontSize: 15,
+                          color: "var(--ink)",
+                          margin: 0,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
                         {tab.worksheet_name || tab.form_title}
                       </p>
-                      <p className="text-[11px] text-gray-400 truncate">
+                      <p
+                        style={{
+                          fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                          fontWeight: 300,
+                          fontSize: 10,
+                          letterSpacing: "0.04em",
+                          color: "var(--stone)",
+                          margin: "2px 0 0 0",
+                        }}
+                      >
                         {tab.has_form
                           ? `${tab.fields.length} columns · has form`
-                          : "No form yet · read-only"}
+                          : "no form yet · read-only"}
                       </p>
                     </div>
-                  </div>
-                  <svg className="w-4 h-4 text-zinc-300 group-hover:text-zinc-700 flex-shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                  </svg>
-                </button>
-              ))}
+                    <span style={{ color: "var(--stone)", fontSize: 14 }} aria-hidden>→</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {!availableTabs && (
-          <div className="flex items-start gap-2 text-[12px] text-gray-400">
-            <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-            </svg>
-            <span>Your data stays in your Google Sheet. We only read what you search.</span>
-          </div>
-        )}
-      </div>
-
-      {/* Sticky CTA */}
-      {!availableTabs && (
-        <div
-          className="fixed bottom-0 left-0 right-0 max-w-[560px] mx-auto z-40 desktop-bottom-bar"
-        >
-          <SubmitButton
-            label="Load sheet"
-            submitting={loading}
-            onClick={handleLoadSheet}
-            disabled={!formInput.trim() || accessStatus === "none"}
-          />
+          {/* Load button */}
+          {!availableTabs && (
+            <div style={{ paddingTop: 4 }}>
+              <SubmitButton
+                label="Load sheet"
+                submitting={loading}
+                onClick={handleLoadSheet}
+                disabled={!formInput.trim() || accessStatus === "none"}
+              />
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       <ErrorToast message={error} onDismiss={() => setError(null)} />
     </div>
