@@ -79,7 +79,7 @@ function CalendarPopup({ onClose }: { onClose: () => void }) {
           position: absolute;
           top: calc(100% + 8px);
           right: 0;
-          z-index: 100;
+          z-index: 9999;
           width: 260px;
           background: var(--cream);
           border: 1px solid var(--rule);
@@ -322,7 +322,7 @@ function MultiHeaderFilterInner() {
       <AppHeader title="Multi-Header Filtering" showBack onBack={() => { setLoaded(null); setSelectedSections([]); setSearchQuery(""); if (sheetUrl) loadSheetFromUrl(sheetUrl); }} />
 
       {/* Page toolbar — info, controls, calendar icon */}
-      <div className="mhf-toolbar">
+      <div className="mhf-toolbar" style={{ zIndex: 30, position: "sticky" }}>
         <div className="mhf-toolbar-inner">
           {/* Left: Sheet info */}
           <div className="mhf-info">
@@ -583,7 +583,8 @@ const pageStyles = `
     background: var(--cream);
     position: sticky;
     top: 52px;
-    z-index: 10;
+    z-index: 30 !important;
+    overflow: visible;
   }
   .mhf-toolbar-inner {
     display: flex;
@@ -646,6 +647,9 @@ const pageStyles = `
     flex: 1;
     min-width: 0;
     max-width: 280px;
+    -webkit-appearance: menulist;
+    appearance: menulist;
+    cursor: pointer;
   }
   .mhf-search-wrap {
     position: relative;
@@ -723,8 +727,11 @@ const pageStyles = `
   /* Data area */
   .mhf-data {
     flex: 1;
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
     padding: 14px 16px 24px;
+    position: relative;
+    z-index: 1;
   }
   .mhf-empty {
     text-align: center;
