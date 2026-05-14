@@ -328,7 +328,7 @@ async def create_form(payload: CreateFormRequest) -> CreateFormResponse:
 async def get_sheet_history(
     sheet_url: str,
     worksheet_name: str | None = None,
-    limit: int = Query(200, ge=1, le=5000),
+    limit: int = Query(100000, ge=1, le=100000),
 ) -> dict:
     """
     Read history directly from any worksheet tab of a Google Sheet,
@@ -770,7 +770,7 @@ async def get_ai_suggestions(form_id: str) -> dict:
 
 
 @router.get("/forms/{form_id}/suggestions")
-async def get_form_suggestions(form_id: str, limit: int = Query(200, ge=1, le=5000)) -> dict:
+async def get_form_suggestions(form_id: str, limit: int = Query(100000, ge=1, le=100000)) -> dict:
     """
     Read existing rows from the backing Google Sheet and return them
     as autofill suggestions.
