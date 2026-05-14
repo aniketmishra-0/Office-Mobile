@@ -611,7 +611,106 @@ function MultiHeaderFilterInner() {
 
       {/* Search bar with Column/Row toggle */}
       <div style={{ borderBottom: "1px solid var(--rule)", padding: "10px 16px", background: "var(--paper)" }}>
-        <div style={{ maxWidth: 1400, margin: "0 auto", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ maxWidth: 1400, margin: "0 auto" }}>
+          {/* Quick Filter: text columns with unique values as chips */}
+          {(() => {
+            // Detect text columns (non-date, non-numeric) that have limited unique values
+            const textFilterColumns = sortedFields.filter((field) => {
+              // Skip date columns
+              if (dateColumns.some((dc) => dc.key === field.key)) return false;
+              // Get unique non-empty values
+              const values = new Set(
+                loaded.rows
+                  .map((row) => (row[field.key] ?? "").trim())
+                  .filter((v) => v)
+              );
+              // Only show columns with 2-30 unique values (good for filtering)
+              return values.size >= 2 && values.size <= 30;
+            });
+
+            if (textFilterColumns.length === 0) return null;
+
+            return (
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <span style={{
+                    fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                    fontSize: 9,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    color: "var(--stone)",
+                    flexShrink: 0,
+                  }}>
+                    🔍 Quick Filter:
+                  </span>
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-start" }}>
+                  {textFilterColumns.slice(0, 5).map((field) => {
+                    const header = field.source_header || field.label || field.key;
+                    const currentFilter = columnFilters[field.key] ?? "";
+                    const uniqueValues = Array.from(
+                      new Set(
+                        loaded.rows
+                          .map((row) => (row[field.key] ?? "").trim())
+                          .filter((v) => v)
+                      )
+                    ).sort().slice(0, 15); // Max 15 values per column
+
+                    return (
+                      <div key={field.key} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                        <span style={{
+                          fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                          fontSize: 8,
+                          letterSpacing: "0.04em",
+                          textTransform: "uppercase",
+                          color: "var(--stone)",
+                        }}>
+                          {header}
+                        </span>
+                        <div style={{ display: "flex", gap: 3, flexWrap: "wrap", maxWidth: 280 }}>
+                          {uniqueValues.map((val) => {
+                            const isActive = currentFilter.toLowerCase() === val.toLowerCase();
+                            return (
+                              <button
+                                key={val}
+                                onClick={() =>
+                                  setColumnFilters((prev) => ({
+                                    ...prev,
+                                    [field.key]: isActive ? "" : val,
+                                  }))
+                                }
+                                style={{
+                                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                                  fontSize: 9,
+                                  color: isActive ? "var(--paper)" : "var(--ink)",
+                                  background: isActive ? "var(--ink)" : "var(--cream)",
+                                  border: `1px solid ${isActive ? "var(--ink)" : "var(--rule)"}`,
+                                  borderRadius: 10,
+                                  padding: "3px 7px",
+                                  cursor: "pointer",
+                                  whiteSpace: "nowrap",
+                                  transition: "all 0.15s",
+                                  maxWidth: 130,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                }}
+                                title={val}
+                              >
+                                {val.length > 16 ? val.slice(0, 14) + "…" : val}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Toggle + Search row */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           {/* Toggle: Column-wise / Row-wise */}
           <div style={{
             display: "flex",
@@ -734,6 +833,7 @@ function MultiHeaderFilterInner() {
               ? "↳ Shows all rows where selected column matches"
               : "↳ Shows rows where any column matches"}
           </span>
+        </div>
         </div>
       </div>
 
