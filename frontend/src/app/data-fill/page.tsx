@@ -11,6 +11,7 @@ import {
   lookupFormsBySheet,
   getFormSuggestions,
   updateSheetRow,
+  checkSheetAccess,
 } from "@/lib/api";
 
 interface TabOption {
@@ -68,6 +69,9 @@ export default function DataFillPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  // Access status
+  const [accessStatus, setAccessStatus] = useState<"checking" | "edit" | "read" | "none" | null>(null);
+
   // Filter state
   const [filters, setFilters] = useState<ActiveFilter[]>([]);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
@@ -91,6 +95,30 @@ export default function DataFillPage() {
   const editFieldRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => { setVisibleCount(ROWS_PER_PAGE); }, [filters, loaded, sortMode]);
+
+  // Check sheet access when URL becomes valid
+  useEffect(() => {
+    if (!urlValid || !formInput.trim()) {
+      setAccessStatus(null);
+      return;
+    }
+    setAccessStatus("checking");
+    const timer = setTimeout(async () => {
+      try {
+        const status = await checkSheetAccess(formInput);
+        if (!status.read) {
+          setAccessStatus("none");
+        } else if (!status.edit) {
+          setAccessStatus("read");
+        } else {
+          setAccessStatus("edit");
+        }
+      } catch {
+        setAccessStatus("none");
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [formInput, urlValid]);
 
   // ---------------------------------------------------------------------------
   // URL validation
@@ -661,13 +689,8 @@ export default function DataFillPage() {
               placeholder="https://docs.google.com/spreadsheets/d/..."
               aria-invalid={!!urlError}
               className={`w-full rounded-lg border px-4 py-3.5 text-[15px] min-h-[52px] pr-10 focus:outline-none focus:ring-2 transition-all ${urlError ? "border-red-300 bg-red-50/50 focus:ring-red-500" : urlValid ? "border-emerald-300 bg-emerald-50/30 focus:ring-emerald-500" : "border-zinc-300 bg-white focus:ring-zinc-900"}`} />
-            {formInput && !urlValid && (<ClearButton onClick={() => { setFormInput(""); setUrlValid(false); setUrlError(""); }} ariaLabel="Clear URL" />)}
-            {urlValid && !urlError && (
-              <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center">
-                  <svg className="w-3 h-3 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-                </div>
-              </div>
+            {formInput && (
+              <ClearButton onClick={() => { setFormInput(""); setUrlValid(false); setUrlError(""); setAccessStatus(null); }} ariaLabel="Clear URL" />
             )}
           </div>
           {urlError && (
@@ -675,6 +698,21 @@ export default function DataFillPage() {
               <svg className="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
               {urlError}
             </p>
+          )}
+          {accessStatus === "checking" && (
+            <p className="text-zinc-500 text-[12px] mt-2 flex items-center gap-1.5">
+              <span className="w-3 h-3 border-[1.5px] border-zinc-300 border-t-zinc-700 rounded-full inline-block animate-spin" />
+              checking sheet access…
+            </p>
+          )}
+          {accessStatus === "edit" && (
+            <p className="text-emerald-700 text-[12px] mt-2 font-medium">✓ edit access confirmed</p>
+          )}
+          {accessStatus === "read" && (
+            <p className="text-amber-700 text-[12px] mt-2"><strong>view only</strong> — read access available, but no edit permission.</p>
+          )}
+          {accessStatus === "none" && (
+            <p className="text-red-600 text-[12px] mt-2"><strong>no access</strong> — share the sheet with the service account or sign in with Google.</p>
           )}
         </div>
         {availableTabs && (
