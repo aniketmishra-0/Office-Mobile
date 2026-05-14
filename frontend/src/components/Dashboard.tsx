@@ -795,7 +795,7 @@ export default function Dashboard() {
                     cursor: "pointer",
                   }}
                 >
-                  history →
+                  quick view →
                 </button>
               </div>
 

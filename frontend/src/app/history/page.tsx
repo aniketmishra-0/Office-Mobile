@@ -264,26 +264,57 @@ function HistoryPageInner() {
   // ═══════════════════════ Detail view ═══════════════════════
   if (selectedRow && loaded) {
     return (
-      <div className="flex flex-col min-h-screen bg-zinc-100">
+      <div className="flex flex-col min-h-screen" style={{ background: "var(--cream)" }}>
         <AppHeader title="Entry details" showBack onBack={() => setSelectedRow(null)} />
         <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-10">
-          <div className="mb-4">
-            <h2 className="text-[16px] font-bold text-zinc-950">
+          <div style={{ marginBottom: 16 }}>
+            <h2 style={{
+              fontFamily: "var(--font-newsreader), Georgia, serif",
+              fontWeight: 400,
+              fontSize: 16,
+              color: "var(--ink)",
+              margin: 0,
+            }}>
               {loaded.worksheet_name}
             </h2>
-            <p className="text-[12px] text-zinc-500">Full entry</p>
+            <p style={{
+              fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+              fontWeight: 300,
+              fontSize: 10,
+              letterSpacing: "0.04em",
+              color: "var(--stone)",
+              margin: "2px 0 0 0",
+            }}>
+              Row {selectedRow._row_index || "—"} · full entry
+            </p>
           </div>
-          <div className="rounded-lg border border-zinc-200 bg-white divide-y divide-zinc-100 overflow-hidden desktop-detail-fields">
+          <div style={{ border: "1px solid var(--rule)", overflow: "hidden" }} className="desktop-detail-fields">
             {[...loaded.fields]
               .sort((a, b) => a.order - b.order)
-              .map((field) => {
+              .map((field, idx) => {
                 const val = selectedRow[field.key] ?? "";
                 return (
-                  <div key={field.key} className="px-4 py-3">
-                    <p className="text-[11px] font-medium text-zinc-500 uppercase tracking-wide mb-0.5">
+                  <div key={field.key} style={{ padding: "12px 16px", borderBottom: idx < loaded.fields.length - 1 ? "1px solid var(--rule)" : "none" }}>
+                    <p style={{
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontWeight: 500,
+                      fontSize: 10,
+                      letterSpacing: "0.1em",
+                      textTransform: "uppercase",
+                      color: "var(--stone)",
+                      margin: "0 0 3px 0",
+                    }}>
                       {field.label}
                     </p>
-                    <p className={`text-[15px] ${val ? "text-zinc-950 font-medium" : "text-zinc-300 italic"}`}>
+                    <p style={{
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontSize: 13,
+                      fontWeight: val ? 400 : 300,
+                      fontStyle: val ? "normal" : "italic",
+                      color: val ? "var(--ink)" : "var(--stone)",
+                      margin: 0,
+                      wordBreak: "break-word",
+                    }}>
                       {val || "—"}
                     </p>
                   </div>
@@ -295,118 +326,291 @@ function HistoryPageInner() {
     );
   }
 
-  // ═══════════════════════ Search + results view ═══════════════════════
+  // ═══════════════════════ Spreadsheet view ═══════════════════════
   if (loaded) {
+    // Highlight matching text in cells
+    const highlightCell = (text: string) => {
+      if (!searchQuery.trim()) return text;
+      const query = searchQuery.trim();
+      const idx = text.toLowerCase().indexOf(query.toLowerCase());
+      if (idx === -1) return text;
+      return (
+        <>
+          {text.slice(0, idx)}
+          <mark style={{ background: "rgba(200, 98, 58, 0.25)", color: "inherit", borderRadius: 2, padding: "0 1px" }}>
+            {text.slice(idx, idx + query.length)}
+          </mark>
+          {text.slice(idx + query.length)}
+        </>
+      );
+    };
+
+    const sortedFields = [...loaded.fields].sort((a, b) => a.order - b.order);
+
     return (
-      <div className="flex flex-col min-h-screen bg-zinc-100">
-        <AppHeader title="History" showBack onBack={handleBackToTabs} />
+      <div className="flex flex-col min-h-screen" style={{ background: "var(--cream)" }}>
+        <AppHeader title="Quick View" showBack onBack={handleBackToTabs} />
         {loading && <LoadingOverlay message="Loading entries..." />}
 
-        <div className="flex-1 w-full max-w-[560px] md:max-w-[720px] lg:max-w-[900px] xl:max-w-[1100px] mx-auto px-5 pt-8 pb-10">
-          <div className="flex items-center justify-between mb-4">
-            <div className="min-w-0 flex-1">
-              <h2 className="text-[16px] font-bold text-zinc-950 truncate">
-                {loaded.worksheet_name}
-              </h2>
-              <p className="text-[12px] text-zinc-500">
-                {loaded.rows.length.toLocaleString()} entries
-              </p>
+        {/* Top bar: sheet info + search */}
+        <div style={{ borderBottom: "1px solid var(--rule)", padding: "12px 16px" }}>
+          <div style={{ maxWidth: 1400, margin: "0 auto", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            {/* Sheet info */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: "0 0 auto" }}>
+              <div>
+                <h2 style={{
+                  fontFamily: "var(--font-newsreader), Georgia, serif",
+                  fontWeight: 400,
+                  fontSize: 16,
+                  color: "var(--ink)",
+                  margin: 0,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  maxWidth: 200,
+                }}>
+                  {loaded.worksheet_name}
+                </h2>
+                <p style={{
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  fontWeight: 300,
+                  fontSize: 10,
+                  letterSpacing: "0.04em",
+                  color: "var(--stone)",
+                  margin: 0,
+                }}>
+                  {loaded.rows.length.toLocaleString()} rows · {sortedFields.length} columns
+                </p>
+              </div>
             </div>
+
+            {/* Search */}
+            <div style={{ position: "relative", flex: 1, minWidth: 180, maxWidth: 400 }}>
+              <svg style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "var(--stone)", pointerEvents: "none" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+              </svg>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setSelectedRow(null); }}
+                placeholder="Search all columns..."
+                autoFocus
+                style={{
+                  width: "100%",
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  fontSize: 12,
+                  color: "var(--ink)",
+                  background: "var(--paper)",
+                  border: "1px solid var(--rule)",
+                  borderRadius: 4,
+                  padding: "7px 30px 7px 30px",
+                  outline: "none",
+                }}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: 0, cursor: "pointer", padding: 2 }}
+                  aria-label="Clear search"
+                >
+                  <svg style={{ width: 12, height: 12, color: "var(--stone)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {/* Match count */}
+            {searchQuery && (
+              <span style={{
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontSize: 10,
+                fontWeight: 500,
+                color: "var(--stone)",
+                whiteSpace: "nowrap",
+              }}>
+                {matches.length.toLocaleString()} {matches.length === 1 ? "match" : "matches"}
+              </span>
+            )}
+
+            {/* Change sheet button */}
             <button
               type="button"
               onClick={handleReset}
-              className="text-[12px] font-medium text-zinc-600 hover:text-zinc-900 px-3 py-1.5 rounded-lg hover:bg-zinc-200 flex-shrink-0"
+              style={{
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontSize: 10,
+                fontWeight: 500,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                color: "var(--stone)",
+                background: "none",
+                border: "1px solid var(--rule)",
+                borderRadius: 4,
+                padding: "6px 10px",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
             >
-              Change
+              Change sheet
             </button>
           </div>
+        </div>
 
-          <div className="relative mb-4">
-            <svg className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-            </svg>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setSelectedRow(null); }}
-              placeholder="Search any column..."
-              autoFocus
-              className="w-full rounded-lg border border-zinc-300 bg-white pl-11 pr-11 py-3 text-[14px] focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent min-h-[48px] placeholder:text-zinc-300"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full hover:bg-gray-100 flex items-center justify-center"
-                aria-label="Clear search"
-              >
-                <svg className="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
-          </div>
-
+        {/* Spreadsheet table */}
+        <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
           {loaded.rows.length === 0 && !loading && (
-            <div className="text-center py-12">
-              <p className="text-[13px] text-gray-400">No entries in this tab yet</p>
-            </div>
-          )}
-
-          {loaded.rows.length > 0 && matches.length > 0 && (
-            <div>
-              {searchQuery && (
-                <p className="text-[11px] font-medium text-gray-500 mb-2 px-1">
-                  {matches.length.toLocaleString()}{" "}
-                  {matches.length === 1 ? "match" : "matches"}
-                </p>
-              )}
-              <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden desktop-grid-list">
-                {visibleMatches.map((row, idx) => {
-                  const parts: string[] = [];
-                  for (const f of loaded.fields) {
-                    if (parts.length >= 4) break;
-                    const val = row[f.key];
-                    if (val?.trim()) parts.push(val.trim());
-                  }
-                  return (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setSelectedRow(row)}
-                      className="w-full text-left px-4 py-3 text-[13px] border-b border-zinc-100 last:border-b-0 transition-colors hover:bg-zinc-50 active:bg-zinc-100 group"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-zinc-800 font-medium">
-                          {parts.join(" · ")}
-                        </span>
-                        <svg className="w-3.5 h-3.5 text-zinc-300 group-hover:text-zinc-700 flex-shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                        </svg>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-              {visibleCount < matches.length && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setVisibleCount((c) => Math.min(c + ROWS_PER_PAGE, matches.length))
-                  }
-                  className="mt-3 w-full py-2.5 rounded-lg border border-zinc-200 bg-white text-[12px] font-medium text-zinc-700 hover:bg-zinc-50"
-                >
-                  Show {Math.min(ROWS_PER_PAGE, matches.length - visibleCount)} more
-                  <span className="text-zinc-400"> · {(matches.length - visibleCount).toLocaleString()} remaining</span>
-                </button>
-              )}
+            <div style={{ textAlign: "center", padding: "60px 20px" }}>
+              <p style={{ fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontSize: 12, color: "var(--stone)" }}>
+                No entries in this tab yet
+              </p>
             </div>
           )}
 
           {loaded.rows.length > 0 && matches.length === 0 && (
-            <div className="text-center py-10">
-              <p className="text-[13px] text-gray-500 font-medium">No matches</p>
-              <p className="text-[11px] text-gray-400 mt-0.5">Try a different search term</p>
+            <div style={{ textAlign: "center", padding: "60px 20px" }}>
+              <p style={{ fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontSize: 12, fontWeight: 500, color: "var(--charcoal)" }}>No matches</p>
+              <p style={{ fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontSize: 11, color: "var(--stone)", marginTop: 4 }}>Try a different search term</p>
+            </div>
+          )}
+
+          {loaded.rows.length > 0 && matches.length > 0 && (
+            <div style={{ flex: 1, overflow: "auto", position: "relative" }}>
+              <table style={{
+                width: "100%",
+                minWidth: sortedFields.length * 150,
+                borderCollapse: "collapse",
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontSize: 12,
+              }}>
+                {/* Sticky header */}
+                <thead>
+                  <tr>
+                    {/* Row number column */}
+                    <th style={{
+                      position: "sticky",
+                      top: 0,
+                      zIndex: 20,
+                      background: "var(--ink)",
+                      color: "var(--on-ink)",
+                      fontWeight: 500,
+                      fontSize: 10,
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                      padding: "10px 8px",
+                      textAlign: "center",
+                      borderRight: "1px solid rgba(255,255,255,0.1)",
+                      width: 44,
+                      minWidth: 44,
+                    }}>
+                      #
+                    </th>
+                    {sortedFields.map((field, colIdx) => (
+                      <th
+                        key={field.key}
+                        style={{
+                          position: "sticky",
+                          top: 0,
+                          zIndex: 20,
+                          background: "var(--ink)",
+                          color: "var(--on-ink)",
+                          fontWeight: 500,
+                          fontSize: 10,
+                          letterSpacing: "0.06em",
+                          textTransform: "uppercase",
+                          padding: "10px 12px",
+                          textAlign: "left",
+                          whiteSpace: "nowrap",
+                          borderRight: colIdx < sortedFields.length - 1 ? "1px solid rgba(255,255,255,0.1)" : "none",
+                          minWidth: 120,
+                          maxWidth: 280,
+                        }}
+                      >
+                        {field.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleMatches.map((row, rowIdx) => (
+                    <tr
+                      key={rowIdx}
+                      onClick={() => setSelectedRow(row)}
+                      style={{
+                        cursor: "pointer",
+                        borderBottom: "1px solid var(--rule)",
+                        transition: "background-color 120ms ease-out",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "var(--paper)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
+                    >
+                      {/* Row number */}
+                      <td style={{
+                        padding: "8px",
+                        textAlign: "center",
+                        fontSize: 10,
+                        color: "var(--stone)",
+                        borderRight: "1px solid var(--rule)",
+                        fontWeight: 400,
+                        width: 44,
+                        minWidth: 44,
+                      }}>
+                        {rowIdx + 1}
+                      </td>
+                      {sortedFields.map((field, colIdx) => {
+                        const val = row[field.key] ?? "";
+                        return (
+                          <td
+                            key={field.key}
+                            style={{
+                              padding: "8px 12px",
+                              fontSize: 12,
+                              color: val ? "var(--ink)" : "var(--stone)",
+                              fontWeight: val ? 400 : 300,
+                              fontStyle: val ? "normal" : "italic",
+                              borderRight: colIdx < sortedFields.length - 1 ? "1px solid var(--rule)" : "none",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              maxWidth: 280,
+                            }}
+                            title={val || undefined}
+                          >
+                            {val ? highlightCell(val) : "—"}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Load more */}
+              {visibleCount < matches.length && (
+                <div style={{ padding: "12px 16px", textAlign: "center", borderTop: "1px solid var(--rule)" }}>
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCount((c) => Math.min(c + ROWS_PER_PAGE, matches.length))}
+                    style={{
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontSize: 11,
+                      fontWeight: 500,
+                      color: "var(--charcoal)",
+                      background: "var(--paper)",
+                      border: "1px solid var(--rule)",
+                      borderRadius: 4,
+                      padding: "8px 16px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Show {Math.min(ROWS_PER_PAGE, matches.length - visibleCount)} more rows
+                    <span style={{ color: "var(--stone)", marginLeft: 6 }}>
+                      · {(matches.length - visibleCount).toLocaleString()} remaining
+                    </span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -421,7 +625,7 @@ function HistoryPageInner() {
   if (sheetParam && !loaded && !availableTabs && !error) {
     return (
       <div className="flex flex-col min-h-screen">
-        <AppHeader title="History" showBack onBack={() => router.back()} />
+        <AppHeader title="Quick View" showBack onBack={() => router.back()} />
         <LoadingOverlay message="Loading sheet..." />
       </div>
     );
@@ -431,7 +635,7 @@ function HistoryPageInner() {
   if (sheetParam && availableTabs) {
     return (
       <div className="flex flex-col min-h-screen">
-        <AppHeader title="History" showBack onBack={() => router.back()} />
+        <AppHeader title="Quick View" showBack onBack={() => router.back()} />
         <div className="flex-1 w-full max-w-[560px] mx-auto px-6 pt-14 pb-10 space-y-8">
           <section>
             <p
@@ -491,7 +695,7 @@ function HistoryPageInner() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <AppHeader title="History" showBack onBack={() => router.push("/")} />
+      <AppHeader title="Quick View" showBack onBack={() => router.push("/")} />
       {loading && <LoadingOverlay message="Loading sheet..." />}
 
       <div className="flex-1 w-full max-w-[560px] mx-auto px-6 pt-14 pb-32 space-y-8">
@@ -508,7 +712,7 @@ function HistoryPageInner() {
               margin: "0 0 18px 0",
             }}
           >
-            Submission History
+            Quick View
           </p>
           <h1
             style={{
@@ -521,9 +725,9 @@ function HistoryPageInner() {
               margin: 0,
             }}
           >
-            Search your
+            View your
             <br />
-            past <em style={{ fontStyle: "italic", fontWeight: 400 }}>entries.</em>
+            sheet <em style={{ fontStyle: "italic", fontWeight: 400 }}>instantly.</em>
           </h1>
           <p
             style={{
@@ -535,7 +739,7 @@ function HistoryPageInner() {
               margin: "18px 0 0 0",
             }}
           >
-            {"// paste a sheet link. find any entry in seconds."}
+            {"// paste a sheet link. see all data like excel."}
           </p>
         </section>
 
