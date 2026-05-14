@@ -21,6 +21,7 @@ import {
   getPublicConfig,
   listFormLibrary,
   listWorksheets,
+  deleteForm,
 } from "@/lib/api";
 import type {
   FieldSchema,
@@ -86,6 +87,22 @@ export default function Dashboard() {
       setLibraryItems([]);
     } finally {
       setLibraryLoading(false);
+    }
+  }
+
+  async function handleDeleteLibraryItem(item: FormLibraryItem) {
+    const confirmed = window.confirm(
+      `Delete "${item.form_title}"? This removes the form and all of its submissions. This cannot be undone.`
+    );
+    if (!confirmed) return;
+    // Optimistic removal — put it back if the server rejects.
+    const snapshot = libraryItems;
+    setLibraryItems((prev) => prev.filter((i) => i.id !== item.id));
+    try {
+      await deleteForm(item.id);
+    } catch (e: any) {
+      setLibraryItems(snapshot);
+      setError(e?.message ?? "Could not delete this form.");
     }
   }
 
@@ -358,9 +375,15 @@ export default function Dashboard() {
   }
 
   function handleSignOut() {
+    const headers: Record<string, string> = {};
+    try {
+      const sk = window.localStorage.getItem("om_session");
+      if (sk) headers["X-Session-Key"] = sk;
+    } catch {}
     fetch(`${API_BASE}/api/auth/logout`, {
       method: "POST",
       credentials: "include",
+      headers,
     })
       .then(() => {
         try {
@@ -382,7 +405,7 @@ export default function Dashboard() {
         <AppHeader showLogo />
         {loadingPreview && <LoadingOverlay message="Reading your sheet..." />}
 
-        <div className="flex-1 w-full max-w-[560px] mx-auto px-6 pt-10 pb-32 space-y-8">
+        <div className="flex-1 w-full max-w-[560px] mx-auto px-6 pt-10 pb-8 space-y-8">
           {/* Editorial hero */}
           <section>
             <p
@@ -678,6 +701,17 @@ export default function Dashboard() {
               >
                 your data stays in your sheet · we never store contents
               </p>
+
+              {/* Inline preview trigger — sits right under the URL input so
+                  users don't have to scroll past the library to generate. */}
+              <div style={{ paddingTop: 4 }}>
+                <SubmitButton
+                  label={copy.submit_label ?? "Preview your form"}
+                  submitting={loadingPreview}
+                  onClick={handleGenerate}
+                  disabled={!sheetUrl.trim() || accessStatus === "none" || accessStatus === "read"}
+                />
+              </div>
             </div>
           )}
 
@@ -847,6 +881,34 @@ export default function Dashboard() {
                       >
                         edit
                       </button>
+                      <span style={{ color: "var(--rule)" }}>·</span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteLibraryItem(item)}
+                        aria-label={`Delete ${item.form_title}`}
+                        title="Delete form"
+                        style={{
+                          background: "transparent",
+                          border: 0,
+                          padding: "2px 4px",
+                          marginLeft: 2,
+                          lineHeight: 1,
+                          fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                          fontWeight: 500,
+                          fontSize: 14,
+                          color: "var(--stone)",
+                          cursor: "pointer",
+                          transition: "color 120ms ease",
+                        }}
+                        onMouseEnter={(e) => {
+                          (e.currentTarget as HTMLButtonElement).style.color = "#b91c1c";
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.currentTarget as HTMLButtonElement).style.color = "var(--stone)";
+                        }}
+                      >
+                        ×
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -878,16 +940,6 @@ export default function Dashboard() {
 
           <ErrorToast message={error} onDismiss={() => setError(null)} />
         </div>
-
-        {/* Submit band — generate form */}
-        {mode === "paste" && (
-          <SubmitButton
-            label={copy.submit_label ?? "Preview your form"}
-            submitting={loadingPreview}
-            onClick={handleGenerate}
-            disabled={!sheetUrl.trim() || accessStatus === "none" || accessStatus === "read"}
-          />
-        )}
       </div>
     );
   }
@@ -906,7 +958,7 @@ export default function Dashboard() {
         />
         {reapplying && <LoadingOverlay message="Updating fields..." />}
 
-        <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-5 pb-32 space-y-5">
+        <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-5 pb-8 space-y-5">
           {/* Warnings */}
           {warnings.length > 0 && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5">

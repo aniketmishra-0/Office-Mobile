@@ -51,9 +51,14 @@ export default function SettingsPanel({ onClose }: Props) {
     let alive = true;
     (async () => {
       try {
+        const headers: Record<string, string> = {};
+        try {
+          const sk = window.localStorage.getItem("om_session");
+          if (sk) headers["X-Session-Key"] = sk;
+        } catch {}
         const res = await fetch(
           (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "") + "/api/auth/status",
-          { credentials: "include" },
+          { credentials: "include", headers },
         );
         const data = await res.json();
         if (alive) setUser(data.user ?? null);
@@ -89,9 +94,14 @@ export default function SettingsPanel({ onClose }: Props) {
 
   async function handleSignOut() {
     try {
+      const headers: Record<string, string> = {};
+      try {
+        const sk = window.localStorage.getItem("om_session");
+        if (sk) headers["X-Session-Key"] = sk;
+      } catch {}
       await fetch(
         (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "") + "/api/auth/logout",
-        { method: "POST", credentials: "include" },
+        { method: "POST", credentials: "include", headers },
       );
     } catch {}
     try {

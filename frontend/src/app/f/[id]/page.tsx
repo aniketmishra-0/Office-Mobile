@@ -122,7 +122,7 @@ export default function FillFormPage() {
     <div className="flex flex-col min-h-screen bg-zinc-100">
       <AppHeader title={formData!.worksheet_name || formData!.form_title} showBack onBack={() => router.push("/")} />
 
-      <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-6 pb-20 overflow-y-auto">
+      <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-6 pb-8 overflow-y-auto">
         <DynamicForm
           fields={formData!.fields}
           onSubmit={handleSubmit}

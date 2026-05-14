@@ -1,51 +1,38 @@
 """
-Run this script to initialize the Postgres schema (forms, users).
-Usage:
-  source .venv/bin/activate
-  export DATABASE_URL="postgres://..."
-  python backend/scripts/init_db.py
+Initialize the Postgres schema on Neon.
 
-Designed for Neon/Postgres. Safe to re-run (uses IF NOT EXISTS).
+Usage
+-----
+    source .venv/bin/activate
+    # DATABASE_URL is read from backend/.env automatically.
+    python backend/scripts/init_db.py
+
+Safe to re-run (uses IF NOT EXISTS). The app also creates the schema
+automatically on startup, so this script is mainly useful for provisioning
+a new Neon database ahead of deploying.
 """
-import asyncio
-import os
-from app import db
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+BACKEND_ROOT = REPO_ROOT / "backend"
+sys.path.insert(0, str(BACKEND_ROOT))
+
+from dotenv import load_dotenv  # noqa: E402
+
+load_dotenv(BACKEND_ROOT / ".env")
+
+from app.services.form_store import init_db  # noqa: E402
 
 
-SCHEMA_SQL = """
-CREATE TABLE IF NOT EXISTS users (
-  id TEXT PRIMARY KEY,
-  email TEXT UNIQUE,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS forms (
-  id TEXT PRIMARY KEY,
-  form_title TEXT NOT NULL,
-  sheet_url TEXT,
-  spreadsheet_id TEXT,
-  worksheet_name TEXT,
-  fields JSONB,
-  autofill_columns JSONB,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
-"""
-
-
-async def main():
-    if not os.environ.get("DATABASE_URL"):
-        print("Please set DATABASE_URL in the environment before running this script.")
-        return
-
-    await db.init_pool()
-    try:
-        print("Creating schema...")
-        await db.execute(SCHEMA_SQL)
-        print("Done.")
-    finally:
-        await db.close_pool()
+def main() -> int:
+    print("Creating schema on Neon...")
+    init_db()
+    print("Done.")
+    return 0
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    raise SystemExit(main())

@@ -40,6 +40,10 @@ export default function AppHeader({
     picture?: string | null;
   } | null>(null);
   const [openMenu, setOpenMenu] = useState(false);
+  // `menuVisible` keeps the menu in the DOM while the close animation
+  // plays — mirroring the open animation so the card appears to retract
+  // back into the avatar instead of vanishing instantly.
+  const [menuVisible, setMenuVisible] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -54,14 +58,31 @@ export default function AppHeader({
     return () => document.removeEventListener("click", onDoc);
   }, []);
 
+  // Mount the menu when opening; after it closes, wait for the reverse
+  // animation (keep in sync with the CSS duration) before unmounting.
+  useEffect(() => {
+    if (openMenu) {
+      setMenuVisible(true);
+      return;
+    }
+    if (!menuVisible) return;
+    const t = setTimeout(() => setMenuVisible(false), 240);
+    return () => clearTimeout(t);
+  }, [openMenu, menuVisible]);
+
   useEffect(() => {
     let mounted = true;
     async function load() {
       try {
+        const headers: Record<string, string> = {};
+        try {
+          const sk = window.localStorage.getItem("om_session");
+          if (sk) headers["X-Session-Key"] = sk;
+        } catch {}
         const res = await fetch(
           (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "") +
             "/api/auth/status",
-          { credentials: "include" },
+          { credentials: "include", headers },
         );
         const data = await res.json();
         if (!mounted) return;
@@ -88,6 +109,7 @@ export default function AppHeader({
     } catch {}
     window.location.reload();
   }
+
 
   function toggleTheme() {
     const next = getStoredTheme() === "dark" ? "light" : "dark";
@@ -150,8 +172,8 @@ export default function AppHeader({
               )}
             </button>
 
-            {openMenu && (
-              <div className="om-header__menu" role="menu">
+            {menuVisible && (
+              <div className={`om-header__menu ${openMenu ? "is-open" : "is-closing"}`} role="menu">
                 {/* Profile card */}
                 <div className="om-header__profile">
                   <div className="om-header__profile-avatar">
@@ -196,6 +218,18 @@ export default function AppHeader({
                 >
                   <span className="om-header__menu-icon" aria-hidden>☰</span>
                   <span>Submission history</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="om-header__menu-item"
+                  onClick={() => {
+                    router.push("/data-fill");
+                    setOpenMenu(false);
+                  }}
+                >
+                  <span className="om-header__menu-icon" aria-hidden>✎</span>
+                  <span>Data Fill</span>
                 </button>
                 <button
                   type="button"
@@ -376,8 +410,14 @@ export default function AppHeader({
           flex-direction: column;
           z-index: 60;
           transform-origin: top right;
-          animation: omMenuReveal 280ms cubic-bezier(0.22, 1, 0.36, 1);
           will-change: transform, opacity;
+        }
+        .om-header__menu.is-open {
+          animation: omMenuReveal 280ms cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .om-header__menu.is-closing {
+          animation: omMenuRetract 240ms cubic-bezier(0.64, 0, 0.78, 0) forwards;
+          pointer-events: none;
         }
         @keyframes omMenuReveal {
           0% {
@@ -392,9 +432,26 @@ export default function AppHeader({
             transform: translate3d(0, 0, 0) scale(1);
           }
         }
+        @keyframes omMenuRetract {
+          0% {
+            opacity: 1;
+            transform: translate3d(0, 0, 0) scale(1);
+          }
+          40% {
+            opacity: 1;
+          }
+          100% {
+            opacity: 0;
+            transform: translate3d(4px, -6px, 0) scale(0.9);
+          }
+        }
         @media (prefers-reduced-motion: reduce) {
-          .om-header__menu {
+          .om-header__menu.is-open,
+          .om-header__menu.is-closing {
             animation: fadeIn 160ms ease-out;
+          }
+          .om-header__menu.is-closing {
+            opacity: 0;
           }
         }
 

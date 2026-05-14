@@ -186,14 +186,19 @@ def _build_auth_url(client_id: str, redirect_uri: str, state: str) -> str:
     return f"{GOOGLE_AUTH_BASE}?{urlencode(params)}"
 
 
-def _set_state_cookie(response: Response, state: str) -> None:
+def _set_state_cookie(response: Response, request: Request, state: str) -> None:
+    # Match the session cookie's Secure/SameSite so plain-HTTP localhost can
+    # actually store this cookie. Browsers drop `Secure` cookies on
+    # http://localhost in many cases, which would then fail state validation
+    # on the callback and abort sign-in with "Invalid OAuth state".
+    local = _is_local_request(request)
     response.set_cookie(
         key=_STATE_COOKIE_NAME,
         value=state,
         max_age=_STATE_COOKIE_MAX_AGE,
         httponly=True,
-        secure=True,
-        samesite="lax",
+        secure=not local,
+        samesite="lax" if local else "none",
         path="/api/auth",
     )
 
@@ -203,7 +208,7 @@ def google_start(request: Request) -> RedirectResponse:
     client_id, _secret, redirect_uri = _require_oauth_config()
     state = secrets.token_urlsafe(32)
     response = RedirectResponse(_build_auth_url(client_id, redirect_uri, state))
-    _set_state_cookie(response, state)
+    _set_state_cookie(response, request, state)
     _ensure_session_key(request, response)
     return response
 
@@ -213,7 +218,7 @@ def google_url(request: Request, response: Response) -> dict:
     """Return the OAuth URL so the frontend can open it directly in the browser."""
     client_id, _secret, redirect_uri = _require_oauth_config()
     state = secrets.token_urlsafe(32)
-    _set_state_cookie(response, state)
+    _set_state_cookie(response, request, state)
     _ensure_session_key(request, response)
     return {"url": _build_auth_url(client_id, redirect_uri, state)}
 
@@ -266,25 +271,87 @@ def google_callback(
 
     token = res.json()
     token["obtained_at"] = int(time.time())
+
+    # Verify the user actually granted the Sheets + Drive scopes. If they
+    # unchecked a permission box on the consent screen the OAuth exchange
+    # still succeeds, but the access_token is useless for creating sheets.
+    # Catching it here gives a clear error at sign-in time instead of a
+    # confusing 403 later when they try to create a form.
+    granted_scopes = set((token.get("scope") or "").split())
+    required_scopes = {
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive.file",
+    }
+    missing_scopes = required_scopes - granted_scopes
+    if missing_scopes:
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "oauth.missing_scopes granted=%s missing=%s",
+            sorted(granted_scopes),
+            sorted(missing_scopes),
+        )
+        # Don't persist a partial token; force the user to try again.
+        missing_label = (
+            "Google Sheets"
+            if "https://www.googleapis.com/auth/spreadsheets" in missing_scopes
+            else "Google Drive"
+        )
+        return HTMLResponse(
+            "<!doctype html><html><body style='font-family:system-ui;padding:40px;"
+            "max-width:520px;margin:0 auto;color:#18181b'>"
+            "<h2 style='margin-top:0'>Sign-in incomplete</h2>"
+            f"<p>You didn't grant permission to {missing_label}, so the app can't "
+            "create or write to your sheets.</p>"
+            "<p><strong>Close this tab, click Sign in again, and make sure both "
+            "checkboxes stay checked on the Google consent screen.</strong></p>"
+            f"<p><a href='{_frontend_origin()}' "
+            "style='color:#2563eb'>Back to the app</a></p>"
+            "</body></html>",
+            status_code=400,
+        )
+
     session_key = request.cookies.get(OAUTH_SESSION_COOKIE) or secrets.token_urlsafe(32)
     form_store.set_oauth_token(token, key=session_key)
 
     # Close the popup and notify the opener window. We pin the targetOrigin
     # to our frontend origin rather than using '*' so a malicious opener
-    # cannot intercept the message.
+    # cannot intercept the message. If there is no opener (popup blocked or
+    # same-tab flow on iOS/Safari), fall back to a direct redirect so the
+    # user lands back on the app instead of being stranded on the backend
+    # URL seeing "Sign-in successful".
+    #
+    # We also hand the session key back to the frontend explicitly (via
+    # postMessage for the popup flow, and via a URL fragment for the same-tab
+    # redirect). Safari's ITP commonly drops third-party cookies on
+    # cross-site XHRs, so the frontend persists this key to localStorage and
+    # forwards it as `X-Session-Key` on every request — bypassing the cookie
+    # block. The key stays in the URL fragment (not the query), so it is
+    # never sent to the server and never logged.
     frontend_origin = _frontend_origin()
+    # JS-safe literal for the session key (secrets.token_urlsafe → [A-Za-z0-9_-]).
+    session_key_js = json.dumps(session_key)
 
     html = (
         "<!doctype html><html><body>"
         "<script>"
-        "try { "
-        "if (window.opener) { "
-        f"window.opener.postMessage({{ type: 'oauth-success' }}, {frontend_origin!r});"
-        " } "
-        "} catch (e) {} "
-        "window.close();"
+        "(function(){"
+        f"  var sk = {session_key_js};"
+        f"  var origin = {frontend_origin!r};"
+        "  try {"
+        "    if (window.opener && !window.opener.closed) {"
+        "      window.opener.postMessage({ type: 'oauth-success', sessionKey: sk }, origin);"
+        "      window.close();"
+        "      setTimeout(function(){"
+        "        if (!window.closed) window.location.replace(origin + '/#om_session=' + encodeURIComponent(sk));"
+        "      }, 300);"
+        "      return;"
+        "    }"
+        "  } catch (e) {}"
+        "  window.location.replace(origin + '/#om_session=' + encodeURIComponent(sk));"
+        "})();"
         "</script>"
-        "<p>Sign-in successful. You can close this window.</p>"
+        "<p>Sign-in successful. Redirecting…</p>"
         "</body></html>"
     )
 

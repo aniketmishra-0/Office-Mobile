@@ -24,7 +24,9 @@ class Settings(BaseModel):
     google_oauth_client_secret: str | None = None
     google_oauth_redirect_uri: str | None = None
 
-    form_db_path: str = "./data/forms.db"
+    # Postgres (Neon). Required — the app stores forms, submissions and OAuth
+    # tokens in Postgres. Set via the DATABASE_URL env var.
+    database_url: str | None = None
 
 
 def _split_origins(raw: str | None) -> List[str]:
@@ -43,5 +45,5 @@ def get_settings() -> Settings:
         google_oauth_client_id=os.getenv("GOOGLE_OAUTH_CLIENT_ID") or None,
         google_oauth_client_secret=os.getenv("GOOGLE_OAUTH_CLIENT_SECRET") or None,
         google_oauth_redirect_uri=os.getenv("GOOGLE_OAUTH_REDIRECT_URI") or None,
-        form_db_path=os.getenv("FORM_DB_PATH") or "./data/forms.db",
+        database_url=os.getenv("DATABASE_URL") or None,
     )

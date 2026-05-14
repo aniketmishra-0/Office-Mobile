@@ -27,18 +27,76 @@ export default function WelcomeScreen({ onAuthenticated }: Props) {
     setAuthState("loading");
     setErrorMessage(null);
 
+    // On mobile/tablet (touch devices), always use same-tab redirect.
+    // iOS Safari blocks popups or opens them as new tabs where
+    // window.opener is null, breaking the postMessage flow entirely.
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+      ("ontouchstart" in window && window.innerWidth < 1024);
+
+    if (isMobile) {
+      window.location.href = `${API_BASE}/api/auth/google/start`;
+      return;
+    }
+
+    // Desktop: use popup flow
     const width = 500;
     const height = 600;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
+    const dualScreenLeft = window.screenLeft ?? window.screenX ?? 0;
+    const dualScreenTop = window.screenTop ?? window.screenY ?? 0;
+    const viewportWidth =
+      window.innerWidth ||
+      document.documentElement.clientWidth ||
+      window.screen.width;
+    const viewportHeight =
+      window.innerHeight ||
+      document.documentElement.clientHeight ||
+      window.screen.height;
+    const left = Math.max(0, dualScreenLeft + (viewportWidth - width) / 2);
+    const top = Math.max(0, dualScreenTop + (viewportHeight - height) / 2);
+
+    const features = [
+      `width=${width}`,
+      `height=${height}`,
+      `left=${left}`,
+      `top=${top}`,
+      "popup=yes",
+      "toolbar=no",
+      "menubar=no",
+      "location=no",
+      "status=no",
+      "scrollbars=yes",
+      "resizable=yes",
+      "noopener=no",
+      "noreferrer=no",
+    ].join(",");
+
     const popup = window.open(
       `${API_BASE}/api/auth/google/start`,
       "google-oauth",
-      `width=${width},height=${height},left=${left},top=${top},popup=yes`,
+      features,
     );
+
+    // Popup blocked — fall back to same-tab redirect.
+    if (!popup || popup.closed || typeof popup.closed === "undefined") {
+      window.location.href = `${API_BASE}/api/auth/google/start`;
+      return;
+    }
+
+    try {
+      popup.focus();
+    } catch {}
 
     function handleMessage(event: MessageEvent) {
       if (event.data?.type === "oauth-success") {
+        // Persist the session key the backend handed back so the next
+        // request can send it via `X-Session-Key`. Safari drops our
+        // cross-site session cookie under ITP, so this header path is what
+        // keeps the user logged in.
+        if (event.data.sessionKey) {
+          try {
+            window.localStorage.setItem("om_session", event.data.sessionKey);
+          } catch {}
+        }
         setAuthState("success");
         window.removeEventListener("message", handleMessage);
         setTimeout(() => onAuthenticated(), 700);
@@ -50,7 +108,19 @@ export default function WelcomeScreen({ onAuthenticated }: Props) {
       if (!popup || popup.closed) {
         clearInterval(interval);
         try {
-          const res = await fetch(`${API_BASE}/api/auth/status`, { credentials: "include" });
+          // Send any locally-stored session key so Safari's ITP-dropped
+          // cookie does not make us wrongly conclude the user isn't
+          // signed in. The postMessage listener above already wrote the
+          // freshly-minted key to localStorage on success.
+          const headers: Record<string, string> = {};
+          try {
+            const sk = window.localStorage.getItem("om_session");
+            if (sk) headers["X-Session-Key"] = sk;
+          } catch {}
+          const res = await fetch(`${API_BASE}/api/auth/status`, {
+            credentials: "include",
+            headers,
+          });
           const data = await res.json();
           if (data.session_key) {
             try {

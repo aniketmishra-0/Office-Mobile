@@ -3,18 +3,22 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, ORJSONResponse
 
 from app.config import get_settings
 from app.routers import auth, forms, health, upload
 from app.services.session_context import OAUTH_SESSION_COOKIE, reset_oauth_session_key, set_oauth_session_key
 from app.services.form_store import init_db
+from app.db import close_pool
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    yield
+    try:
+        yield
+    finally:
+        close_pool()
 
 
 settings = get_settings()
@@ -32,6 +36,9 @@ app = FastAPI(
     description="Convert Google Sheets into mobile-first data entry forms.",
     version="0.1.0",
     lifespan=lifespan,
+    # orjson serializes dict/list/datetime ~2-3x faster than the stdlib json
+    # encoder FastAPI uses by default. Every route returning JSON benefits.
+    default_response_class=ORJSONResponse,
 )
 
 # Reject oversized request bodies at the edge. 2 MB is well above any

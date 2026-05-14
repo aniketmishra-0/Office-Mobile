@@ -22,24 +22,37 @@ const plexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: 'Office Mobile — Google Sheet to Mobile Form',
   description: 'Turn any Google Sheet into a mobile-first data entry form. Editorial, quiet, fast.',
+  applicationName: 'Office Mobile',
   manifest: '/manifest.json',
   icons: {
     icon: [
       { url: '/favicon.png', type: 'image/png', sizes: '32x32' },
+      { url: '/icons/icon-192.png', type: 'image/png', sizes: '192x192' },
+      { url: '/icons/icon-512.png', type: 'image/png', sizes: '512x512' },
     ],
     apple: [
       { url: '/icons/icon-192.png', sizes: '192x192' },
+      { url: '/icons/icon-512.png', sizes: '512x512' },
     ],
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'black-translucent',
+    statusBarStyle: 'default',
     title: 'Office Mobile',
+  },
+  formatDetection: {
+    telephone: false,
   },
   openGraph: {
     title: 'Office Mobile — Google Sheet to Mobile Form',
     description: 'Turn any Google Sheet into a mobile-first data entry form.',
     type: 'website',
+    siteName: 'Office Mobile',
+  },
+  other: {
+    // Android/Chrome PWA hints
+    'mobile-web-app-capable': 'yes',
+    'application-name': 'Office Mobile',
   },
 }
 
@@ -49,7 +62,12 @@ export const viewport: Viewport = {
   maximumScale: 5,
   userScalable: true,
   viewportFit: 'cover',
-  themeColor: '#F7F3EE',
+  // Light/dark adaptive theme colour so the installed app chrome
+  // matches the user's OS preference.
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#F7F3EE' },
+    { media: '(prefers-color-scheme: dark)', color: '#1B1B1B' },
+  ],
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -66,7 +84,48 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <InstallPrompt />
         </div>
         <Script id="sw-register" strategy="afterInteractive">
-          {`if ('serviceWorker' in navigator) { window.addEventListener('load', function() { navigator.serviceWorker.register('/sw.js') }) }`}
+          {`
+            if ('serviceWorker' in navigator) {
+              window.addEventListener('load', function () {
+                navigator.serviceWorker
+                  .register('/sw.js', { scope: '/' })
+                  .then(function (reg) {
+                    // When a new SW is found, ask it to activate immediately
+                    // so the user sees fresh assets on the next navigation.
+                    reg.addEventListener('updatefound', function () {
+                      var sw = reg.installing;
+                      if (!sw) return;
+                      sw.addEventListener('statechange', function () {
+                        if (
+                          sw.state === 'installed' &&
+                          navigator.serviceWorker.controller
+                        ) {
+                          sw.postMessage('SKIP_WAITING');
+                        }
+                      });
+                    });
+                    // Check for updates whenever the tab regains focus —
+                    // keeps long-lived installed PWAs current.
+                    document.addEventListener('visibilitychange', function () {
+                      if (document.visibilityState === 'visible') {
+                        reg.update().catch(function () {});
+                      }
+                    });
+                  })
+                  .catch(function () {});
+                // Reload once the new SW takes control so the page runs
+                // against the refreshed asset graph. Skip if we're in the
+                // middle of an OAuth redirect (hash contains session key).
+                var refreshing = false;
+                navigator.serviceWorker.addEventListener('controllerchange', function () {
+                  if (refreshing) return;
+                  if (window.location.hash && window.location.hash.indexOf('om_session') !== -1) return;
+                  refreshing = true;
+                  window.location.reload();
+                });
+              });
+            }
+          `}
         </Script>
       </body>
     </html>

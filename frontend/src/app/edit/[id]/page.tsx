@@ -169,7 +169,7 @@ export default function EditFormPage() {
         </div>
       )}
 
-      <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-5 pb-32 space-y-5">
+      <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-5 pb-8 space-y-5">
         {/* Warnings */}
         {warnings.length > 0 && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5">
