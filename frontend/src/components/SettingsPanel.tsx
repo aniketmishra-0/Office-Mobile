@@ -750,6 +750,8 @@ function FormsSection() {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<FormLibraryItem[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [unauthorizeTarget, setUnauthorizeTarget] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -769,21 +771,33 @@ function FormsSection() {
   }, []);
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this form? This cannot be undone.")) return;
+    setDeleteTarget(id);
+  }
+
+  async function confirmDeleteForm() {
+    if (!deleteTarget) return;
+    const id = deleteTarget;
+    setDeleteTarget(null);
     try {
       await deleteForm(id);
       setItems((s) => s.filter((i) => i.id !== id));
     } catch (e: any) {
-      alert(e.message ?? "Failed to delete form");
+      setError(e.message ?? "Failed to delete form");
     }
   }
 
   async function handleUnauthorize(id: string) {
-    if (!confirm("Unauthorize this form for this session?")) return;
+    setUnauthorizeTarget(id);
+  }
+
+  async function confirmUnauthorize() {
+    if (!unauthorizeTarget) return;
+    const id = unauthorizeTarget;
+    setUnauthorizeTarget(null);
     try {
       await unauthorizeForm(id);
     } catch (e: any) {
-      alert(e.message ?? "Failed to unauthorize form");
+      setError(e.message ?? "Failed to unauthorize form");
     }
   }
 
@@ -831,6 +845,38 @@ function FormsSection() {
           </li>
         ))}
       </ul>
+
+      {/* Delete confirmation modal */}
+      {deleteTarget && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onClick={() => setDeleteTarget(null)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(2px)" }} />
+          <div style={{ position: "relative", width: "100%", maxWidth: 300, background: "#fff", borderRadius: 16, padding: "24px 20px 18px", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
+            <p style={{ margin: "0 0 16px 0", fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontSize: 13, color: "var(--ink)", textAlign: "center" }}>
+              Delete this form? This cannot be undone.
+            </p>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button type="button" onClick={() => setDeleteTarget(null)} style={{ flex: 1, padding: "10px 14px", borderRadius: 10, border: "1px solid var(--rule)", background: "#fff", fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontWeight: 500, fontSize: 12, color: "var(--ink)", cursor: "pointer" }}>Cancel</button>
+              <button type="button" onClick={confirmDeleteForm} style={{ flex: 1, padding: "10px 14px", borderRadius: 10, border: 0, background: "#dc2626", fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontWeight: 500, fontSize: 12, color: "#fff", cursor: "pointer" }}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unauthorize confirmation modal */}
+      {unauthorizeTarget && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onClick={() => setUnauthorizeTarget(null)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(2px)" }} />
+          <div style={{ position: "relative", width: "100%", maxWidth: 300, background: "#fff", borderRadius: 16, padding: "24px 20px 18px", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
+            <p style={{ margin: "0 0 16px 0", fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontSize: 13, color: "var(--ink)", textAlign: "center" }}>
+              Unauthorize this form for this session?
+            </p>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button type="button" onClick={() => setUnauthorizeTarget(null)} style={{ flex: 1, padding: "10px 14px", borderRadius: 10, border: "1px solid var(--rule)", background: "#fff", fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontWeight: 500, fontSize: 12, color: "var(--ink)", cursor: "pointer" }}>Cancel</button>
+              <button type="button" onClick={confirmUnauthorize} style={{ flex: 1, padding: "10px 14px", borderRadius: 10, border: 0, background: "var(--ink)", fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontWeight: 500, fontSize: 12, color: "#fff", cursor: "pointer" }}>Revoke</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         .om-s-forms {

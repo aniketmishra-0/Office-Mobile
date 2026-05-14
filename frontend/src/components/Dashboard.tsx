@@ -53,6 +53,7 @@ export default function Dashboard() {
   const [libraryItems, setLibraryItems] = useState<FormLibraryItem[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(true);
   const [libraryQuery, setLibraryQuery] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<FormLibraryItem | null>(null);
 
   // Pagination state for large libraries
   const [pageSize] = useState(12);
@@ -90,11 +91,14 @@ export default function Dashboard() {
     }
   }
 
-  async function handleDeleteLibraryItem(item: FormLibraryItem) {
-    const confirmed = window.confirm(
-      `Delete "${item.form_title}"? This removes the form and all of its submissions. This cannot be undone.`
-    );
-    if (!confirmed) return;
+  function handleDeleteLibraryItem(item: FormLibraryItem) {
+    setDeleteTarget(item);
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    const item = deleteTarget;
+    setDeleteTarget(null);
     // Optimistic removal — put it back if the server rejects.
     const snapshot = libraryItems;
     setLibraryItems((prev) => prev.filter((i) => i.id !== item.id));
@@ -939,6 +943,124 @@ export default function Dashboard() {
           )}
 
           <ErrorToast message={error} onDismiss={() => setError(null)} />
+
+          {/* Delete confirmation modal */}
+          {deleteTarget && (
+            <div
+              style={{
+                position: "fixed",
+                inset: 0,
+                zIndex: 9999,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 24,
+              }}
+            >
+              <div
+                onClick={() => setDeleteTarget(null)}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  background: "rgba(0,0,0,0.4)",
+                  backdropFilter: "blur(2px)",
+                }}
+              />
+              <div
+                style={{
+                  position: "relative",
+                  width: "100%",
+                  maxWidth: 320,
+                  background: "#fff",
+                  borderRadius: 16,
+                  padding: "28px 24px 20px",
+                  boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
+                }}
+              >
+                <div style={{ textAlign: "center", marginBottom: 20 }}>
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: "50%",
+                      background: "#fef2f2",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      marginBottom: 14,
+                    }}
+                  >
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14" />
+                      <line x1="10" y1="11" x2="10" y2="17" />
+                      <line x1="14" y1="11" x2="14" y2="17" />
+                    </svg>
+                  </div>
+                  <h3
+                    style={{
+                      fontFamily: "var(--font-newsreader), Georgia, serif",
+                      fontWeight: 500,
+                      fontSize: 18,
+                      color: "var(--ink)",
+                      margin: "0 0 8px 0",
+                    }}
+                  >
+                    Delete form?
+                  </h3>
+                  <p
+                    style={{
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontWeight: 300,
+                      fontSize: 12,
+                      lineHeight: 1.5,
+                      color: "var(--stone)",
+                      margin: 0,
+                    }}
+                  >
+                    &ldquo;{deleteTarget.form_title}&rdquo; and all its submissions will be permanently removed.
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTarget(null)}
+                    style={{
+                      flex: 1,
+                      padding: "12px 16px",
+                      borderRadius: 10,
+                      border: "1px solid var(--rule)",
+                      background: "#fff",
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontWeight: 500,
+                      fontSize: 13,
+                      color: "var(--ink)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmDelete}
+                    style={{
+                      flex: 1,
+                      padding: "12px 16px",
+                      borderRadius: 10,
+                      border: 0,
+                      background: "#dc2626",
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontWeight: 500,
+                      fontSize: 13,
+                      color: "#fff",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
