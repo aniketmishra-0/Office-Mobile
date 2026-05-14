@@ -5,6 +5,7 @@ import AppHeader from "@/components/AppHeader";
 import ErrorToast from "@/components/ErrorToast";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import ClearButton from "@/components/ClearButton";
+import SubmitButton from "@/components/SubmitButton";
 import type { FieldSchema } from "@/types/field";
 import {
   getSheetHistory,
@@ -746,10 +747,12 @@ export default function DataFillPage() {
       </div>
       {!availableTabs && (
         <div className="fixed bottom-0 left-0 right-0 max-w-[560px] mx-auto px-5 pt-3 pb-3 bg-white border-t border-zinc-200 shadow-sticky z-40" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}>
-          <button onClick={handleLoadSheet} disabled={loading || !formInput.trim()}
-            className="w-full bg-zinc-950 hover:bg-zinc-800 active:bg-black disabled:bg-zinc-200 disabled:text-zinc-500 text-white font-semibold text-[15px] rounded-lg h-[52px] flex items-center justify-center gap-2 transition-all duration-150">
-            {loading ? (<><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /><span>Loading...</span></>) : (<span>Load Sheet</span>)}
-          </button>
+          <SubmitButton
+            label="Load Sheet"
+            submitting={loading}
+            onClick={handleLoadSheet}
+            disabled={!formInput.trim()}
+          />
         </div>
       )}
       <ErrorToast message={error} onDismiss={() => setError(null)} />
