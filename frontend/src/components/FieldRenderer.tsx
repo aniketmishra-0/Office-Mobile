@@ -132,7 +132,14 @@ function FieldControl({
 }) {
   const set = (v: string) => onChange(field.key, v);
 
-  switch (field.type) {
+  // Treat text fields as checkbox if the current value is TRUE/FALSE
+  const effectiveType =
+    field.type === "text" &&
+    (value.trim().toUpperCase() === "TRUE" || value.trim().toUpperCase() === "FALSE")
+      ? "checkbox"
+      : field.type;
+
+  switch (effectiveType) {
     case "checkbox":
       return (
         <CheckboxControl
