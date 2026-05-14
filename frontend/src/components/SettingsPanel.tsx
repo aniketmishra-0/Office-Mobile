@@ -92,7 +92,11 @@ export default function SettingsPanel({ onClose }: Props) {
     setCopyDirty(false);
   }
 
+  const [signingOut, setSigningOut] = useState(false);
+
   async function handleSignOut() {
+    if (signingOut) return;
+    setSigningOut(true);
     try {
       const headers: Record<string, string> = {};
       try {
@@ -107,7 +111,7 @@ export default function SettingsPanel({ onClose }: Props) {
     try {
       window.localStorage.removeItem("om_session");
     } catch {}
-    window.location.reload();
+    window.location.href = "/";
   }
 
   const sections: { id: Section; label: string }[] = [

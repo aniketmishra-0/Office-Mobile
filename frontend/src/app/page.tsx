@@ -9,6 +9,7 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").re
 
 export default function HomePage() {
   const [connected, setConnected] = useState<boolean | null>(null);
+  const [isPopup, setIsPopup] = useState(false);
 
   async function checkStatus() {
     try {
@@ -52,6 +53,7 @@ export default function HomePage() {
     // the popup flow. Stash it in localStorage and let `X-Session-Key`
     // header-auth take over from there.
     let fromOAuthRedirect = false;
+    let sessionKeyFromHash: string | null = null;
     try {
       if (typeof window !== "undefined" && window.location.hash) {
         const hash = window.location.hash.replace(/^#/, "");
@@ -59,11 +61,30 @@ export default function HomePage() {
         const sk = params.get("om_session");
         if (sk) {
           window.localStorage.setItem("om_session", sk);
+          sessionKeyFromHash = sk;
           fromOAuthRedirect = true;
           // Clean the fragment so the key never lingers in the address bar
           // or gets shared via copy-paste.
           history.replaceState(null, "", window.location.pathname + window.location.search);
         }
+      }
+    } catch {}
+
+    // If this page loaded inside a popup (OAuth redirect landed here after
+    // window.close() failed in the backend callback HTML), notify the opener
+    // and try to close. Don't render the full Dashboard in the popup.
+    try {
+      if (window.opener && !window.opener.closed) {
+        setIsPopup(true);
+        const sk = sessionKeyFromHash || window.localStorage.getItem("om_session");
+        window.opener.postMessage(
+          { type: "oauth-success", sessionKey: sk },
+          window.location.origin,
+        );
+        window.close();
+        // If close didn't work (some browsers block it), keep showing a
+        // minimal "you can close this" message via the isPopup state.
+        return;
       }
     } catch {}
 
@@ -109,6 +130,19 @@ export default function HomePage() {
       window.removeEventListener("pageshow", handlePageShow);
     };
   }, []);
+
+  // If this is a popup window (OAuth redirect landed here), show a minimal
+  // message instead of the full app UI.
+  if (isPopup) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-white">
+        <div className="text-center space-y-3 px-6">
+          <p className="text-zinc-700 text-sm font-medium">Sign-in successful</p>
+          <p className="text-zinc-500 text-xs">You can close this window.</p>
+        </div>
+      </div>
+    );
+  }
 
   // Still checking auth status
   if (connected === null) {

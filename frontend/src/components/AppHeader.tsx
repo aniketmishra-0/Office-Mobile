@@ -100,14 +100,18 @@ export default function AppHeader({
     else router.back();
   }
 
+  const [loggingOut, setLoggingOut] = useState(false);
+
   async function handleLogout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
     try {
       await apiLogout();
     } catch {}
     try {
       window.localStorage.removeItem("om_session");
     } catch {}
-    window.location.reload();
+    window.location.href = "/";
   }
 
 
@@ -272,9 +276,10 @@ export default function AppHeader({
                     role="menuitem"
                     className="om-header__menu-footer-btn om-header__menu-danger"
                     onClick={handleLogout}
+                    disabled={loggingOut}
                   >
                     <span aria-hidden>⏻</span>
-                    <span>Log out</span>
+                    <span>{loggingOut ? "Logging out…" : "Log out"}</span>
                   </button>
                 </div>
               </div>
