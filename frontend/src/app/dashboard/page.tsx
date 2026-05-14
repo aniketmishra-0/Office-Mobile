@@ -1,21 +1,22 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import AppHeader from "@/components/AppHeader";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import ErrorToast from "@/components/ErrorToast";
 import { getDashboardStats, type DashboardStats } from "@/lib/api";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  Cell,
-} from "recharts";
+
+// Dynamically import chart components with SSR disabled — recharts uses
+// browser APIs (ResizeObserver, window) that break during server rendering.
+const SubmissionsChart = dynamic(
+  () => import("@/components/DashboardCharts").then((m) => m.SubmissionsChart),
+  { ssr: false },
+);
+const TopFormsChart = dynamic(
+  () => import("@/components/DashboardCharts").then((m) => m.TopFormsChart),
+  { ssr: false },
+);
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -57,113 +58,20 @@ export default function DashboardPage() {
             {/* Submissions Chart (Last 30 Days) */}
             <section className="widget">
               <h2 className="widget__title">Submissions — Last 30 Days</h2>
-              <div className="widget__chart">
-                {stats.daily.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={200}>
-                    <AreaChart data={stats.daily} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="var(--clay)" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="var(--clay)" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <XAxis
-                        dataKey="date"
-                        tick={{ fontSize: 10, fill: "var(--stone)" }}
-                        tickFormatter={(v) => {
-                          const d = new Date(v);
-                          return `${d.getDate()}/${d.getMonth() + 1}`;
-                        }}
-                        axisLine={{ stroke: "var(--rule)" }}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 10, fill: "var(--stone)" }}
-                        axisLine={false}
-                        tickLine={false}
-                        allowDecimals={false}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          background: "var(--cream)",
-                          border: "1px solid var(--rule)",
-                          borderRadius: 0,
-                          fontFamily: "var(--font-plex-mono), monospace",
-                          fontSize: 11,
-                        }}
-                        labelFormatter={(v) => {
-                          const d = new Date(v as string);
-                          return d.toLocaleDateString("en-IN", {
-                            day: "numeric",
-                            month: "short",
-                          });
-                        }}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="count"
-                        stroke="var(--clay)"
-                        strokeWidth={2}
-                        fill="url(#colorCount)"
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <p className="widget__empty">No submissions in the last 30 days</p>
-                )}
+              <div className="widget__chart" style={{ minHeight: 220 }}>
+                <SubmissionsChart data={stats.daily} />
               </div>
             </section>
 
             {/* Top Forms */}
             <section className="widget">
               <h2 className="widget__title">Top Forms</h2>
-              {stats.top_forms.length > 0 ? (
-                <div className="widget__chart">
-                  <ResponsiveContainer width="100%" height={Math.max(160, stats.top_forms.length * 36)}>
-                    <BarChart
-                      data={stats.top_forms}
-                      layout="vertical"
-                      margin={{ top: 4, right: 12, left: 4, bottom: 4 }}
-                    >
-                      <XAxis
-                        type="number"
-                        tick={{ fontSize: 10, fill: "var(--stone)" }}
-                        axisLine={{ stroke: "var(--rule)" }}
-                        tickLine={false}
-                        allowDecimals={false}
-                      />
-                      <YAxis
-                        type="category"
-                        dataKey="form_title"
-                        tick={{ fontSize: 11, fill: "var(--ink)" }}
-                        width={120}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          background: "var(--cream)",
-                          border: "1px solid var(--rule)",
-                          borderRadius: 0,
-                          fontFamily: "var(--font-plex-mono), monospace",
-                          fontSize: 11,
-                        }}
-                      />
-                      <Bar dataKey="submission_count" radius={[0, 3, 3, 0]}>
-                        {stats.top_forms.map((_, i) => (
-                          <Cell
-                            key={i}
-                            fill={i === 0 ? "var(--clay)" : "var(--stone)"}
-                            opacity={1 - i * 0.07}
-                          />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <p className="widget__empty">No forms yet</p>
-              )}
+              <div
+                className="widget__chart"
+                style={{ minHeight: Math.max(180, stats.top_forms.length * 36 + 20) }}
+              >
+                <TopFormsChart data={stats.top_forms} />
+              </div>
             </section>
 
             {/* Recent Submissions */}
@@ -218,6 +126,7 @@ export default function DashboardPage() {
           background: var(--paper);
           border: 1px solid var(--rule);
           padding: 16px 12px;
+          width: 100%;
         }
         .widget__empty {
           font-family: var(--font-plex-mono), ui-monospace, monospace;
