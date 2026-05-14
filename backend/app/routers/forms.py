@@ -32,6 +32,7 @@ from app.services.sheets_client import (
     read_headers,
     read_sheet_rows,
     sync_sheet_headers,
+    update_sheet_row,
 )
 from app.utils.sanitizer import headers_to_fields
 from app.utils.url_parser import InvalidGoogleSheetUrl, extract_spreadsheet_id
@@ -311,6 +312,60 @@ async def get_sheet_history(
         "worksheet_name": actual_worksheet,
         "fields": [f.model_dump() for f in fields],
         "rows": rows,
+    }
+
+
+@router.patch("/sheet/row")
+async def update_sheet_row_endpoint(
+    sheet_url: str = Body(...),
+    worksheet_name: str | None = Body(None),
+    row_index: int = Body(..., ge=2),
+    values: dict = Body(...),
+) -> dict:
+    """
+    Update a specific row in a Google Sheet.
+    row_index is 1-based (row 1 = header, row 2 = first data row).
+    values is a dict of field_key → new_value.
+    """
+    try:
+        spreadsheet_id = extract_spreadsheet_id(sheet_url)
+    except InvalidGoogleSheetUrl as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # Read headers to build field schema
+    try:
+        spreadsheet_title, actual_worksheet, headers = await asyncio.to_thread(
+            read_headers, spreadsheet_id, worksheet_name
+        )
+    except Exception as exc:
+        raise _sheet_error(exc) from exc
+
+    fields, _warnings = headers_to_fields(headers, custom_keywords=[])
+    if not fields:
+        raise HTTPException(status_code=400, detail="No usable headers found in the sheet.")
+
+    # Build complete values dict ensuring all fields have a value
+    complete_values = {}
+    for field in fields:
+        complete_values[field.key] = values.get(field.key, "")
+
+    try:
+        updated_range = await asyncio.to_thread(
+            partial(
+                update_sheet_row,
+                spreadsheet_id=spreadsheet_id,
+                worksheet_name=actual_worksheet,
+                row_index=row_index,
+                fields=fields,
+                values=complete_values,
+            )
+        )
+    except Exception as exc:
+        raise _sheet_error(exc) from exc
+
+    return {
+        "success": True,
+        "updated_range": updated_range,
     }
 
 

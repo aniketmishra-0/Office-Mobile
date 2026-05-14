@@ -351,6 +351,23 @@ export async function logout(): Promise<{ success: boolean }> {
 }
 
 /**
+ * PATCH /api/sheet/row
+ * Update a specific row in a Google Sheet.
+ */
+export async function updateSheetRow(payload: {
+  sheet_url: string;
+  worksheet_name: string | null;
+  row_index: number;
+  values: Record<string, string>;
+}): Promise<{ success: boolean; updated_range: string | null }> {
+  return jsonRequest<{ success: boolean; updated_range: string | null }>(
+    "PATCH",
+    "/sheet/row",
+    payload,
+  );
+}
+
+/**
  * DELETE /api/forms/:id
  * Remove a form (requires edit token in body when applicable).
  */

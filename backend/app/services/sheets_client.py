@@ -776,6 +776,67 @@ def read_sheet_rows(
 
 
 # ---------------------------------------------------------------------------
+# Update an existing row in-place
+# ---------------------------------------------------------------------------
+
+
+def update_sheet_row(
+    *,
+    spreadsheet_id: str,
+    worksheet_name: str | None,
+    row_index: int,
+    fields: list[FieldSchema],
+    values: dict[str, Any],
+) -> str | None:
+    """
+    Update an existing row in the Google Sheet at the given row_index
+    (1-based, where row 1 is the header). So the first data row is row_index=2.
+
+    Returns the updated range string, or None if no credentials.
+    """
+    if not _has_credentials():
+        return None
+
+    if row_index < 2:
+        raise ValueError("row_index must be >= 2 (row 1 is the header)")
+
+    client = get_client()
+    spreadsheet = client.open_by_key(spreadsheet_id)
+    worksheet = _select_worksheet(spreadsheet, worksheet_name)
+
+    live_headers = _read_live_headers(worksheet, spreadsheet_id, worksheet_name)
+    row_values = _build_row_from_headers(live_headers, fields, values)
+
+    # Trim trailing empty cells
+    while row_values and row_values[-1] == "":
+        row_values.pop()
+
+    if not row_values:
+        return None
+
+    end_col = _col_index_to_letter(len(row_values) - 1)
+    cell_range = f"A{row_index}:{end_col}{row_index}"
+
+    try:
+        worksheet.update(cell_range, [row_values], value_input_option="USER_ENTERED")
+    except APIError as exc:
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+        if status == 429:
+            time.sleep(2)
+            worksheet.update(cell_range, [row_values], value_input_option="USER_ENTERED")
+        else:
+            raise
+
+    updated_range = f"{worksheet.title}!{cell_range}"
+    logger.info("sheets.update ok range=%s", updated_range)
+
+    # Invalidate cached reads so subsequent queries see the updated row.
+    _invalidate_rows_cache(spreadsheet_id, worksheet_name)
+
+    return updated_range
+
+
+# ---------------------------------------------------------------------------
 # Exception → HTTP status mapper
 # ---------------------------------------------------------------------------
 
