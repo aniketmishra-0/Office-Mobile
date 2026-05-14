@@ -62,6 +62,8 @@ function MultiHeaderFilterInner() {
   const [globalSearch, setGlobalSearch] = useState("");
   // Selected column for column-wise date/text search
   const [searchColumn, setSearchColumn] = useState<string | "">("");
+  // Selected date column (from date header chips)
+  const [selectedDateColumn, setSelectedDateColumn] = useState<string | null>(null);
 
   // Pagination
   const ROWS_PER_PAGE = 200;
@@ -174,7 +176,25 @@ function MultiHeaderFilterInner() {
     }
   }
 
-  // Apply all column filters + search mode
+  // Detect date-like columns from headers
+  // Matches patterns like "Mon, May 12, 2026", "Tue, May 13, 2026", "12 May 2026", "2026-05-12", "May 12"
+  const dateColumns = useMemo(() => {
+    if (!loaded) return [];
+    const datePatterns = [
+      /\b(?:mon|tue|wed|thu|fri|sat|sun)\w*[,.]?\s+\w+\s+\d{1,2}/i, // "Mon, May 12" or "Monday May 12"
+      /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{1,2}/i, // "May 12" or "May 12, 2026"
+      /\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*/i, // "12 May" or "12 May 2026"
+      /\b\d{4}[-/]\d{1,2}[-/]\d{1,2}\b/, // "2026-05-12"
+      /\b\d{1,2}[-/]\d{1,2}[-/]\d{2,4}\b/, // "05/12/2026"
+    ];
+
+    return loaded.fields.filter((field) => {
+      const header = (field.source_header || field.label || "").trim();
+      return datePatterns.some((pattern) => pattern.test(header));
+    });
+  }, [loaded]);
+
+  // Apply all column filters + search mode + date column filter
   // In column-wise mode, rows where the searched column is blank go to a separate list
   const { filledRows, blankRows } = useMemo(() => {
     if (!loaded || !loaded.rows.length) return { filledRows: [], blankRows: [] };
@@ -194,7 +214,37 @@ function MultiHeaderFilterInner() {
       );
     }
 
-    // Apply search based on mode
+    // Apply date column filter (if a date column chip is selected)
+    if (selectedDateColumn) {
+      const withData: Record<string, string>[] = [];
+      const withoutData: Record<string, string>[] = [];
+
+      for (const row of rows) {
+        const cellValue = (row[selectedDateColumn] ?? "").trim();
+        if (cellValue) {
+          withData.push(row);
+        } else {
+          withoutData.push(row);
+        }
+      }
+
+      // If there's also a text search active, apply it on top
+      const searchVal = (searchMode === "column" ? dateSearch : globalSearch).trim().toLowerCase();
+      if (searchVal) {
+        if (searchMode === "row") {
+          const matched = withData.filter((row) =>
+            loaded.fields.some((f) =>
+              (row[f.key] ?? "").toLowerCase().includes(searchVal)
+            )
+          );
+          return { filledRows: matched, blankRows: withoutData };
+        }
+      }
+
+      return { filledRows: withData, blankRows: withoutData };
+    }
+
+    // Apply search based on mode (when no date column is selected)
     const searchVal = (searchMode === "column" ? dateSearch : globalSearch).trim().toLowerCase();
     if (!searchVal) return { filledRows: rows, blankRows: [] };
 
@@ -208,13 +258,10 @@ function MultiHeaderFilterInner() {
       for (const row of rows) {
         const cellValue = (row[searchColumn] ?? "").trim();
         if (!cellValue) {
-          // This row has no data in the searched column → blank
           blank.push(row);
         } else if (cellValue.toLowerCase().includes(searchVal)) {
-          // Matches the search
           matched.push(row);
         }
-        // Rows that have data but don't match are excluded entirely
       }
 
       return { filledRows: matched, blankRows: blank };
@@ -227,7 +274,7 @@ function MultiHeaderFilterInner() {
       );
       return { filledRows: matched, blankRows: [] };
     }
-  }, [loaded, columnFilters, searchMode, dateSearch, globalSearch, searchColumn]);
+  }, [loaded, columnFilters, searchMode, dateSearch, globalSearch, searchColumn, selectedDateColumn]);
 
   // Combined for total count
   const filteredRows = filledRows;
@@ -246,7 +293,7 @@ function MultiHeaderFilterInner() {
 
   useEffect(() => {
     setVisibleCount(ROWS_PER_PAGE);
-  }, [columnFilters, loaded, dateSearch, globalSearch, searchColumn, searchMode]);
+  }, [columnFilters, loaded, dateSearch, globalSearch, searchColumn, searchMode, selectedDateColumn]);
 
   const handleReset = useCallback(() => {
     router.back();
@@ -259,6 +306,7 @@ function MultiHeaderFilterInner() {
     setDateSearch("");
     setGlobalSearch("");
     setSearchColumn("");
+    setSelectedDateColumn(null);
     if (sheetUrl && !availableTabs) {
       loadSheetFromUrl(sheetUrl);
     }
@@ -271,6 +319,7 @@ function MultiHeaderFilterInner() {
     setDateSearch("");
     setGlobalSearch("");
     setSearchColumn("");
+    setSelectedDateColumn(null);
   };
 
   const activeFilterCount = Object.values(columnFilters).filter(
@@ -459,7 +508,7 @@ function MultiHeaderFilterInner() {
           </div>
 
           {/* Clear all filters button */}
-          {activeFilterCount > 0 && (
+          {(activeFilterCount > 0 || selectedDateColumn) && (
             <button
               onClick={clearAllFilters}
               style={{
@@ -478,6 +527,84 @@ function MultiHeaderFilterInner() {
           )}
         </div>
       </div>
+
+      {/* Date column chips — quick filter by date */}
+      {dateColumns.length > 0 && (
+        <div style={{ borderBottom: "1px solid var(--rule)", padding: "8px 16px", background: "rgba(0,0,0,0.02)" }}>
+          <div style={{ maxWidth: 1400, margin: "0 auto" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span style={{
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontSize: 9,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                color: "var(--stone)",
+                flexShrink: 0,
+              }}>
+                📅 Filter by Date:
+              </span>
+              {selectedDateColumn && (
+                <button
+                  onClick={() => setSelectedDateColumn(null)}
+                  style={{
+                    fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                    fontSize: 9,
+                    color: "var(--ember)",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: 0,
+                    textDecoration: "underline",
+                  }}
+                >
+                  Clear date filter
+                </button>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {dateColumns.map((field) => {
+                const isSelected = selectedDateColumn === field.key;
+                const header = field.source_header || field.label || field.key;
+                // Count rows with data in this date column
+                const dataCount = loaded.rows.filter(
+                  (row) => (row[field.key] ?? "").trim() !== ""
+                ).length;
+                return (
+                  <button
+                    key={field.key}
+                    onClick={() =>
+                      setSelectedDateColumn(isSelected ? null : field.key)
+                    }
+                    style={{
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontSize: 10,
+                      color: isSelected ? "var(--paper)" : "var(--ink)",
+                      background: isSelected ? "var(--ink)" : "var(--paper)",
+                      border: `1px solid ${isSelected ? "var(--ink)" : "var(--rule)"}`,
+                      borderRadius: 12,
+                      padding: "5px 10px",
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {header}
+                    {dataCount > 0 && (
+                      <span style={{
+                        marginLeft: 4,
+                        fontSize: 9,
+                        opacity: 0.7,
+                      }}>
+                        ({dataCount})
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Search bar with Column/Row toggle */}
       <div style={{ borderBottom: "1px solid var(--rule)", padding: "10px 16px", background: "var(--paper)" }}>
