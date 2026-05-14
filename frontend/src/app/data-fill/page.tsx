@@ -11,7 +11,6 @@ import type { FieldSchema } from "@/types/field";
 import {
   getSheetHistory,
   lookupFormsBySheet,
-  getFormSuggestions,
   updateSheetRow,
   checkSheetAccess,
 } from "@/lib/api";
@@ -192,19 +191,11 @@ function DataFillPageInner() {
     setAvailableTabs(null); setLoading(true); setError(null);
     try {
       const u = sheet_url ?? sheetUrl;
-      if (tab.has_form && tab.id) {
-        const data = await getFormSuggestions(tab.id);
-        if (data.rows && data.rows.length > 0) {
-          setLoaded({ worksheet_name: tab.worksheet_name || tab.form_title, fields: tab.fields, rows: data.rows });
-        } else {
-          // Fallback: read directly from sheet when form-based read returns empty
-          const sheetData = await getSheetHistory(u, tab.worksheet_name);
-          setLoaded({ worksheet_name: sheetData.worksheet_name, fields: sheetData.fields, rows: sheetData.rows });
-        }
-      } else {
-        const data = await getSheetHistory(u, tab.worksheet_name);
-        setLoaded({ worksheet_name: data.worksheet_name, fields: data.fields, rows: data.rows });
-      }
+      // Always read directly from the sheet to get live headers.
+      // This ensures field keys match what the backend sees when saving,
+      // preventing "sheet structure changed" errors.
+      const data = await getSheetHistory(u, tab.worksheet_name);
+      setLoaded({ worksheet_name: data.worksheet_name, fields: data.fields, rows: data.rows });
     } catch (e: any) { setError(typeof e?.message === "string" ? e.message : typeof e === "string" ? e : "Failed to load entries"); }
     finally { setLoading(false); }
   }
