@@ -12,10 +12,6 @@ export default function HomePage() {
 
   async function checkStatus() {
     try {
-      // Send the stored session key as a header fallback. iOS Safari is
-      // strict about third-party cookies and occasionally drops the session
-      // cookie on back/forward navigation, which would otherwise flip us to
-      // the logged-out WelcomeScreen. The header keeps auth sticky.
       const headers: Record<string, string> = {};
       try {
         const sessionKey = window.localStorage.getItem("om_session");
@@ -37,7 +33,15 @@ export default function HomePage() {
       // Keep the previous state on network error so a flaky connection
       // does not log the user out. Only set to false on an explicit
       // backend response that says we're not connected.
-      setConnected((prev) => (prev === null ? false : prev));
+      // Also check localStorage — if we have a session key, assume
+      // connected until proven otherwise by a successful response.
+      setConnected((prev) => {
+        if (prev !== null) return prev;
+        try {
+          if (window.localStorage.getItem("om_session")) return true;
+        } catch {}
+        return false;
+      });
     }
   }
 
@@ -47,6 +51,7 @@ export default function HomePage() {
     // the URL fragment on the same-tab fallback, and via postMessage for
     // the popup flow. Stash it in localStorage and let `X-Session-Key`
     // header-auth take over from there.
+    let fromOAuthRedirect = false;
     try {
       if (typeof window !== "undefined" && window.location.hash) {
         const hash = window.location.hash.replace(/^#/, "");
@@ -54,12 +59,19 @@ export default function HomePage() {
         const sk = params.get("om_session");
         if (sk) {
           window.localStorage.setItem("om_session", sk);
+          fromOAuthRedirect = true;
           // Clean the fragment so the key never lingers in the address bar
           // or gets shared via copy-paste.
           history.replaceState(null, "", window.location.pathname + window.location.search);
         }
       }
     } catch {}
+
+    // If we just came back from an OAuth redirect, set connected immediately
+    // to avoid a flash of the login screen, then verify with the backend.
+    if (fromOAuthRedirect) {
+      setConnected(true);
+    }
 
     checkStatus();
 

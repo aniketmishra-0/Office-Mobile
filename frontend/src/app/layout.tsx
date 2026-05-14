@@ -114,10 +114,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   })
                   .catch(function () {});
                 // Reload once the new SW takes control so the page runs
-                // against the refreshed asset graph.
+                // against the refreshed asset graph. Skip if we're in the
+                // middle of an OAuth redirect (hash contains session key).
                 var refreshing = false;
                 navigator.serviceWorker.addEventListener('controllerchange', function () {
                   if (refreshing) return;
+                  if (window.location.hash && window.location.hash.indexOf('om_session') !== -1) return;
                   refreshing = true;
                   window.location.reload();
                 });

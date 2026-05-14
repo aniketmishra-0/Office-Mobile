@@ -27,8 +27,18 @@ export default function WelcomeScreen({ onAuthenticated }: Props) {
     setAuthState("loading");
     setErrorMessage(null);
 
-    // Popup sizing. We clamp the position to the current screen so the
-    // popup doesn't open off-screen on multi-monitor setups.
+    // On mobile/tablet (touch devices), always use same-tab redirect.
+    // iOS Safari blocks popups or opens them as new tabs where
+    // window.opener is null, breaking the postMessage flow entirely.
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+      ("ontouchstart" in window && window.innerWidth < 1024);
+
+    if (isMobile) {
+      window.location.href = `${API_BASE}/api/auth/google/start`;
+      return;
+    }
+
+    // Desktop: use popup flow
     const width = 500;
     const height = 600;
     const dualScreenLeft = window.screenLeft ?? window.screenX ?? 0;
@@ -44,9 +54,6 @@ export default function WelcomeScreen({ onAuthenticated }: Props) {
     const left = Math.max(0, dualScreenLeft + (viewportWidth - width) / 2);
     const top = Math.max(0, dualScreenTop + (viewportHeight - height) / 2);
 
-    // Explicit chrome-disabling flags force Chromium/Firefox/Safari to
-    // render this as a real popup window rather than a background tab.
-    // Just `popup=yes` alone is not enough on some browsers.
     const features = [
       `width=${width}`,
       `height=${height}`,
@@ -69,15 +76,12 @@ export default function WelcomeScreen({ onAuthenticated }: Props) {
       features,
     );
 
-    // Popup blocked (returns null) or opened as a tab without focus — fall
-    // back to same-tab redirect so the user can still complete sign-in.
+    // Popup blocked — fall back to same-tab redirect.
     if (!popup || popup.closed || typeof popup.closed === "undefined") {
       window.location.href = `${API_BASE}/api/auth/google/start`;
       return;
     }
 
-    // Bring the popup to the front in case the browser hid it behind the
-    // main window.
     try {
       popup.focus();
     } catch {}

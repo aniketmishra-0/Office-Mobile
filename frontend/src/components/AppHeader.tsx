@@ -74,10 +74,15 @@ export default function AppHeader({
     let mounted = true;
     async function load() {
       try {
+        const headers: Record<string, string> = {};
+        try {
+          const sk = window.localStorage.getItem("om_session");
+          if (sk) headers["X-Session-Key"] = sk;
+        } catch {}
         const res = await fetch(
           (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "") +
             "/api/auth/status",
-          { credentials: "include" },
+          { credentials: "include", headers },
         );
         const data = await res.json();
         if (!mounted) return;
@@ -104,6 +109,7 @@ export default function AppHeader({
     } catch {}
     window.location.reload();
   }
+
 
   function toggleTheme() {
     const next = getStoredTheme() === "dark" ? "light" : "dark";
@@ -212,6 +218,18 @@ export default function AppHeader({
                 >
                   <span className="om-header__menu-icon" aria-hidden>☰</span>
                   <span>Submission history</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="om-header__menu-item"
+                  onClick={() => {
+                    router.push("/data-fill");
+                    setOpenMenu(false);
+                  }}
+                >
+                  <span className="om-header__menu-icon" aria-hidden>✎</span>
+                  <span>Data Fill</span>
                 </button>
                 <button
                   type="button"

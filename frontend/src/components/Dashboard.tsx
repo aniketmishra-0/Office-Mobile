@@ -375,9 +375,15 @@ export default function Dashboard() {
   }
 
   function handleSignOut() {
+    const headers: Record<string, string> = {};
+    try {
+      const sk = window.localStorage.getItem("om_session");
+      if (sk) headers["X-Session-Key"] = sk;
+    } catch {}
     fetch(`${API_BASE}/api/auth/logout`, {
       method: "POST",
       credentials: "include",
+      headers,
     })
       .then(() => {
         try {
