@@ -406,6 +406,61 @@ async def get_sheet_history(
     }
 
 
+@router.get("/sheet/sections")
+async def get_sheet_sections(
+    sheet_url: str,
+    worksheet_name: str | None = None,
+) -> dict:
+    """
+    Read sheet data split into sections based on mid-sheet header rows.
+    Returns sections with their titles and data rows for accordion-style display.
+    """
+    try:
+        spreadsheet_id = extract_spreadsheet_id(sheet_url)
+    except InvalidGoogleSheetUrl as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    from app.services.sheets_client import read_sheet_sections, read_headers_authenticated, _has_credentials as has_creds
+
+    _sections_session_key = get_current_oauth_session_key()
+
+    def _read_sections_headers():
+        with oauth_session_context(_sections_session_key):
+            if has_creds():
+                return read_headers_authenticated(spreadsheet_id, worksheet_name)
+            else:
+                return read_headers(spreadsheet_id, worksheet_name)
+
+    try:
+        spreadsheet_title, actual_worksheet, headers = await asyncio.to_thread(_read_sections_headers)
+    except Exception as exc:
+        raise _sheet_error(exc) from exc
+
+    fields, _warnings = headers_to_fields(headers, custom_keywords=[])
+    if not fields:
+        return {"worksheet_name": actual_worksheet, "fields": [], "sections": []}
+
+    try:
+        def _read():
+            with oauth_session_context(_sections_session_key):
+                return read_sheet_sections(
+                    spreadsheet_id=spreadsheet_id,
+                    worksheet_name=actual_worksheet,
+                    fields=fields,
+                )
+
+        sections = await asyncio.to_thread(_read)
+    except Exception as exc:
+        logger.warning(f"Failed to read sections: {exc}")
+        sections = []
+
+    return {
+        "worksheet_name": actual_worksheet,
+        "fields": [f.model_dump() for f in fields],
+        "sections": sections,
+    }
+
+
 @router.patch("/sheet/row")
 async def update_sheet_row_endpoint(
     sheet_url: str = Body(...),

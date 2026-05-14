@@ -6,11 +6,7 @@ import AppHeader from "@/components/AppHeader";
 import ErrorToast from "@/components/ErrorToast";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import type { FieldSchema } from "@/types/field";
-import {
-  getFormSuggestions,
-  getSheetHistory,
-  lookupFormsBySheet,
-} from "@/lib/api";
+import { lookupFormsBySheet, getSheetSections } from "@/lib/api";
 
 interface TabOption {
   id: string | null;
@@ -20,11 +16,19 @@ interface TabOption {
   has_form: boolean;
 }
 
-interface LoadedTab {
+interface Section {
+  title: string;
+  rows: Record<string, string>[];
+  start_row: number;
+}
+
+interface LoadedData {
   worksheet_name: string;
   fields: FieldSchema[];
-  rows: Record<string, string>[];
+  sections: Section[];
 }
+
+const MAX_OPEN_SECTIONS = 2;
 
 export default function MultiHeaderFilterPage() {
   return (
@@ -45,17 +49,13 @@ function MultiHeaderFilterInner() {
   const [loading, setLoading] = useState(false);
   const [availableTabs, setAvailableTabs] = useState<TabOption[] | null>(null);
   const [sheetUrl, setSheetUrl] = useState("");
-  const [loaded, setLoaded] = useState<LoadedTab | null>(null);
+  const [loaded, setLoaded] = useState<LoadedData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Simple global search
+  // Which sections are open (by index)
+  const [openSections, setOpenSections] = useState<number[]>([]);
+  // Search query — only searches open sections
   const [searchQuery, setSearchQuery] = useState("");
-  // Per-column filters
-  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
-
-  // Pagination
-  const ROWS_PER_PAGE = 100;
-  const [visibleCount, setVisibleCount] = useState(ROWS_PER_PAGE);
 
   useEffect(() => {
     if (sheetParam) loadSheetFromUrl(sheetParam);
@@ -77,7 +77,7 @@ function MultiHeaderFilterInner() {
 
   async function loadSheetFromUrl(url: string) {
     setLoading(true); setError(null); setAvailableTabs(null); setLoaded(null);
-    setColumnFilters({}); setSearchQuery("");
+    setOpenSections([]); setSearchQuery("");
     try {
       const result = await lookupFormsBySheet(url);
       setSheetUrl(url);
@@ -95,48 +95,45 @@ function MultiHeaderFilterInner() {
   async function selectTab(tab: TabOption, sheet_url?: string) {
     setAvailableTabs(null); setLoading(true); setError(null);
     try {
-      if (tab.has_form && tab.id) {
-        const data = await getFormSuggestions(tab.id);
-        setLoaded({ worksheet_name: tab.worksheet_name || tab.form_title, fields: tab.fields, rows: data.rows ?? [] });
-      } else {
-        const data = await getSheetHistory(sheet_url ?? sheetUrl, tab.worksheet_name);
-        setLoaded({ worksheet_name: data.worksheet_name, fields: data.fields, rows: data.rows });
-      }
-    } catch (e: any) { setError(e.message ?? "Failed to load entries"); }
+      const data = await getSheetSections(sheet_url ?? sheetUrl, tab.worksheet_name);
+      setLoaded({
+        worksheet_name: data.worksheet_name,
+        fields: data.fields,
+        sections: data.sections,
+      });
+      // Auto-open first section
+      if (data.sections.length > 0) setOpenSections([0]);
+    } catch (e: any) { setError(e.message ?? "Failed to load data"); }
     finally { setLoading(false); }
   }
 
-  // Filter rows: global search + per-column filters (AND logic)
-  const filteredRows = useMemo(() => {
-    if (!loaded || !loaded.rows.length) return [];
-    let rows = loaded.rows;
+  // Toggle section open/close with max 2 open rule
+  const toggleSection = (idx: number) => {
+    setOpenSections((prev) => {
+      if (prev.includes(idx)) {
+        // Close it
+        return prev.filter((i) => i !== idx);
+      } else {
+        // Open it — if already 2 open, close the oldest one
+        const next = [...prev, idx];
+        if (next.length > MAX_OPEN_SECTIONS) {
+          return next.slice(next.length - MAX_OPEN_SECTIONS);
+        }
+        return next;
+      }
+    });
+  };
 
-    // Per-column filters
-    const active = Object.entries(columnFilters).filter(([, v]) => v.trim());
-    if (active.length > 0) {
-      rows = rows.filter((row) =>
-        active.every(([key, val]) => (row[key] ?? "").toLowerCase().includes(val.trim().toLowerCase()))
-      );
-    }
-
-    // Global search
+  // Filter rows in open sections based on search
+  const getFilteredRows = (section: Section): Record<string, string>[] => {
     const q = searchQuery.trim().toLowerCase();
-    if (q) {
-      rows = rows.filter((row) =>
-        loaded.fields.some((f) => (row[f.key] ?? "").toLowerCase().includes(q))
-      );
-    }
+    if (!q || !loaded) return section.rows;
+    return section.rows.filter((row) =>
+      loaded.fields.some((f) => (row[f.key] ?? "").toLowerCase().includes(q))
+    );
+  };
 
-    return rows;
-  }, [loaded, columnFilters, searchQuery]);
-
-  const visibleRows = useMemo(() => filteredRows.slice(0, visibleCount), [filteredRows, visibleCount]);
-
-  useEffect(() => { setVisibleCount(ROWS_PER_PAGE); }, [columnFilters, searchQuery, loaded]);
-
-  const clearAll = () => { setColumnFilters({}); setSearchQuery(""); };
-
-  const activeFilterCount = Object.values(columnFilters).filter((v) => v.trim()).length + (searchQuery.trim() ? 1 : 0);
+  const totalRows = loaded?.sections.reduce((sum, s) => sum + s.rows.length, 0) ?? 0;
 
   // --- RENDER ---
 
@@ -147,15 +144,11 @@ function MultiHeaderFilterInner() {
         <AppHeader title="Multi-Header Filtering" showBack onBack={() => router.push("/")} />
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
           <div style={{ width: "100%", maxWidth: 440 }}>
-            <h2 style={{ fontFamily: "var(--font-newsreader), Georgia, serif", fontWeight: 400, fontSize: 22, color: "var(--ink)", marginBottom: 6, textAlign: "center" }}>
-              Multi-Header Filtering
-            </h2>
-            <p style={{ fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontSize: 11, color: "var(--stone)", textAlign: "center", marginBottom: 20, lineHeight: 1.5 }}>
-              Load a sheet, filter any column, search by date or name.
+            <h2 style={{ fontFamily: "var(--font-newsreader)", fontWeight: 400, fontSize: 22, color: "var(--ink)", marginBottom: 6, textAlign: "center" }}>Multi-Header Filtering</h2>
+            <p style={{ fontFamily: "var(--font-plex-mono)", fontSize: 11, color: "var(--stone)", textAlign: "center", marginBottom: 20, lineHeight: 1.5 }}>
+              Sheets with multiple header sections? Each section shows as a collapsible block. Click to open, search within.
             </p>
-            <input
-              type="url"
-              value={formInput}
+            <input type="url" value={formInput}
               onChange={(e) => { setFormInput(e.target.value); validateUrl(e.target.value); }}
               onKeyDown={(e) => e.key === "Enter" && handleLoadSheet()}
               placeholder="Paste Google Sheet URL..."
@@ -195,7 +188,7 @@ function MultiHeaderFilterInner() {
     );
   }
 
-  // Step 3: Loading state
+  // Loading
   if (!loaded) {
     return (
       <div className="flex flex-col min-h-screen" style={{ background: "var(--cream)" }}>
@@ -206,112 +199,118 @@ function MultiHeaderFilterInner() {
     );
   }
 
-  // Step 4: Data view
+  // Step 3: Sections view
   const sortedFields = [...loaded.fields].sort((a, b) => a.order - b.order);
 
   return (
     <div className="flex flex-col min-h-screen" style={{ background: "var(--cream)" }}>
-      <AppHeader title="Multi-Header Filtering" showBack onBack={() => { setLoaded(null); setColumnFilters({}); setSearchQuery(""); if (sheetUrl) loadSheetFromUrl(sheetUrl); }} />
-      {loading && <LoadingOverlay message="Loading..." />}
+      <AppHeader title="Multi-Header Filtering" showBack onBack={() => { setLoaded(null); setOpenSections([]); setSearchQuery(""); if (sheetUrl) loadSheetFromUrl(sheetUrl); }} />
 
-      {/* Top bar */}
+      {/* Top bar: info + search */}
       <div style={{ borderBottom: "1px solid var(--rule)", padding: "10px 16px" }}>
-        <div style={{ maxWidth: 1400, margin: "0 auto", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          {/* Info */}
+        <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <div style={{ flex: "0 0 auto" }}>
             <h2 style={{ fontFamily: "var(--font-newsreader)", fontWeight: 400, fontSize: 15, color: "var(--ink)", margin: 0 }}>{loaded.worksheet_name}</h2>
             <p style={{ fontFamily: "var(--font-plex-mono)", fontSize: 10, color: "var(--stone)", margin: 0 }}>
-              {filteredRows.length === loaded.rows.length
-                ? `${loaded.rows.length.toLocaleString()} rows`
-                : `${filteredRows.length.toLocaleString()} of ${loaded.rows.length.toLocaleString()} rows`}
+              {loaded.sections.length} sections · {totalRows.toLocaleString()} total rows
             </p>
           </div>
 
-          {/* Search */}
-          <div style={{ position: "relative", flex: 1, minWidth: 160, maxWidth: 320 }}>
+          {/* Search — only searches open sections */}
+          <div style={{ position: "relative", flex: 1, minWidth: 160, maxWidth: 300 }}>
             <svg style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: "var(--stone)", pointerEvents: "none" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
             </svg>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search all columns..."
+            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search open sections..."
               style={{ width: "100%", fontFamily: "var(--font-plex-mono)", fontSize: 11, color: "var(--ink)", background: "var(--paper)", border: "1px solid var(--rule)", borderRadius: 4, padding: "7px 8px 7px 28px", outline: "none" }}
             />
           </div>
 
-          {/* Clear */}
-          {activeFilterCount > 0 && (
-            <button onClick={clearAll}
+          {searchQuery && (
+            <button onClick={() => setSearchQuery("")}
               style={{ fontFamily: "var(--font-plex-mono)", fontSize: 10, color: "var(--ember)", background: "none", border: "1px solid var(--ember)", borderRadius: 4, padding: "4px 8px", cursor: "pointer" }}>
-              Clear filters ({activeFilterCount})
+              Clear search
             </button>
           )}
+
+          <span style={{ fontFamily: "var(--font-plex-mono)", fontSize: 9, color: "var(--stone)" }}>
+            Max {MAX_OPEN_SECTIONS} sections open at a time
+          </span>
         </div>
       </div>
 
-      {/* Table */}
-      <div style={{ flex: 1, overflow: "auto", padding: "0 8px 16px" }}>
-        <div style={{ maxWidth: 1400, margin: "0 auto", overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-plex-mono)", fontSize: 11, marginTop: 8 }}>
-            <thead>
-              {/* Column headers */}
-              <tr>
-                <th style={{ padding: "6px 8px", textAlign: "left", fontSize: 9, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--stone)", borderBottom: "1px solid var(--rule)", whiteSpace: "nowrap", position: "sticky", top: 0, background: "var(--cream)", zIndex: 2 }}>#</th>
-                {sortedFields.map((field) => (
-                  <th key={field.key} style={{ padding: "6px 8px", textAlign: "left", fontSize: 9, letterSpacing: "0.04em", textTransform: "uppercase", color: columnFilters[field.key] ? "var(--ink)" : "var(--stone)", borderBottom: "1px solid var(--rule)", whiteSpace: "nowrap", position: "sticky", top: 0, background: "var(--cream)", zIndex: 2 }}>
-                    {field.source_header || field.label || field.key}
-                    {columnFilters[field.key] && <span style={{ color: "var(--ember)", marginLeft: 3 }}>●</span>}
-                  </th>
-                ))}
-              </tr>
-              {/* Filter row */}
-              <tr>
-                <td style={{ padding: "3px 8px", borderBottom: "2px solid var(--rule)", position: "sticky", top: 28, background: "var(--cream)", zIndex: 1 }} />
-                {sortedFields.map((field) => (
-                  <td key={`f-${field.key}`} style={{ padding: "3px 4px", borderBottom: "2px solid var(--rule)", position: "sticky", top: 28, background: "var(--cream)", zIndex: 1 }}>
-                    <input
-                      type="text"
-                      value={columnFilters[field.key] ?? ""}
-                      onChange={(e) => setColumnFilters((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                      placeholder="Filter"
-                      style={{ width: "100%", minWidth: 50, fontFamily: "var(--font-plex-mono)", fontSize: 9, color: "var(--ink)", background: "var(--paper)", border: `1px solid ${columnFilters[field.key] ? "var(--ember)" : "var(--rule)"}`, borderRadius: 3, padding: "3px 5px", outline: "none" }}
-                    />
-                  </td>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {visibleRows.map((row, idx) => (
-                <tr key={idx} style={{ borderBottom: "1px solid var(--rule)", background: idx % 2 === 0 ? "transparent" : "rgba(0,0,0,0.015)" }}>
-                  <td style={{ padding: "5px 8px", color: "var(--stone)", fontSize: 9, whiteSpace: "nowrap" }}>{row._row_index ?? idx + 1}</td>
-                  {sortedFields.map((field) => (
-                    <td key={field.key} style={{ padding: "5px 8px", color: "var(--ink)", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row[field.key] ?? ""}>
-                      {row[field.key] ?? ""}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-              {visibleRows.length === 0 && (
-                <tr>
-                  <td colSpan={sortedFields.length + 1} style={{ padding: "40px 16px", textAlign: "center", color: "var(--stone)", fontSize: 12 }}>
-                    {activeFilterCount > 0 ? "No rows match filters" : "No data found"}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+      {/* Sections accordion */}
+      <div style={{ flex: 1, overflow: "auto", padding: "12px 16px" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", flexDirection: "column", gap: 8 }}>
+          {loaded.sections.map((section, idx) => {
+            const isOpen = openSections.includes(idx);
+            const filteredRows = isOpen ? getFilteredRows(section) : [];
 
-          {/* Load more */}
-          {visibleCount < filteredRows.length && (
-            <div style={{ textAlign: "center", padding: "12px 0" }}>
-              <button onClick={() => setVisibleCount((c) => c + ROWS_PER_PAGE)}
-                style={{ fontFamily: "var(--font-plex-mono)", fontSize: 11, color: "var(--ink)", background: "var(--paper)", border: "1px solid var(--rule)", borderRadius: 4, padding: "6px 16px", cursor: "pointer" }}>
-                Show more ({(filteredRows.length - visibleCount).toLocaleString()} remaining)
-              </button>
-            </div>
-          )}
+            return (
+              <div key={idx} style={{ border: "1px solid var(--rule)", borderRadius: 6, overflow: "hidden", background: "var(--paper)" }}>
+                {/* Section header — clickable */}
+                <button
+                  onClick={() => toggleSection(idx)}
+                  style={{
+                    width: "100%", display: "flex", alignItems: "center", gap: 10,
+                    padding: "12px 16px", border: "none", cursor: "pointer", textAlign: "left",
+                    background: isOpen ? "var(--ink)" : "var(--cream)",
+                    color: isOpen ? "var(--paper)" : "var(--ink)",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  <span style={{ fontSize: 14, transition: "transform 0.2s", transform: isOpen ? "rotate(90deg)" : "rotate(0deg)" }}>▶</span>
+                  <span style={{ fontFamily: "var(--font-plex-mono)", fontSize: 12, fontWeight: 500, flex: 1 }}>
+                    {section.title}
+                  </span>
+                  <span style={{ fontFamily: "var(--font-plex-mono)", fontSize: 10, opacity: 0.7 }}>
+                    {section.rows.length} rows
+                  </span>
+                </button>
+
+                {/* Section content — table */}
+                {isOpen && (
+                  <div style={{ overflowX: "auto", maxHeight: 400, overflow: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-plex-mono)", fontSize: 10 }}>
+                      <thead>
+                        <tr>
+                          <th style={{ padding: "6px 8px", textAlign: "left", fontSize: 9, color: "var(--stone)", borderBottom: "1px solid var(--rule)", whiteSpace: "nowrap", position: "sticky", top: 0, background: "var(--paper)" }}>#</th>
+                          {sortedFields.map((field) => (
+                            <th key={field.key} style={{ padding: "6px 8px", textAlign: "left", fontSize: 9, letterSpacing: "0.03em", textTransform: "uppercase", color: "var(--stone)", borderBottom: "1px solid var(--rule)", whiteSpace: "nowrap", position: "sticky", top: 0, background: "var(--paper)" }}>
+                              {field.source_header || field.label || field.key}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredRows.slice(0, 100).map((row, rIdx) => (
+                          <tr key={rIdx} style={{ borderBottom: "1px solid var(--rule)", background: rIdx % 2 === 0 ? "transparent" : "rgba(0,0,0,0.02)" }}>
+                            <td style={{ padding: "4px 8px", color: "var(--stone)", fontSize: 9 }}>{row._row_index ?? rIdx + 1}</td>
+                            {sortedFields.map((field) => (
+                              <td key={field.key} style={{ padding: "4px 8px", color: "var(--ink)", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row[field.key] ?? ""}>
+                                {row[field.key] ?? ""}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                        {filteredRows.length === 0 && (
+                          <tr><td colSpan={sortedFields.length + 1} style={{ padding: "20px", textAlign: "center", color: "var(--stone)", fontSize: 11 }}>
+                            {searchQuery ? "No matches in this section" : "No data"}
+                          </td></tr>
+                        )}
+                        {filteredRows.length > 100 && (
+                          <tr><td colSpan={sortedFields.length + 1} style={{ padding: "8px", textAlign: "center", color: "var(--stone)", fontSize: 10 }}>
+                            Showing 100 of {filteredRows.length} rows
+                          </td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 

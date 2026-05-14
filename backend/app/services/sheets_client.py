@@ -931,6 +931,143 @@ def read_sheet_rows(
 
 
 # ---------------------------------------------------------------------------
+# Read sheet data split into sections (for multi-header filtering)
+# ---------------------------------------------------------------------------
+
+
+def read_sheet_sections(
+    *,
+    spreadsheet_id: str,
+    worksheet_name: str | None,
+    fields: list[FieldSchema],
+    max_rows: int = 100000,
+) -> list[dict]:
+    """
+    Read sheet data and split it into sections based on detected header/title rows.
+    Each section has a title (the header row content) and its data rows.
+
+    Returns a list of sections:
+    [
+        {"title": "Section 1 (Row 1)", "rows": [...], "start_row": 2},
+        {"title": "UPSC Online Schedule - 18 May", "rows": [...], "start_row": 43},
+        ...
+    ]
+    """
+    if not _has_credentials():
+        return []
+
+    try:
+        client = get_client()
+        spreadsheet = client.open_by_key(spreadsheet_id)
+        worksheet = _select_worksheet(spreadsheet, worksheet_name)
+
+        live_headers = _read_live_headers(worksheet, spreadsheet_id, worksheet_name)
+        if not live_headers:
+            return []
+
+        # Build field → column index map
+        header_to_col: dict[str, int] = {}
+        for idx, header in enumerate(live_headers):
+            normalized = header.strip()
+            if normalized and normalized not in header_to_col:
+                header_to_col[normalized] = idx
+
+        field_col_map: dict[str, int] = {}
+        for field in fields:
+            col_idx = header_to_col.get(field.source_header.strip())
+            if col_idx is None:
+                source_lower = field.source_header.strip().lower()
+                for h, idx in header_to_col.items():
+                    if h.lower() == source_lower:
+                        col_idx = idx
+                        break
+            if col_idx is None:
+                col_idx = field.column_index
+            field_col_map[field.key] = col_idx
+
+        total_rows = max(worksheet.row_count - 1, 0)
+        if total_rows == 0:
+            return []
+        rows_to_read = min(total_rows, max_rows)
+        end_col = _col_index_to_letter(max(field_col_map.values()))
+        data_range = f"A2:{end_col}{rows_to_read + 1}"
+
+        all_data = worksheet.get(data_range)
+        if not all_data:
+            return []
+
+        total_columns = len(live_headers)
+
+        # Split into sections at header/title rows
+        sections: list[dict] = []
+        current_section_title = "Section 1"
+        current_section_rows: list[dict[str, str]] = []
+        current_section_start = 2  # Row 2 (after header)
+
+        for data_idx, row_data in enumerate(all_data):
+            sheet_row = data_idx + 2
+
+            if _is_header_or_title_row(row_data, live_headers, total_columns):
+                # Save current section if it has data
+                if current_section_rows:
+                    sections.append({
+                        "title": current_section_title,
+                        "rows": current_section_rows,
+                        "start_row": current_section_start,
+                    })
+
+                # Start new section — extract title from the row
+                non_empty = [cell.strip() for cell in row_data if cell.strip()]
+                if len(non_empty) <= 2 and non_empty:
+                    # Title row (single long text)
+                    current_section_title = non_empty[0][:80]
+                else:
+                    # Repeated header row — use a generic name with row number
+                    current_section_title = f"Section (Row {sheet_row})"
+
+                current_section_rows = []
+                current_section_start = sheet_row + 1
+                continue
+
+            # Regular data row
+            row_dict: dict[str, str] = {}
+            has_data = False
+            for field in fields:
+                col_idx = field_col_map[field.key]
+                value = row_data[col_idx] if col_idx < len(row_data) else ""
+                row_dict[field.key] = value
+                if value.strip():
+                    has_data = True
+            if has_data:
+                row_dict["_row_index"] = str(sheet_row)
+                current_section_rows.append(row_dict)
+
+        # Don't forget the last section
+        if current_section_rows:
+            sections.append({
+                "title": current_section_title,
+                "rows": current_section_rows,
+                "start_row": current_section_start,
+            })
+
+        # If no sections were created (no mid-sheet headers found),
+        # return all data as a single section
+        if not sections:
+            sections.append({
+                "title": "All Data",
+                "rows": current_section_rows,
+                "start_row": 2,
+            })
+
+        logger.info(f"Found {len(sections)} sections in sheet")
+        return sections
+
+    except Exception as e:
+        logger.exception(f"Failed to read sheet sections: {type(e).__name__}: {e}")
+        return []
+
+
+# ---------------------------------------------------------------------------
 # Update an existing row in-place
 # ---------------------------------------------------------------------------
 

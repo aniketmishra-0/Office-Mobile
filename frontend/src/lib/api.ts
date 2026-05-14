@@ -370,6 +370,30 @@ export async function getSheetHistory(
 }
 
 /**
+ * GET /api/sheet/sections?sheet_url=…&worksheet_name=…
+ * Read sheet data split into sections based on mid-sheet header rows.
+ */
+export async function getSheetSections(
+  sheetUrl: string,
+  worksheetName: string | null,
+): Promise<{
+  worksheet_name: string;
+  fields: FieldSchema[];
+  sections: Array<{
+    title: string;
+    rows: Record<string, string>[];
+    start_row: number;
+  }>;
+}> {
+  const wsParam = worksheetName
+    ? `&worksheet_name=${encodeURIComponent(worksheetName)}`
+    : "";
+  return jsonGet(
+    `/sheet/sections?sheet_url=${encodeURIComponent(sheetUrl)}${wsParam}`,
+  );
+}
+
+/**
  * GET /api/config/public
  * Retrieve public configuration (e.g. the service account e-mail that needs
  * Sheet-sharing access) without authentication.
