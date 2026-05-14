@@ -248,6 +248,14 @@ def update_form(
     return get_form(form_id)
 
 
+def update_form_fields(form_id: str, fields: list[FieldSchema]) -> None:
+    """Lightweight update of just the fields_json column (e.g. after type promotion)."""
+    execute(
+        "UPDATE forms SET fields_json = %s, updated_at = now() WHERE id = %s",
+        (Jsonb(_dump_models(fields)), form_id),
+    )
+
+
 def delete_form(form_id: str) -> bool:
     """
     Delete a form and all of its submissions.

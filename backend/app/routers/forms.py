@@ -777,6 +777,9 @@ async def get_form_suggestions(form_id: str, limit: int = Query(100000, ge=1, le
     """
     record = await _get_record_or_404_async(form_id)
 
+    # Snapshot original field types to detect promotions after read_sheet_rows
+    original_types = {f.key: f.type for f in record["fields"]}
+
     def _read():
         oauth_key = record.get("oauth_key") or DEFAULT_OAUTH_KEY
         with oauth_session_context(oauth_key):
@@ -788,6 +791,17 @@ async def get_form_suggestions(form_id: str, limit: int = Query(100000, ge=1, le
             )
 
     rows = await asyncio.to_thread(_read)
+
+    # Persist any text→checkbox promotions detected by read_sheet_rows
+    promoted = [f for f in record["fields"] if original_types.get(f.key) == "text" and f.type == "checkbox"]
+    if promoted:
+        try:
+            await asyncio.to_thread(
+                form_store.update_form_fields, form_id, record["fields"]
+            )
+        except Exception:
+            pass  # Non-critical — next call will retry
+
     return {"rows": rows}
 
 
