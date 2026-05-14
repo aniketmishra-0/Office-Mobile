@@ -1221,13 +1221,11 @@ export default function Dashboard() {
               {copiedForm ? "Copied" : "Copy"}
             </button>
           </div>
-          <button
-            type="button"
+          <SubmitButton
+            label="Open in this App"
+            submitting={false}
             onClick={() => router.push(createdForm?.form_url ?? "/")}
-            className="block w-full text-center bg-zinc-950 hover:bg-zinc-800 text-white text-[13px] font-medium py-2.5 rounded-lg transition-colors"
-          >
-            Open in this App
-          </button>
+          />
         </div>
 
         {/* Edit link */}
@@ -1245,8 +1243,9 @@ export default function Dashboard() {
             Keep this safe. Anyone with this link can edit your form.
           </p>
         </div>
-        <button
-          type="button"
+        <SubmitButton
+          label="+ Create another form"
+          submitting={false}
           onClick={() => {
             setStep("input");
             setSheetUrl("");
@@ -1255,10 +1254,7 @@ export default function Dashboard() {
             setCreatedForm(null);
             setAutofillColumns([]);
           }}
-          className="w-full text-[13px] text-zinc-600 font-medium py-3 hover:text-zinc-900 transition-colors"
-        >
-          + Create another form
-        </button>
+        />
       </div>
     </div>
   );

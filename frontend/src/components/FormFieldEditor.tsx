@@ -21,6 +21,7 @@ const TYPE_LABELS: Record<FieldType, string> = {
   textarea: "Long Text",
   url: "URL",
   file: "File Upload",
+  checkbox: "Checkbox",
 };
 
 export default function FormFieldEditor({ fields, onChange, autofillColumns = [], onAutofillChange }: Props) {

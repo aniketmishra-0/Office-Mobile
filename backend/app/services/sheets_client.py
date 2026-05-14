@@ -754,7 +754,7 @@ def read_sheet_rows(
 
         # Convert to list of dicts
         rows: list[dict[str, str]] = []
-        for row_data in all_data:
+        for data_idx, row_data in enumerate(all_data):
             row_dict: dict[str, str] = {}
             has_data = False
             for field in fields:
@@ -764,7 +764,21 @@ def read_sheet_rows(
                 if value.strip():
                     has_data = True
             if has_data:
+                # Store the actual 1-based sheet row index (data starts at row 2)
+                row_dict["_row_index"] = str(data_idx + 2)
                 rows.append(row_dict)
+
+        # Detect checkbox columns: if all non-empty values in a column are
+        # exclusively TRUE/FALSE (case-insensitive), mark the field as checkbox.
+        # This catches Google Sheets checkbox columns that store boolean values.
+        _BOOLEAN_VALUES = {"true", "false", ""}
+        for field in fields:
+            if field.type != "text":
+                continue  # Only override text fields
+            col_values = [row.get(field.key, "").strip().lower() for row in rows]
+            non_empty = [v for v in col_values if v]
+            if non_empty and all(v in _BOOLEAN_VALUES for v in col_values):
+                field.type = "checkbox"
 
         logger.info(f"Returned {len(rows)} non-empty rows from sheet")
         _ROWS_CACHE[cache_key] = (time.time(), rows)
@@ -825,6 +839,10 @@ def update_sheet_row(
             time.sleep(2)
             worksheet.update(cell_range, [row_values], value_input_option="USER_ENTERED")
         else:
+            logger.warning(
+                "sheets.update failed range=%s row_index=%d num_values=%d status=%s exc=%s",
+                cell_range, row_index, len(row_values), status, str(exc)[:300],
+            )
             raise
 
     updated_range = f"{worksheet.title}!{cell_range}"

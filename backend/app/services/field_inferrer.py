@@ -14,6 +14,7 @@ DEFAULT_RULES: list[tuple[list[str], FieldType]] = [
     (["notes", "note", "comment", "description", "address", "remarks", "feedback", "details", "message"], "textarea"),
     (["url", "link", "website"], "url"),
     (["photo", "image", "upload", "file", "receipt", "document", "signature", "pic", "picture", "attachment"], "file"),
+    (["checked", "verified", "done", "completed", "approved", "confirm", "active", "enabled", "yes/no", "y/n"], "checkbox"),
     (["name", "full name", "first name", "last name"], "text"),
 ]
 

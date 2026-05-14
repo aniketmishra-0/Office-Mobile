@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { FieldSchema, FieldType } from "@/types/field";
 import ClearButton from "@/components/ClearButton";
+import SubmitButton from "@/components/SubmitButton";
 
 type DraftField = {
   id: string;
@@ -255,21 +256,12 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
         </p>
       </div>
 
-      <button
-        type="button"
+      <SubmitButton
+        label="Create Google Sheet"
+        submitting={submitting}
         onClick={handleSubmit}
-        disabled={submitting || !canSubmit}
-        className="w-full bg-zinc-950 hover:bg-zinc-800 active:bg-black disabled:bg-zinc-200 disabled:text-zinc-500 text-white font-semibold text-[15px] rounded-lg h-[52px] flex items-center justify-center gap-2 transition-all duration-150"
-      >
-        {submitting ? (
-          <>
-            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            <span>Creating sheet...</span>
-          </>
-        ) : (
-          <span>Create Google Sheet</span>
-        )}
-      </button>
+        disabled={!canSubmit}
+      />
     </div>
   );
 }

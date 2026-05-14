@@ -55,6 +55,15 @@ input, select, textarea {
   padding-top: env(safe-area-inset-top);
 }
 
+/* Ensure page content never overlaps the sticky header on iOS.
+   iOS Safari sometimes promotes scrolling content above a sticky
+   element when the content has its own compositing layer. We force
+   the header's stacking context higher and keep siblings below. */
+header.om-header ~ * {
+  position: relative;
+  z-index: 0;
+}
+
 /* Remove number input spinners */
 input[type=number]::-webkit-outer-spin-button,
 input[type=number]::-webkit-inner-spin-button {

@@ -38,7 +38,7 @@ export default function SubmissionsPage() {
       <AppHeader title="Submissions" showBack onBack={() => window.location.href = "/"} />
       {loading && <LoadingOverlay message="Loading submissions..." />}
 
-      <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-6 pb-10 space-y-4">
+      <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-10 space-y-4">
         {/* Input card */}
         <div className="rounded-lg border border-zinc-200 bg-white p-4 space-y-3">
           <div>

@@ -133,6 +133,17 @@ function FieldControl({
   const set = (v: string) => onChange(field.key, v);
 
   switch (field.type) {
+    case "checkbox":
+      return (
+        <CheckboxControl
+          id={id}
+          value={value}
+          onChange={set}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          label={field.label}
+        />
+      );
     case "textarea":
       return (
         <TextareaControl
@@ -337,6 +348,101 @@ function TextInput({
         .om-input-clear:focus-visible {
           color: var(--ink);
           outline: none;
+        }
+      `}</style>
+    </>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Checkbox — toggle switch for TRUE/FALSE values.
+   ──────────────────────────────────────────────────────────────────── */
+
+function CheckboxControl({
+  id,
+  value,
+  onChange,
+  onFocus,
+  onBlur,
+  label,
+}: {
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+  onFocus: () => void;
+  onBlur: () => void;
+  label: string;
+}) {
+  const isChecked = value.trim().toUpperCase() === "TRUE";
+
+  return (
+    <>
+      <button
+        id={id}
+        type="button"
+        role="switch"
+        aria-checked={isChecked}
+        aria-label={label}
+        className={`om-checkbox ${isChecked ? "is-checked" : ""}`}
+        onClick={() => onChange(isChecked ? "FALSE" : "TRUE")}
+        onFocus={onFocus}
+        onBlur={onBlur}
+      >
+        <span className="om-checkbox__track">
+          <span className="om-checkbox__thumb" />
+        </span>
+        <span className="om-checkbox__label">{isChecked ? "TRUE" : "FALSE"}</span>
+      </button>
+      <style jsx>{`
+        .om-checkbox {
+          display: inline-flex;
+          align-items: center;
+          gap: 12px;
+          padding: 8px 0;
+          background: transparent;
+          border: 0;
+          cursor: pointer;
+          outline: none;
+          -webkit-tap-highlight-color: transparent;
+        }
+        .om-checkbox:focus-visible .om-checkbox__track {
+          box-shadow: 0 0 0 2px var(--clay);
+        }
+        .om-checkbox__track {
+          position: relative;
+          width: 44px;
+          height: 24px;
+          border-radius: 12px;
+          background: var(--rule);
+          transition: background 200ms ease-out;
+        }
+        .om-checkbox.is-checked .om-checkbox__track {
+          background: var(--clay, #c2703a);
+        }
+        .om-checkbox__thumb {
+          position: absolute;
+          top: 2px;
+          left: 2px;
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          background: white;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+          transition: transform 200ms ease-out;
+        }
+        .om-checkbox.is-checked .om-checkbox__thumb {
+          transform: translateX(20px);
+        }
+        .om-checkbox__label {
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 500;
+          font-size: 12px;
+          letter-spacing: 0.08em;
+          color: var(--stone);
+          transition: color 200ms ease-out;
+        }
+        .om-checkbox.is-checked .om-checkbox__label {
+          color: var(--ink);
         }
       `}</style>
     </>

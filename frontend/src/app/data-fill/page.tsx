@@ -198,6 +198,11 @@ export default function DataFillPage() {
   function getSheetRowIndex(filteredIdx: number): number {
     if (!loaded) return -1;
     const row = filteredAndSortedRows[filteredIdx];
+    // Use the actual sheet row index stored in the row data (set by backend).
+    // Falls back to array-index-based calculation for backward compatibility.
+    if (row["_row_index"]) {
+      return parseInt(row["_row_index"], 10);
+    }
     const originalIdx = loaded.rows.indexOf(row);
     return originalIdx + 2;
   }
@@ -205,7 +210,9 @@ export default function DataFillPage() {
   function handleSelectRow(filteredIdx: number) {
     const row = filteredAndSortedRows[filteredIdx];
     setSelectedRowIdx(filteredIdx);
-    setEditValues({ ...row });
+    // Exclude internal metadata keys (like _row_index) from edit values
+    const { _row_index, ...editableValues } = row;
+    setEditValues({ ...editableValues });
     setEditMode(false);
     setSuccessMsg(null);
   }
@@ -300,7 +307,7 @@ export default function DataFillPage() {
       // Escape → exit edit or go back
       if (e.key === "Escape") {
         e.preventDefault();
-        if (editMode) { setEditValues({ ...filteredAndSortedRows[selectedRowIdx] }); setEditMode(false); }
+        if (editMode) { const { _row_index: _ri, ...ev } = filteredAndSortedRows[selectedRowIdx]; setEditValues({ ...ev }); setEditMode(false); }
         else { setSelectedRowIdx(null); }
         return;
       }
@@ -339,9 +346,9 @@ export default function DataFillPage() {
 
     return (
       <div className="flex flex-col min-h-screen bg-zinc-100">
-        <AppHeader title="Data Fill" showBack onBack={() => { setSelectedRowIdx(null); setEditMode(false); }} />
+        <AppHeader title="Data Correction" showBack onBack={() => { setSelectedRowIdx(null); setEditMode(false); }} />
         {saving && <LoadingOverlay message="Saving..." />}
-        <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-5 pb-32">
+        <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-32">
           {/* Nav: Prev / Info / Next */}
           <div className="flex items-center justify-between mb-4">
             <button onClick={goToPrevRow} disabled={!hasPrev}
@@ -386,7 +393,7 @@ export default function DataFillPage() {
                 </button>
               ) : (
                 <>
-                  <button onClick={() => { setEditValues({ ...filteredAndSortedRows[selectedRowIdx] }); setEditMode(false); }} title="Esc"
+                  <button onClick={() => { const { _row_index: _ri, ...ev } = filteredAndSortedRows[selectedRowIdx]; setEditValues({ ...ev }); setEditMode(false); }} title="Esc"
                     className="px-3 py-1.5 text-[12px] font-medium text-zinc-600 rounded-lg hover:bg-zinc-200 transition-colors">Cancel</button>
                   <button onClick={handleSave} disabled={saving} title="⌘+Enter"
                     className="px-3 py-1.5 text-[12px] font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50 transition-colors">
@@ -411,7 +418,7 @@ export default function DataFillPage() {
           <div className="rounded-lg border border-zinc-200 bg-white divide-y divide-zinc-100 overflow-hidden">
             {sortedFields.map((field, fieldIdx) => {
               const val = editValues[field.key] ?? "";
-              const isFilled = !!val.trim();
+              const isFilled = field.type === "checkbox" ? true : !!val.trim();
               const isMissing = !isFilled;
               return (
                 <div key={field.key} className={`px-4 py-3 ${isMissing && !editMode ? "bg-red-50/40" : ""}`}>
@@ -425,14 +432,47 @@ export default function DataFillPage() {
                     {isMissing && !editMode && <span className="text-[10px] font-medium text-red-500 ml-auto">MISSING</span>}
                   </div>
                   {editMode ? (
+                    field.type === "checkbox" ? (
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={(editValues[field.key] ?? "").toUpperCase() === "TRUE"}
+                        onClick={() => {
+                          const current = (editValues[field.key] ?? "").toUpperCase() === "TRUE";
+                          setEditValues({ ...editValues, [field.key]: current ? "FALSE" : "TRUE" });
+                        }}
+                        className={`mt-1 inline-flex items-center gap-3 px-0 py-2 bg-transparent border-0 cursor-pointer outline-none`}
+                      >
+                        <span className={`relative inline-block w-[44px] h-[24px] rounded-full transition-colors duration-200 ${(editValues[field.key] ?? "").toUpperCase() === "TRUE" ? "bg-emerald-500" : "bg-zinc-300"}`}>
+                          <span className={`absolute top-[2px] left-[2px] w-[20px] h-[20px] rounded-full bg-white shadow transition-transform duration-200 ${(editValues[field.key] ?? "").toUpperCase() === "TRUE" ? "translate-x-[20px]" : ""}`} />
+                        </span>
+                        <span className={`text-[13px] font-semibold tracking-wide ${(editValues[field.key] ?? "").toUpperCase() === "TRUE" ? "text-emerald-600" : "text-zinc-400"}`}>
+                          {(editValues[field.key] ?? "").toUpperCase() === "TRUE" ? "TRUE" : "FALSE"}
+                        </span>
+                      </button>
+                    ) : (
                     <input ref={(el) => { editFieldRefs.current[fieldIdx] = el; }}
                       type={field.type === "number" ? "number" : field.type === "email" ? "email" : field.type === "tel" ? "tel" : field.type === "url" ? "url" : "text"}
                       value={editValues[field.key] ?? ""}
                       onChange={(e) => setEditValues({ ...editValues, [field.key]: e.target.value })}
                       placeholder={field.placeholder || `Enter ${field.label}`}
                       className={`w-full mt-1 px-3 py-2 text-[14px] rounded-md border ${isMissing ? "border-red-300 bg-red-50/30" : "border-zinc-200"} focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent`} />
+                    )
                   ) : (
+                    field.type === "checkbox" ? (
+                      <div className="flex items-center gap-2 ml-5.5 mt-1">
+                        <span className={`inline-flex w-[18px] h-[18px] rounded border-2 items-center justify-center ${val.toUpperCase() === "TRUE" ? "bg-emerald-500 border-emerald-500" : "bg-white border-zinc-300"}`}>
+                          {val.toUpperCase() === "TRUE" && (
+                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                          )}
+                        </span>
+                        <span className={`text-[14px] font-medium ${val.toUpperCase() === "TRUE" ? "text-emerald-600" : "text-zinc-400"}`}>
+                          {val.toUpperCase() === "TRUE" ? "TRUE" : "FALSE"}
+                        </span>
+                      </div>
+                    ) : (
                     <p className={`text-[15px] ml-5.5 ${val ? "text-zinc-950 font-medium" : "text-zinc-300 italic"}`}>{val || "—"}</p>
+                    )
                   )}
                 </div>
               );
@@ -458,9 +498,9 @@ export default function DataFillPage() {
   if (loaded) {
     return (
       <div className="flex flex-col min-h-screen bg-zinc-100">
-        <AppHeader title="Data Fill" showBack onBack={handleReset} />
+        <AppHeader title="Data Correction" showBack onBack={handleReset} />
         {loading && <LoadingOverlay message="Loading entries..." />}
-        <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-5 pb-10">
+        <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-10">
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
             <div className="min-w-0 flex-1">
@@ -604,9 +644,9 @@ export default function DataFillPage() {
   // ═══════════════════════ Initial / Tab Picker ═══════════════════════
   return (
     <div className="flex flex-col min-h-screen bg-zinc-100">
-      <AppHeader title="Data Fill" showBack />
+      <AppHeader title="Data Correction" showBack />
       {loading && <LoadingOverlay message="Loading sheet..." />}
-      <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-32">
+      <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-14 pb-32">
         <div className="mb-8">
           <h1 className="text-[26px] font-bold text-zinc-950 leading-tight tracking-tight">Fill & fix your<br />sheet data</h1>
           <p className="text-[15px] text-zinc-600 mt-2.5 leading-relaxed">Paste your sheet link, filter rows, see what&apos;s missing, and update values directly.</p>

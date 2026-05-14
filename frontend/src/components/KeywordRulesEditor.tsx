@@ -18,6 +18,7 @@ const TYPE_LABELS: Record<FieldType, string> = {
   textarea: "Long Text",
   url: "URL",
   file: "File Upload",
+  checkbox: "Checkbox",
 };
 
 const BUILTIN_PREVIEW: { keyword: string; type: string }[] = [
@@ -26,6 +27,7 @@ const BUILTIN_PREVIEW: { keyword: string; type: string }[] = [
   { keyword: "date/dob", type: "date" },
   { keyword: "amount/price", type: "number" },
   { keyword: "notes/address", type: "textarea" },
+  { keyword: "checked/verified", type: "checkbox" },
 ];
 
 export default function KeywordRulesEditor({ rules, onChange }: Props) {

@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 
-FieldType = Literal["text", "tel", "email", "date", "time", "number", "textarea", "url", "file"]
+FieldType = Literal["text", "tel", "email", "date", "time", "number", "textarea", "url", "file", "checkbox"]
 
 
 class CustomKeywordRule(BaseModel):

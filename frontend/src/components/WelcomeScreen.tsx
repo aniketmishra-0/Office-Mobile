@@ -60,14 +60,12 @@ export default function WelcomeScreen({ onAuthenticated }: Props) {
       `left=${left}`,
       `top=${top}`,
       "popup=yes",
-      "toolbar=no",
+      "toolbar=yes",
       "menubar=no",
-      "location=no",
+      "location=yes",
       "status=no",
       "scrollbars=yes",
       "resizable=yes",
-      "noopener=no",
-      "noreferrer=no",
     ].join(",");
 
     const popup = window.open(

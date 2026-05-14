@@ -1,15 +1,18 @@
 "use client";
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import AppHeader from "@/components/AppHeader";
 import ErrorToast from "@/components/ErrorToast";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import ClearButton from "@/components/ClearButton";
+import SubmitButton from "@/components/SubmitButton";
 import type { FieldSchema } from "@/types/field";
 import {
   getFormSuggestions,
   getSheetHistory,
   lookupFormsBySheet,
+  checkSheetAccess,
+  getPublicConfig,
 } from "@/lib/api";
 
 interface TabOption {
@@ -37,6 +40,41 @@ export default function HistoryPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [selectedRow, setSelectedRow] = useState<Record<string, string> | null>(null);
+  const [accessStatus, setAccessStatus] = useState<"checking" | "edit" | "read" | "none" | null>(null);
+  const [serviceAccountEmail, setServiceAccountEmail] = useState<string | null>(null);
+
+  // Fetch service account email on mount
+  useEffect(() => {
+    getPublicConfig()
+      .then((cfg) => setServiceAccountEmail(cfg.service_account_email))
+      .catch(() => {});
+  }, []);
+
+  // Check sheet access when URL becomes valid
+  useEffect(() => {
+    if (!urlValid || !formInput.trim()) {
+      setAccessStatus(null);
+      return;
+    }
+
+    setAccessStatus("checking");
+    const timer = setTimeout(async () => {
+      try {
+        const status = await checkSheetAccess(formInput);
+        if (!status.read) {
+          setAccessStatus("none");
+        } else if (!status.edit) {
+          setAccessStatus("read");
+        } else {
+          setAccessStatus("edit");
+        }
+      } catch (e) {
+        setAccessStatus("none");
+      }
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(timer);
+  }, [formInput, urlValid]);
 
   function validateUrl(value: string): boolean {
     if (!value.trim()) {
@@ -63,6 +101,7 @@ export default function HistoryPage() {
       setUrlValid(isValid);
     } else {
       setUrlValid(false);
+      setAccessStatus(null);
     }
   }, []);
 
@@ -177,6 +216,7 @@ export default function HistoryPage() {
     setUrlValid(false);
     setUrlError("");
     setError(null);
+    setAccessStatus(null);
   }, []);
 
   const handleBackToTabs = useCallback(() => {
@@ -208,7 +248,7 @@ export default function HistoryPage() {
     return (
       <div className="flex flex-col min-h-screen bg-zinc-100">
         <AppHeader title="Entry details" showBack onBack={() => setSelectedRow(null)} />
-        <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-5 pb-10">
+        <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-10">
           <div className="mb-4">
             <h2 className="text-[16px] font-bold text-zinc-950">
               {loaded.worksheet_name}
@@ -244,7 +284,7 @@ export default function HistoryPage() {
         <AppHeader title="Check history" showBack onBack={handleBackToTabs} />
         {loading && <LoadingOverlay message="Loading entries..." />}
 
-        <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-5 pb-10">
+        <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-10">
           <div className="flex items-center justify-between mb-4">
             <div className="min-w-0 flex-1">
               <h2 className="text-[16px] font-bold text-zinc-950 truncate">
@@ -364,7 +404,7 @@ export default function HistoryPage() {
       <AppHeader title="Check history" showBack />
       {loading && <LoadingOverlay message="Loading sheet..." />}
 
-      <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-32">
+      <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-14 pb-32">
         {/* Hero */}
         <div className="mb-8">
           <h1 className="text-[26px] font-bold text-zinc-950 leading-tight tracking-tight">
@@ -410,6 +450,7 @@ export default function HistoryPage() {
                   setFormInput("");
                   setUrlValid(false);
                   setUrlError("");
+                  setAccessStatus(null);
                 }}
                 ariaLabel="Clear URL"
               />
@@ -422,6 +463,7 @@ export default function HistoryPage() {
                     setFormInput("");
                     setUrlValid(false);
                     setUrlError("");
+                    setAccessStatus(null);
                   }}
                   aria-label="Clear URL"
                   className="w-5 h-5 rounded-full text-gray-400 hover:text-gray-700 flex items-center justify-center"
@@ -449,6 +491,86 @@ export default function HistoryPage() {
           {!urlValid && !urlError && (
             <p className="text-gray-400 text-[13px] mt-1.5">
               Paste any Google Sheets link
+            </p>
+          )}
+          {accessStatus === "checking" && (
+            <p
+              style={{
+                margin: "10px 0 0 0",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontWeight: 400,
+                fontSize: 10,
+                letterSpacing: "0.04em",
+                color: "var(--stone)",
+              }}
+            >
+              <span
+                style={{
+                  width: 10,
+                  height: 10,
+                  border: "1.5px solid var(--rule)",
+                  borderTopColor: "var(--ink)",
+                  borderRadius: "50%",
+                  display: "inline-block",
+                  animation: "spin 0.8s linear infinite",
+                }}
+              />
+              checking permissions…
+            </p>
+          )}
+          {accessStatus === "edit" && (
+            <p
+              style={{
+                margin: "10px 0 0 0",
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontWeight: 500,
+                fontSize: 10,
+                letterSpacing: "0.04em",
+                color: "#047857",
+              }}
+            >
+              ✓ edit access confirmed
+            </p>
+          )}
+          {accessStatus === "read" && (
+            <p
+              style={{
+                margin: "10px 0 0 0",
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontWeight: 400,
+                fontSize: 10,
+                letterSpacing: "0.04em",
+                color: "#b45309",
+              }}
+            >
+              <strong style={{ fontWeight: 500 }}>view only.</strong>{" "}
+              read access confirmed — you can search history.
+            </p>
+          )}
+          {accessStatus === "none" && (
+            <p
+              style={{
+                margin: "10px 0 0 0",
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontWeight: 400,
+                fontSize: 10,
+                letterSpacing: "0.04em",
+                color: "var(--clay)",
+              }}
+            >
+              <strong style={{ fontWeight: 500 }}>no access.</strong>{" "}
+              {serviceAccountEmail ? (
+                <>
+                  share the sheet with{" "}
+                  <strong style={{ fontWeight: 500 }}>{serviceAccountEmail}</strong>{" "}
+                  or sign in with google.
+                </>
+              ) : (
+                <>sign in with google or share the sheet with the app.</>
+              )}
             </p>
           )}
         </div>
@@ -550,23 +672,14 @@ export default function HistoryPage() {
       {/* Sticky CTA */}
       {!availableTabs && (
         <div
-          className="fixed bottom-0 left-0 right-0 max-w-[560px] mx-auto px-5 pt-3 pb-3 bg-white border-t border-zinc-200 shadow-sticky z-40"
-          style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
+          className="fixed bottom-0 left-0 right-0 max-w-[560px] mx-auto z-40"
         >
-          <button
+          <SubmitButton
+            label="Load sheet"
+            submitting={loading}
             onClick={handleLoadSheet}
-            disabled={loading || !formInput.trim()}
-            className="w-full bg-zinc-950 hover:bg-zinc-800 active:bg-black disabled:bg-zinc-200 disabled:text-zinc-500 text-white font-semibold text-[15px] rounded-lg h-[52px] flex items-center justify-center gap-2 transition-all duration-150"
-          >
-            {loading ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span>Loading...</span>
-              </>
-            ) : (
-              <span>Load sheet</span>
-            )}
-          </button>
+            disabled={!formInput.trim() || accessStatus === "none"}
+          />
         </div>
       )}
 

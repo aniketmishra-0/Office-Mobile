@@ -7,9 +7,12 @@ import LoadingOverlay from "@/components/LoadingOverlay";
 import ErrorToast from "@/components/ErrorToast";
 import SuccessScreen from "@/components/SuccessScreen";
 import DynamicForm from "@/components/DynamicForm";
+import type { DynamicFormHandle } from "@/components/DynamicForm";
 import SubmitButton from "@/components/SubmitButton";
-import { submitForm, getPublicForm, getFormSuggestions } from "@/lib/api";
+import { submitForm, getPublicForm, getFormSuggestions, getAiSuggestions } from "@/lib/api";
+import type { AiSuggestionsResponse } from "@/lib/api";
 import type { PublicFormResponse } from "@/types/field";
+import AiAutofillBanner from "@/components/AiAutofillBanner";
 
 export default function FillFormPage() {
   const params = useParams();
@@ -25,6 +28,10 @@ export default function FillFormPage() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resetKey, setResetKey] = useState(0);
+  // AI Auto-Fill state
+  const [aiData, setAiData] = useState<AiSuggestionsResponse | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   // Track whether suggestions have been fetched. We defer this expensive
   // call (up to 10k sheet rows) until the user actually opens autofill.
   const suggestionsRequested = useRef(false);
@@ -35,6 +42,26 @@ export default function FillFormPage() {
       .catch((e) => setError(e.message ?? "Failed to load form"))
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Load AI suggestions as soon as the form is loaded
+  const loadAiSuggestions = useCallback(async () => {
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const res = await getAiSuggestions(id);
+      setAiData(res);
+    } catch (e: any) {
+      setAiError(e?.message ?? "Could not load AI suggestions.");
+    } finally {
+      setAiLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    if (formData) {
+      void loadAiSuggestions();
+    }
+  }, [formData, loadAiSuggestions]);
 
   // Defer loading suggestions until the user actually opens the autofill
   // panel. For forms with thousands of rows this saves a 1–3 second
@@ -81,6 +108,12 @@ export default function FillFormPage() {
     [id],
   );
 
+  // AI Auto-Fill: apply predicted values to the form via a ref callback
+  const formRef = useRef<DynamicFormHandle | null>(null);
+  const handleAiApply = useCallback((values: Record<string, string>) => {
+    formRef.current?.applyValues(values);
+  }, []);
+
   const handleSubmitAnother = useCallback(() => {
     setSubmitted(false);
     setResetKey((k) => k + 1);
@@ -122,8 +155,17 @@ export default function FillFormPage() {
     <div className="flex flex-col min-h-screen bg-zinc-100">
       <AppHeader title={formData!.worksheet_name || formData!.form_title} showBack onBack={() => router.push("/")} />
 
-      <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-6 pb-8 overflow-y-auto">
+      <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-8 overflow-y-auto">
+        <AiAutofillBanner
+          fields={formData!.fields}
+          aiData={aiData}
+          loading={aiLoading}
+          error={aiError}
+          onApply={handleAiApply}
+          onRetry={loadAiSuggestions}
+        />
         <DynamicForm
+          ref={formRef}
           fields={formData!.fields}
           onSubmit={handleSubmit}
           submitting={submitting}

@@ -16,7 +16,8 @@ export type FieldType =
   | "number"
   | "textarea"
   | "url"
-  | "file";
+  | "file"
+  | "checkbox";
 
 // ---------------------------------------------------------------------------
 // Configuration types

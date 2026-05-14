@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import type { FieldSchema } from "@/types/field";
 import FieldRenderer from "./FieldRenderer";
 import AutofillBar from "./AutofillBar";
@@ -18,7 +18,11 @@ interface Props {
   onRetrySuggestions?: () => void;
 }
 
-export default function DynamicForm({
+export interface DynamicFormHandle {
+  applyValues: (values: Record<string, string>) => void;
+}
+
+const DynamicForm = forwardRef<DynamicFormHandle, Props>(function DynamicForm({
   fields,
   onSubmit,
   submitting,
@@ -29,7 +33,7 @@ export default function DynamicForm({
   autofillColumns = [],
   onAutofillOpen,
   onRetrySuggestions,
-}: Props) {
+}, ref) {
   const sortedFields = useMemo(
     () => [...fields].sort((a, b) => a.order - b.order),
     [fields],
@@ -44,6 +48,23 @@ export default function DynamicForm({
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+
+  // Expose applyValues to parent via ref (for AI Auto-Fill)
+  useImperativeHandle(ref, () => ({
+    applyValues: (incoming: Record<string, string>) => {
+      setValues((prev) => {
+        const next = { ...prev };
+        for (const [key, val] of Object.entries(incoming)) {
+          if (key in next) {
+            next[key] = val ?? "";
+          }
+        }
+        return next;
+      });
+      setErrors({});
+      setAutofilled(true);
+    },
+  }));
 
   useEffect(() => {
     setValues(Object.fromEntries(fields.map((f) => [f.key, ""])));
@@ -379,4 +400,6 @@ export default function DynamicForm({
       ))}
     </form>
   );
-}
+});
+
+export default DynamicForm;
