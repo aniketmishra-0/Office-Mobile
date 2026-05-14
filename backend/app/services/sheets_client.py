@@ -821,29 +821,49 @@ def get_protected_columns(
         client = get_client()
         spreadsheet = client.open_by_key(spreadsheet_id)
         worksheet = _select_worksheet(spreadsheet, worksheet_name)
-        worksheet_id = worksheet.id
+        return _get_protected_columns_from_worksheet(spreadsheet, worksheet)
+    
+    except Exception as e:
+        logger.warning("get_protected_columns failed: %s: %s", type(e).__name__, str(e)[:200])
+        return []
 
-        # Use gspread's built-in method to list protected ranges for this sheet
+
+# Cache for protected columns — they rarely change (sheet owner action only).
+_PROTECTED_COLS_CACHE_TTL_SECONDS = 300
+_PROTECTED_COLS_CACHE: dict[tuple[str, str], tuple[float, list[int]]] = {}
+
+
+def _get_protected_columns_from_worksheet(spreadsheet: Any, worksheet: Any) -> list[int]:
+    """Extract protected column indices from an already-opened worksheet.
+    Uses a 5-minute cache to avoid repeated API calls."""
+    spreadsheet_id = spreadsheet.id
+    worksheet_name = worksheet.title
+    cache_key = (spreadsheet_id, worksheet_name)
+
+    cached = _PROTECTED_COLS_CACHE.get(cache_key)
+    if cached is not None:
+        ts, cols = cached
+        if time.time() - ts < _PROTECTED_COLS_CACHE_TTL_SECONDS:
+            return cols
+
+    try:
+        worksheet_id = worksheet.id
         protected_ranges = spreadsheet.list_protected_ranges(worksheet_id)
         
         protected_cols: set[int] = set()
         
         for pr in protected_ranges:
-            # Skip if it's a warning-only protection (anyone can edit)
             if pr.get("warningOnly", False):
                 continue
             
             range_info = pr.get("range", {})
-            # Only consider protections on this sheet
             if range_info.get("sheetId") != worksheet_id:
                 continue
             
             start_col = range_info.get("startColumnIndex", 0)
-            # endColumnIndex is exclusive; if not set, means all columns from start
             end_col = range_info.get("endColumnIndex")
             
             if end_col is None:
-                # Protection extends to all columns from start — use sheet's col count
                 sheet_col_count = worksheet.col_count
                 for c in range(start_col, sheet_col_count):
                     protected_cols.add(c)
@@ -851,10 +871,12 @@ def get_protected_columns(
                 for c in range(start_col, end_col):
                     protected_cols.add(c)
         
-        return sorted(protected_cols)
+        result = sorted(protected_cols)
+        _PROTECTED_COLS_CACHE[cache_key] = (time.time(), result)
+        return result
     
     except Exception as e:
-        logger.warning("get_protected_columns failed: %s: %s", type(e).__name__, str(e)[:200])
+        logger.warning("_get_protected_columns_from_worksheet failed: %s: %s", type(e).__name__, str(e)[:200])
         return []
 
 
@@ -865,6 +887,8 @@ def update_sheet_row(
     row_index: int,
     fields: list[FieldSchema],
     values: dict[str, Any],
+    known_headers: list[str] | None = None,
+    known_protected_cols: list[int] | None = None,
 ) -> str | None:
     """
     Update an existing row in the Google Sheet at the given row_index
@@ -872,6 +896,9 @@ def update_sheet_row(
 
     Automatically detects protected columns and skips them, updating only
     the cells the user has permission to edit.
+
+    Accepts optional known_headers and known_protected_cols to avoid redundant
+    API calls when the caller has already fetched this data.
 
     Returns the updated range string, or None if no credentials.
     """
@@ -885,7 +912,26 @@ def update_sheet_row(
     spreadsheet = client.open_by_key(spreadsheet_id)
     worksheet = _select_worksheet(spreadsheet, worksheet_name)
 
-    live_headers = _read_live_headers(worksheet, spreadsheet_id, worksheet_name)
+    # Use pre-fetched headers if provided, otherwise read from cache/API.
+    if known_headers is not None:
+        live_headers = known_headers
+        # Also store them in cache for future use
+        _store_cached_headers(spreadsheet_id, worksheet_name, live_headers)
+    else:
+        cached_headers = _get_cached_headers(spreadsheet_id, worksheet_name)
+        if cached_headers is not None:
+            live_headers = cached_headers
+        else:
+            live_headers = _read_live_headers(worksheet, spreadsheet_id, worksheet_name)
+
+    logger.info(
+        "sheets.update.headers spreadsheet=%s live_headers=%s field_keys=%s value_keys=%s",
+        spreadsheet_id,
+        live_headers[:10],
+        [f.key for f in fields][:10],
+        list(values.keys())[:10],
+    )
+
     row_values = _build_row_from_headers(live_headers, fields, values)
 
     # Trim trailing empty cells
@@ -893,6 +939,10 @@ def update_sheet_row(
         row_values.pop()
 
     if not row_values:
+        logger.warning(
+            "sheets.update.empty_row spreadsheet=%s row_index=%d — all values mapped to empty",
+            spreadsheet_id, row_index,
+        )
         return None
 
     # Ensure we don't write beyond the sheet's actual column count.
@@ -919,12 +969,14 @@ def update_sheet_row(
                 f"and could not be expanded: {expand_exc}"
             ) from expand_exc
 
-    # Get protected columns and skip them
-    protected_cols = get_protected_columns(
-        spreadsheet_id=spreadsheet_id,
-        worksheet_name=worksheet_name,
-    )
-    protected_col_set = set(protected_cols)
+    # Get protected columns using the already-opened spreadsheet/worksheet
+    # (avoids a second open_by_key + worksheet lookup round-trip).
+    # Use pre-fetched data if the caller already has it.
+    if known_protected_cols is not None:
+        protected_col_set = set(known_protected_cols)
+    else:
+        protected_cols = _get_protected_columns_from_worksheet(spreadsheet, worksheet)
+        protected_col_set = set(protected_cols)
 
     # If there are protected columns, update only unprotected cells individually
     if protected_col_set:
@@ -1110,7 +1162,7 @@ def map_sheet_exception(exc: Exception) -> tuple[int, str]:
             # Provide a more actionable message when possible
             if "exceeds" in detail.lower() or "range" in detail.lower() or "grid" in detail.lower():
                 return 400, f"The update range exceeds the sheet dimensions. The row may not exist in the sheet. Detail: {detail}"
-            return 400, f"The sheet structure changed or the request was invalid. Detail: {detail}"
+            return 400, f"The sheet structure changed or the request was invalid. Try refreshing the page to reload the latest data. Detail: {detail}"
         if status_code == 403:
             # The message differs depending on which auth path is in use.
             # OAuth users can't "share with a service account" — that advice

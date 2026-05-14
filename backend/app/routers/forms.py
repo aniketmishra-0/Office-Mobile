@@ -411,13 +411,24 @@ async def update_sheet_row_endpoint(
     # live headers that update_sheet_row will read internally. The public
     # gviz endpoint can return different column labels than the actual row 1
     # values, causing field.source_header mismatches and wrong column mapping.
-    from app.services.sheets_client import read_headers_authenticated, _has_credentials as has_creds
+    # 
+    # Optimization: check the headers cache first to avoid an extra API call.
+    # The cache is populated by previous reads (history, preview, etc.).
+    from app.services.sheets_client import (
+        read_headers_authenticated,
+        _has_credentials as has_creds,
+        _get_cached_headers,
+    )
 
     # Capture session key before entering thread (ContextVars don't propagate)
     _session_key = get_current_oauth_session_key()
 
     def _read_headers():
         with oauth_session_context(_session_key):
+            # Try cache first — avoids an API round-trip
+            cached = _get_cached_headers(spreadsheet_id, worksheet_name)
+            if cached:
+                return None, worksheet_name or "Sheet1", cached
             if has_creds():
                 return read_headers_authenticated(spreadsheet_id, worksheet_name)
             else:
@@ -445,7 +456,17 @@ async def update_sheet_row_endpoint(
     # Build a lookup from incoming value keys for flexible matching
     incoming_keys_lower: dict[str, str] = {k.lower(): k for k in values}
     
+    # Also build a lookup by source_header label for maximum flexibility.
+    # The frontend may have loaded data with keys generated from slightly
+    # different header text (e.g., trailing spaces, encoding differences).
+    incoming_by_label: dict[str, str] = {}
+    for k in values:
+        # Reverse the key generation: underscores → spaces, then lowercase
+        label_guess = k.replace("_", " ").strip().lower()
+        incoming_by_label[label_guess] = k
+    
     complete_values = {}
+    unmatched_fields = []
     for field in fields:
         # Try exact match first
         raw_val = values.get(field.key)
@@ -456,9 +477,17 @@ async def update_sheet_row_endpoint(
             if original_key is not None:
                 raw_val = values[original_key]
         
+        # Try matching by label (source_header cleaned)
+        if raw_val is None:
+            field_label_lower = field.label.strip().lower()
+            original_key = incoming_by_label.get(field_label_lower)
+            if original_key is not None:
+                raw_val = values[original_key]
+        
         # Default to empty string if no match found
         if raw_val is None:
             raw_val = ""
+            unmatched_fields.append(field.key)
             
         # Ensure the value is always a string for consistency
         if isinstance(raw_val, bool):
@@ -468,6 +497,14 @@ async def update_sheet_row_endpoint(
         else:
             raw_val = str(raw_val)
         complete_values[field.key] = raw_val
+
+    if unmatched_fields:
+        logger.warning(
+            "sheet.row.update unmatched_fields=%s incoming_keys=%s field_keys=%s",
+            unmatched_fields[:10],
+            list(values.keys())[:10],
+            [f.key for f in fields][:10],
+        )
 
     logger.info(
         "sheet.row.update spreadsheet=%s worksheet=%s row=%d num_fields=%d values_keys=%s",
@@ -488,6 +525,7 @@ async def update_sheet_row_endpoint(
                     row_index=row_index,
                     fields=fields,
                     values=complete_values,
+                    known_headers=headers,
                 )
 
         updated_range = await asyncio.to_thread(_do_update)

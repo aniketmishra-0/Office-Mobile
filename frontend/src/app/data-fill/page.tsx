@@ -318,7 +318,52 @@ function DataFillPageInner() {
       setEditMode(false);
       setSuccessMsg("Row updated successfully!");
       setTimeout(() => setSuccessMsg(null), 3000);
-    } catch (e: any) { setError(typeof e?.message === "string" ? e.message : typeof e === "string" ? e : "Failed to update row"); }
+    } catch (e: any) {
+      const msg = typeof e?.message === "string" ? e.message : typeof e === "string" ? e : "Failed to update row";
+      // If the error is a structure/key mismatch, reload fresh headers and
+      // remap the edit values to the new field keys, then retry once.
+      if (msg.toLowerCase().includes("structure changed") || msg.toLowerCase().includes("invalid")) {
+        try {
+          const freshData = await getSheetHistory(sheetUrl, loaded.worksheet_name);
+          // Remap editValues: match old values to new field keys by label (case-insensitive)
+          const oldFieldsByKey = Object.fromEntries(loaded.fields.map((f) => [f.key, f]));
+          const remapped: Record<string, string> = {};
+          for (const newField of freshData.fields) {
+            // Try to find the matching old field by label
+            const oldField = loaded.fields.find(
+              (of) => of.label.toLowerCase().trim() === newField.label.toLowerCase().trim()
+            );
+            if (oldField && editValues[oldField.key] !== undefined) {
+              remapped[newField.key] = editValues[oldField.key];
+            } else if (editValues[newField.key] !== undefined) {
+              remapped[newField.key] = editValues[newField.key];
+            } else {
+              remapped[newField.key] = "";
+            }
+          }
+          // Retry with remapped values
+          await updateSheetRow({
+            sheet_url: sheetUrl, worksheet_name: freshData.worksheet_name,
+            row_index: rowIndex, values: remapped,
+          });
+          // Update local state with fresh field structure
+          const updatedRows = [...freshData.rows];
+          const matchingRow = updatedRows.find((r) => r._row_index === String(rowIndex));
+          if (matchingRow) {
+            Object.assign(matchingRow, remapped, { _row_index: String(rowIndex) });
+          }
+          setLoaded({ worksheet_name: freshData.worksheet_name, fields: freshData.fields, rows: updatedRows });
+          setEditValues(remapped);
+          setEditMode(false);
+          setSuccessMsg("Row updated successfully (headers refreshed)!");
+          setTimeout(() => setSuccessMsg(null), 3000);
+        } catch (retryErr: any) {
+          setError(typeof retryErr?.message === "string" ? retryErr.message : "Failed to update row after retry");
+        }
+      } else {
+        setError(msg);
+      }
+    }
     finally { setSaving(false); }
   }
 
