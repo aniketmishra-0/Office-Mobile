@@ -648,6 +648,13 @@ async def get_public_form(form_id: str) -> PublicFormResponse:
     )
 
 
+@router.delete("/forms")
+async def delete_all_forms_endpoint() -> dict:
+    """Delete ALL saved forms and their submissions."""
+    count = await asyncio.to_thread(form_store.delete_all_forms)
+    return {"success": True, "deleted_count": count}
+
+
 @router.delete("/forms/{form_id}")
 async def delete_form_endpoint(form_id: str, payload: dict | None = Body(None)) -> dict:
     """Delete a saved form and its submissions."""

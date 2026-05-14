@@ -413,6 +413,14 @@ export async function deleteForm(id: string, token?: string): Promise<{ success:
 }
 
 /**
+ * DELETE /api/forms
+ * Remove ALL saved forms and their submissions.
+ */
+export async function deleteAllForms(): Promise<{ success: boolean; deleted_count: number }> {
+  return jsonRequest<{ success: boolean; deleted_count: number }>("DELETE", `/forms`, {});
+}
+
+/**
  * POST /api/forms/:id/unauthorize
  * Revoke authorization or unlink a form from the current session (server-side behavior may vary).
  */

@@ -22,6 +22,7 @@ import {
   listFormLibrary,
   listWorksheets,
   deleteForm,
+  deleteAllForms,
 } from "@/lib/api";
 import type {
   FieldSchema,
@@ -54,8 +55,10 @@ export default function Dashboard() {
   const [libraryLoading, setLibraryLoading] = useState(true);
   const [libraryQuery, setLibraryQuery] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<FormLibraryItem | null>(null);
+  const [clearAllConfirm, setClearAllConfirm] = useState(false);
 
   // Pagination state for large libraries
+
   const [pageSize] = useState(12);
   const [page, setPage] = useState(1);
 
@@ -99,7 +102,6 @@ export default function Dashboard() {
     if (!deleteTarget) return;
     const item = deleteTarget;
     setDeleteTarget(null);
-    // Optimistic removal — put it back if the server rejects.
     const snapshot = libraryItems;
     setLibraryItems((prev) => prev.filter((i) => i.id !== item.id));
     try {
@@ -109,6 +111,19 @@ export default function Dashboard() {
       setError(e?.message ?? "Could not delete this form.");
     }
   }
+
+  async function confirmClearAll() {
+    setClearAllConfirm(false);
+    const snapshot = libraryItems;
+    setLibraryItems([]);
+    try {
+      await deleteAllForms();
+    } catch (e: any) {
+      setLibraryItems(snapshot);
+      setError(e?.message ?? "Could not clear all forms.");
+    }
+  }
+
 
   // Persist step to sessionStorage so back navigation restores it
   useEffect(() => {
@@ -945,12 +960,144 @@ export default function Dashboard() {
                   show more →
                 </button>
               )}
+
+              <button
+                type="button"
+                onClick={() => setClearAllConfirm(true)}
+                style={{
+                  marginTop: 20,
+                  background: "transparent",
+                  border: "1px solid var(--rule)",
+                  padding: "10px 16px",
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  fontWeight: 500,
+                  fontSize: 11,
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  color: "var(--stone)",
+                  cursor: "pointer",
+                  width: "100%",
+                  transition: "color 150ms ease, border-color 150ms ease",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.color = "#b91c1c";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "#b91c1c";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.color = "var(--stone)";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--rule)";
+                }}
+              >
+                clear all
+              </button>
             </section>
           )}
 
           <ErrorToast message={error} onDismiss={() => setError(null)} />
 
-          {/* Delete confirmation modal */}
+          {/* Clear All confirmation modal */}
+          {clearAllConfirm && (
+            <div
+              style={{
+                position: "fixed",
+                inset: 0,
+                zIndex: 9999,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 24,
+              }}
+            >
+              <div
+                onClick={() => setClearAllConfirm(false)}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  background: "rgba(26,23,20,0.25)",
+                }}
+              />
+              <div
+                style={{
+                  position: "relative",
+                  width: "100%",
+                  maxWidth: 300,
+                  background: "var(--cream)",
+                  borderRadius: 4,
+                  border: "1px solid var(--rule)",
+                  padding: "28px 24px 22px",
+                }}
+              >
+                <div style={{ textAlign: "center", marginBottom: 20 }}>
+                  <h3
+                    style={{
+                      fontFamily: "var(--font-newsreader), Georgia, serif",
+                      fontWeight: 500,
+                      fontSize: 17,
+                      color: "var(--ink)",
+                      margin: "0 0 8px 0",
+                    }}
+                  >
+                    Clear all forms?
+                  </h3>
+                  <p
+                    style={{
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontWeight: 300,
+                      fontSize: 11,
+                      lineHeight: 1.5,
+                      letterSpacing: "0.02em",
+                      color: "var(--stone)",
+                      margin: 0,
+                    }}
+                  >
+                    All saved forms and their submissions will be permanently removed. This cannot be undone.
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setClearAllConfirm(false)}
+                    style={{
+                      flex: 1,
+                      padding: "10px 14px",
+                      borderRadius: 4,
+                      border: "1px solid var(--rule)",
+                      background: "var(--cream)",
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontWeight: 500,
+                      fontSize: 12,
+                      letterSpacing: "0.04em",
+                      color: "var(--ink)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmClearAll}
+                    style={{
+                      flex: 1,
+                      padding: "10px 14px",
+                      borderRadius: 4,
+                      border: 0,
+                      background: "var(--error)",
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontWeight: 500,
+                      fontSize: 12,
+                      letterSpacing: "0.04em",
+                      color: "#fff",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Clear All
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Single item delete confirmation modal */}
           {deleteTarget && (
             <div
               style={{

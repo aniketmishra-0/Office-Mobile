@@ -597,11 +597,13 @@ button:active:not(:disabled) {
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 0 !important;
     border-top: 0 !important;
+    overflow: hidden !important;
   }
   .desktop-library-grid > div {
     border-bottom: 1px solid var(--rule) !important;
     border-right: 1px solid var(--rule) !important;
     padding: 14px 12px !important;
+    overflow: hidden !important;
   }
   .desktop-library-grid > div:nth-child(2n) {
     border-right: 0 !important;

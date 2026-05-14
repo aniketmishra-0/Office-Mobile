@@ -268,6 +268,17 @@ def delete_form(form_id: str) -> bool:
             return cur.rowcount > 0
 
 
+def delete_all_forms() -> int:
+    """
+    Delete ALL forms and their submissions.
+    Returns the number of forms deleted.
+    """
+    with connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM forms")
+            return cur.rowcount
+
+
 def unset_oauth_key(form_id: str) -> bool:
     with connection() as conn:
         with conn.cursor() as cur:
