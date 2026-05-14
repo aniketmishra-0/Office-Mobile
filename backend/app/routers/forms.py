@@ -291,15 +291,19 @@ async def get_sheet_history(
     # can return different column labels than the actual row 1 values, causing
     # field key mismatches between load and save operations.
     from app.services.sheets_client import read_headers_authenticated, _has_credentials as has_creds
+
+    # Capture session key before entering thread (ContextVars don't propagate)
+    _history_session_key = get_current_oauth_session_key()
+
+    def _read_history_headers():
+        with oauth_session_context(_history_session_key):
+            if has_creds():
+                return read_headers_authenticated(spreadsheet_id, worksheet_name)
+            else:
+                return read_headers(spreadsheet_id, worksheet_name)
+
     try:
-        if has_creds():
-            spreadsheet_title, actual_worksheet, headers = await asyncio.to_thread(
-                read_headers_authenticated, spreadsheet_id, worksheet_name
-            )
-        else:
-            spreadsheet_title, actual_worksheet, headers = await asyncio.to_thread(
-                read_headers, spreadsheet_id, worksheet_name
-            )
+        spreadsheet_title, actual_worksheet, headers = await asyncio.to_thread(_read_history_headers)
     except Exception as exc:
         raise _sheet_error(exc) from exc
 
@@ -312,15 +316,16 @@ async def get_sheet_history(
         }
 
     try:
-        rows = await asyncio.to_thread(
-            partial(
-                read_sheet_rows,
-                spreadsheet_id=spreadsheet_id,
-                worksheet_name=actual_worksheet,
-                fields=fields,
-                max_rows=limit,
-            )
-        )
+        def _read_rows():
+            with oauth_session_context(_history_session_key):
+                return read_sheet_rows(
+                    spreadsheet_id=spreadsheet_id,
+                    worksheet_name=actual_worksheet,
+                    fields=fields,
+                    max_rows=limit,
+                )
+
+        rows = await asyncio.to_thread(_read_rows)
     except Exception as exc:
         logger.warning(f"Failed to read rows for history: {exc}")
         rows = []
@@ -354,15 +359,19 @@ async def update_sheet_row_endpoint(
     # gviz endpoint can return different column labels than the actual row 1
     # values, causing field.source_header mismatches and wrong column mapping.
     from app.services.sheets_client import read_headers_authenticated, _has_credentials as has_creds
+
+    # Capture session key before entering thread (ContextVars don't propagate)
+    _session_key = get_current_oauth_session_key()
+
+    def _read_headers():
+        with oauth_session_context(_session_key):
+            if has_creds():
+                return read_headers_authenticated(spreadsheet_id, worksheet_name)
+            else:
+                return read_headers(spreadsheet_id, worksheet_name)
+
     try:
-        if has_creds():
-            spreadsheet_title, actual_worksheet, headers = await asyncio.to_thread(
-                read_headers_authenticated, spreadsheet_id, worksheet_name
-            )
-        else:
-            spreadsheet_title, actual_worksheet, headers = await asyncio.to_thread(
-                read_headers, spreadsheet_id, worksheet_name
-            )
+        spreadsheet_title, actual_worksheet, headers = await asyncio.to_thread(_read_headers)
     except Exception as exc:
         raise _sheet_error(exc) from exc
 
@@ -414,16 +423,21 @@ async def update_sheet_row_endpoint(
     )
 
     try:
-        updated_range = await asyncio.to_thread(
-            partial(
-                update_sheet_row,
-                spreadsheet_id=spreadsheet_id,
-                worksheet_name=actual_worksheet,
-                row_index=row_index,
-                fields=fields,
-                values=complete_values,
-            )
-        )
+        # Capture the current session key before entering the thread,
+        # since ContextVars don't propagate to asyncio.to_thread automatically.
+        current_session_key = get_current_oauth_session_key()
+
+        def _do_update():
+            with oauth_session_context(current_session_key):
+                return update_sheet_row(
+                    spreadsheet_id=spreadsheet_id,
+                    worksheet_name=actual_worksheet,
+                    row_index=row_index,
+                    fields=fields,
+                    values=complete_values,
+                )
+
+        updated_range = await asyncio.to_thread(_do_update)
     except ValueError as exc:
         logger.error(
             "sheet.row.update VALIDATION_ERROR spreadsheet=%s row=%d exc=%s",
