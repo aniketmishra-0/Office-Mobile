@@ -1054,6 +1054,30 @@ def update_sheet_row(
                         "data": batch_data,
                     }
                 )
+            elif (status == 400 or status == 403) and "protected" in resp_body.lower():
+                # Some cells in the batch are still protected (detection missed them).
+                # Fall back to per-cell updates, skipping failures.
+                logger.info(
+                    "sheets.update.batch_protected_retry row_index=%d — retrying per-cell",
+                    row_index,
+                )
+                updated_any = False
+                for cell_data in batch_data:
+                    try:
+                        spreadsheet.values_batch_update(
+                            body={
+                                "valueInputOption": "USER_ENTERED",
+                                "data": [cell_data],
+                            }
+                        )
+                        updated_any = True
+                    except APIError as cell_exc:
+                        cell_status = getattr(getattr(cell_exc, "response", None), "status_code", None)
+                        if cell_status in (400, 403):
+                            continue
+                        raise
+                if not updated_any:
+                    raise
             else:
                 logger.error(
                     "sheets.update.batch FAILED row_index=%d status=%s body=%s exc=%s",
@@ -1087,7 +1111,7 @@ def update_sheet_row(
             if status == 429:
                 time.sleep(2)
                 worksheet.update(cell_range, [row_values], value_input_option="USER_ENTERED")
-            elif status == 403 and "protected" in resp_body.lower():
+            elif (status == 403 or status == 400) and "protected" in resp_body.lower():
                 # Protected cell error — retry with per-cell approach
                 logger.info(
                     "sheets.update.protected_retry row_index=%d — retrying with per-cell updates",
@@ -1105,7 +1129,7 @@ def update_sheet_row(
                         updated_any = True
                     except APIError as cell_exc:
                         cell_status = getattr(getattr(cell_exc, "response", None), "status_code", None)
-                        if cell_status == 403:
+                        if cell_status in (400, 403):
                             # This cell is protected, skip it
                             logger.debug("sheets.update.cell_protected col=%s row=%d", col_letter, row_index)
                             continue

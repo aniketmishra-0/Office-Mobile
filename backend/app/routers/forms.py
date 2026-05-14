@@ -383,6 +383,22 @@ async def get_sheet_history(
         logger.warning(f"Failed to read rows for history: {exc}")
         rows = []
 
+    # Value-based checkbox detection: if a field is currently typed as "text"
+    # or another non-checkbox type but all its non-empty values are exclusively
+    # TRUE/FALSE, promote it to "checkbox" so the frontend renders a toggle
+    # instead of a text input.
+    if rows:
+        for field in fields:
+            if field.type == "checkbox":
+                continue
+            values = [
+                (row.get(field.key) or "").strip().upper()
+                for row in rows
+                if (row.get(field.key) or "").strip()
+            ]
+            if values and all(v in ("TRUE", "FALSE") for v in values):
+                field.type = "checkbox"
+
     return {
         "worksheet_name": actual_worksheet,
         "fields": [f.model_dump() for f in fields],
