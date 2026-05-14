@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 
@@ -137,20 +138,26 @@ async def upload_file(file: UploadFile = File(...)):
     media = MediaIoBaseUpload(file.file, mimetype=content_type, resumable=True)
 
     try:
-        uploaded_file = (
-            service.files()
-            .create(body=file_metadata, media_body=media, fields="id, webViewLink")
-            .execute()
-        )
-        file_id = uploaded_file.get("id")
+        def _do_upload():
+            uploaded_file = (
+                service.files()
+                .create(body=file_metadata, media_body=media, fields="id, webViewLink")
+                .execute()
+            )
+            file_id = uploaded_file.get("id")
 
-        # Make the file publicly viewable via link.
-        service.permissions().create(
-            fileId=file_id,
-            body={"type": "anyone", "role": "reader"},
-        ).execute()
+            # Make the file publicly viewable via link.
+            service.permissions().create(
+                fileId=file_id,
+                body={"type": "anyone", "role": "reader"},
+            ).execute()
 
+            return uploaded_file
+
+        uploaded_file = await asyncio.to_thread(_do_upload)
         return {"success": True, "url": uploaded_file.get("webViewLink")}
+    except HTTPException:
+        raise
     except Exception as exc:
         # Log the real exception for ops, but don't leak Google API internals.
         logger.exception("drive.upload_failed")
