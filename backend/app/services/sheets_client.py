@@ -739,13 +739,15 @@ def read_sheet_rows(
             field_col_map[field.key] = col_idx
 
         # Read data rows (skip header row).
-        # Use min(max_rows, worksheet.row_count) to cap at actual sheet size.
-        actual_max = min(max_rows, max(worksheet.row_count - 1, 1))
+        # Read ALL rows from the sheet — no artificial cap.
+        total_rows = max(worksheet.row_count - 1, 0)
+        if total_rows == 0:
+            return []
         end_col = _col_index_to_letter(max(field_col_map.values()))
-        data_range = f"A2:{end_col}{actual_max + 1}"
+        data_range = f"A2:{end_col}{total_rows + 1}"
 
         logger.info(
-            f"Reading up to {actual_max} rows from {worksheet.title}!{data_range}"
+            f"Reading all {total_rows} rows from {worksheet.title}!{data_range}"
         )
         all_data = worksheet.get(data_range)
 
@@ -839,20 +841,49 @@ def update_sheet_row(
         if not row_values:
             return None
 
+    # Ensure the target row exists within the sheet's grid.
+    # Google Sheets returns 400 if row_index exceeds the current row count.
+    sheet_row_count = worksheet.row_count
+    if row_index > sheet_row_count:
+        # Expand the sheet to accommodate the target row
+        try:
+            worksheet.add_rows(row_index - sheet_row_count)
+        except Exception as expand_exc:
+            logger.warning(
+                "sheets.update.expand_rows failed row_index=%d sheet_rows=%d exc=%s",
+                row_index, sheet_row_count, str(expand_exc)[:200],
+            )
+            raise ValueError(
+                f"Row {row_index} is beyond the sheet's current size ({sheet_row_count} rows) "
+                f"and could not be expanded: {expand_exc}"
+            ) from expand_exc
+
     end_col = _col_index_to_letter(len(row_values) - 1)
     cell_range = f"A{row_index}:{end_col}{row_index}"
+
+    logger.info(
+        "sheets.update.attempt range=%s row_index=%d num_values=%d sheet_rows=%d sheet_cols=%d",
+        cell_range, row_index, len(row_values), sheet_row_count, sheet_col_count,
+    )
 
     try:
         worksheet.update(cell_range, [row_values], value_input_option="USER_ENTERED")
     except APIError as exc:
         status = getattr(getattr(exc, "response", None), "status_code", None)
+        resp_body = ""
+        try:
+            resp = getattr(exc, "response", None)
+            if resp is not None:
+                resp_body = (getattr(resp, "text", None) or "")[:500]
+        except Exception:
+            pass
         if status == 429:
             time.sleep(2)
             worksheet.update(cell_range, [row_values], value_input_option="USER_ENTERED")
         else:
-            logger.warning(
-                "sheets.update failed range=%s row_index=%d num_values=%d status=%s exc=%s",
-                cell_range, row_index, len(row_values), status, str(exc)[:300],
+            logger.error(
+                "sheets.update FAILED range=%s row_index=%d num_values=%d status=%s body=%s exc=%s",
+                cell_range, row_index, len(row_values), status, resp_body, str(exc)[:300],
             )
             raise
 
@@ -912,7 +943,11 @@ def map_sheet_exception(exc: Exception) -> tuple[int, str]:
             response_body,
         )
         if status_code == 400:
-            return 400, "The sheet structure changed or the request was invalid."
+            detail = response_body[:300] if response_body else str(exc)[:300]
+            # Provide a more actionable message when possible
+            if "exceeds" in detail.lower() or "range" in detail.lower() or "grid" in detail.lower():
+                return 400, f"The update range exceeds the sheet dimensions. The row may not exist in the sheet. Detail: {detail}"
+            return 400, f"The sheet structure changed or the request was invalid. Detail: {detail}"
         if status_code == 403:
             # The message differs depending on which auth path is in use.
             # OAuth users can't "share with a service account" — that advice

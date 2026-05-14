@@ -275,7 +275,7 @@ async def create_form(payload: CreateFormRequest) -> CreateFormResponse:
 async def get_sheet_history(
     sheet_url: str,
     worksheet_name: str | None = None,
-    limit: int = Query(100000, ge=1, le=200000),
+    limit: int = Query(1000000, ge=1, le=2000000),
 ) -> dict:
     """
     Read history directly from any worksheet tab of a Google Sheet,
@@ -407,6 +407,12 @@ async def update_sheet_row_endpoint(
             raw_val = str(raw_val)
         complete_values[field.key] = raw_val
 
+    logger.info(
+        "sheet.row.update spreadsheet=%s worksheet=%s row=%d num_fields=%d values_keys=%s",
+        spreadsheet_id, actual_worksheet, row_index, len(fields),
+        list(complete_values.keys()),
+    )
+
     try:
         updated_range = await asyncio.to_thread(
             partial(
@@ -418,7 +424,17 @@ async def update_sheet_row_endpoint(
                 values=complete_values,
             )
         )
+    except ValueError as exc:
+        logger.error(
+            "sheet.row.update VALIDATION_ERROR spreadsheet=%s row=%d exc=%s",
+            spreadsheet_id, row_index, str(exc)[:500],
+        )
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
+        logger.error(
+            "sheet.row.update FAILED spreadsheet=%s row=%d exc=%s",
+            spreadsheet_id, row_index, str(exc)[:500],
+        )
         raise _sheet_error(exc) from exc
 
     return {
@@ -633,7 +649,7 @@ async def get_ai_suggestions(form_id: str) -> dict:
 
 
 @router.get("/forms/{form_id}/suggestions")
-async def get_form_suggestions(form_id: str, limit: int = Query(100000, ge=1, le=200000)) -> dict:
+async def get_form_suggestions(form_id: str, limit: int = Query(1000000, ge=1, le=2000000)) -> dict:
     """
     Read existing rows from the backing Google Sheet and return them
     as autofill suggestions.

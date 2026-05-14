@@ -282,7 +282,7 @@ export async function submitForm(
  */
 export async function getFormSuggestions(
   id: string,
-  limit = 100000,
+  limit = 1000000,
 ): Promise<{ rows: Record<string, string>[] }> {
   return jsonGet<{ rows: Record<string, string>[] }>(
     `/forms/${encodeURIComponent(id)}/suggestions?limit=${limit}`,
@@ -341,7 +341,7 @@ export async function lookupFormsBySheet(
 export async function getSheetHistory(
   sheetUrl: string,
   worksheetName: string | null,
-  limit = 100000,
+  limit = 1000000,
 ): Promise<{
   worksheet_name: string;
   fields: FieldSchema[];
