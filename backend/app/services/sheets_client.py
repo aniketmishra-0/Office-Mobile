@@ -796,6 +796,68 @@ def read_sheet_rows(
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Protected ranges detection
+# ---------------------------------------------------------------------------
+
+
+def get_protected_columns(
+    *,
+    spreadsheet_id: str,
+    worksheet_name: str | None,
+) -> list[int]:
+    """
+    Return a list of 0-based column indices that are protected in the given
+    worksheet. Uses gspread's list_protected_ranges to read protection metadata.
+    
+    Protected columns are those where the entire column or specific cells
+    are locked by the sheet owner. Returns empty list if no credentials or
+    on error.
+    """
+    if not _has_credentials():
+        return []
+
+    try:
+        client = get_client()
+        spreadsheet = client.open_by_key(spreadsheet_id)
+        worksheet = _select_worksheet(spreadsheet, worksheet_name)
+        worksheet_id = worksheet.id
+
+        # Use gspread's built-in method to list protected ranges for this sheet
+        protected_ranges = spreadsheet.list_protected_ranges(worksheet_id)
+        
+        protected_cols: set[int] = set()
+        
+        for pr in protected_ranges:
+            # Skip if it's a warning-only protection (anyone can edit)
+            if pr.get("warningOnly", False):
+                continue
+            
+            range_info = pr.get("range", {})
+            # Only consider protections on this sheet
+            if range_info.get("sheetId") != worksheet_id:
+                continue
+            
+            start_col = range_info.get("startColumnIndex", 0)
+            # endColumnIndex is exclusive; if not set, means all columns from start
+            end_col = range_info.get("endColumnIndex")
+            
+            if end_col is None:
+                # Protection extends to all columns from start — use sheet's col count
+                sheet_col_count = worksheet.col_count
+                for c in range(start_col, sheet_col_count):
+                    protected_cols.add(c)
+            else:
+                for c in range(start_col, end_col):
+                    protected_cols.add(c)
+        
+        return sorted(protected_cols)
+    
+    except Exception as e:
+        logger.warning("get_protected_columns failed: %s: %s", type(e).__name__, str(e)[:200])
+        return []
+
+
 def update_sheet_row(
     *,
     spreadsheet_id: str,
@@ -807,6 +869,9 @@ def update_sheet_row(
     """
     Update an existing row in the Google Sheet at the given row_index
     (1-based, where row 1 is the header). So the first data row is row_index=2.
+
+    Automatically detects protected columns and skips them, updating only
+    the cells the user has permission to edit.
 
     Returns the updated range string, or None if no credentials.
     """
@@ -831,21 +896,17 @@ def update_sheet_row(
         return None
 
     # Ensure we don't write beyond the sheet's actual column count.
-    # Google Sheets returns 400 if the range exceeds the grid dimensions.
     sheet_col_count = worksheet.col_count
     if len(row_values) > sheet_col_count:
         row_values = row_values[:sheet_col_count]
-        # Re-trim trailing empty cells after truncation
         while row_values and row_values[-1] == "":
             row_values.pop()
         if not row_values:
             return None
 
     # Ensure the target row exists within the sheet's grid.
-    # Google Sheets returns 400 if row_index exceeds the current row count.
     sheet_row_count = worksheet.row_count
     if row_index > sheet_row_count:
-        # Expand the sheet to accommodate the target row
         try:
             worksheet.add_rows(row_index - sheet_row_count)
         except Exception as expand_exc:
@@ -858,36 +919,131 @@ def update_sheet_row(
                 f"and could not be expanded: {expand_exc}"
             ) from expand_exc
 
-    end_col = _col_index_to_letter(len(row_values) - 1)
-    cell_range = f"A{row_index}:{end_col}{row_index}"
-
-    logger.info(
-        "sheets.update.attempt range=%s row_index=%d num_values=%d sheet_rows=%d sheet_cols=%d",
-        cell_range, row_index, len(row_values), sheet_row_count, sheet_col_count,
+    # Get protected columns and skip them
+    protected_cols = get_protected_columns(
+        spreadsheet_id=spreadsheet_id,
+        worksheet_name=worksheet_name,
     )
+    protected_col_set = set(protected_cols)
 
-    try:
-        worksheet.update(cell_range, [row_values], value_input_option="USER_ENTERED")
-    except APIError as exc:
-        status = getattr(getattr(exc, "response", None), "status_code", None)
-        resp_body = ""
-        try:
-            resp = getattr(exc, "response", None)
-            if resp is not None:
-                resp_body = (getattr(resp, "text", None) or "")[:500]
-        except Exception:
-            pass
-        if status == 429:
-            time.sleep(2)
-            worksheet.update(cell_range, [row_values], value_input_option="USER_ENTERED")
-        else:
-            logger.error(
-                "sheets.update FAILED range=%s row_index=%d num_values=%d status=%s body=%s exc=%s",
-                cell_range, row_index, len(row_values), status, resp_body, str(exc)[:300],
+    # If there are protected columns, update only unprotected cells individually
+    if protected_col_set:
+        # Build batch of cell updates, skipping protected columns
+        batch_data: list[dict] = []
+        for col_idx, value in enumerate(row_values):
+            if col_idx in protected_col_set:
+                continue  # Skip protected column
+            col_letter = _col_index_to_letter(col_idx)
+            cell_ref = f"{col_letter}{row_index}"
+            batch_data.append({
+                "range": f"{worksheet.title}!{cell_ref}",
+                "values": [[value]],
+            })
+
+        if not batch_data:
+            # All columns are protected, nothing to update
+            logger.warning(
+                "sheets.update.all_protected spreadsheet=%s row=%d",
+                spreadsheet_id, row_index,
             )
-            raise
+            return None
 
-    updated_range = f"{worksheet.title}!{cell_range}"
+        logger.info(
+            "sheets.update.batch_attempt row_index=%d total_cells=%d skipped_protected=%d",
+            row_index, len(batch_data), len(row_values) - len(batch_data),
+        )
+
+        try:
+            spreadsheet.values_batch_update(
+                body={
+                    "valueInputOption": "USER_ENTERED",
+                    "data": batch_data,
+                }
+            )
+        except APIError as exc:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            resp_body = ""
+            try:
+                resp = getattr(exc, "response", None)
+                if resp is not None:
+                    resp_body = (getattr(resp, "text", None) or "")[:500]
+            except Exception:
+                pass
+            if status == 429:
+                time.sleep(2)
+                spreadsheet.values_batch_update(
+                    body={
+                        "valueInputOption": "USER_ENTERED",
+                        "data": batch_data,
+                    }
+                )
+            else:
+                logger.error(
+                    "sheets.update.batch FAILED row_index=%d status=%s body=%s exc=%s",
+                    row_index, status, resp_body, str(exc)[:300],
+                )
+                raise
+
+        end_col = _col_index_to_letter(len(row_values) - 1)
+        updated_range = f"{worksheet.title}!A{row_index}:{end_col}{row_index}"
+    else:
+        # No protected columns — update the entire row at once (faster)
+        end_col = _col_index_to_letter(len(row_values) - 1)
+        cell_range = f"A{row_index}:{end_col}{row_index}"
+
+        logger.info(
+            "sheets.update.attempt range=%s row_index=%d num_values=%d sheet_rows=%d sheet_cols=%d",
+            cell_range, row_index, len(row_values), sheet_row_count, sheet_col_count,
+        )
+
+        try:
+            worksheet.update(cell_range, [row_values], value_input_option="USER_ENTERED")
+        except APIError as exc:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            resp_body = ""
+            try:
+                resp = getattr(exc, "response", None)
+                if resp is not None:
+                    resp_body = (getattr(resp, "text", None) or "")[:500]
+            except Exception:
+                pass
+            if status == 429:
+                time.sleep(2)
+                worksheet.update(cell_range, [row_values], value_input_option="USER_ENTERED")
+            elif status == 403 and "protected" in resp_body.lower():
+                # Protected cell error — retry with per-cell approach
+                logger.info(
+                    "sheets.update.protected_retry row_index=%d — retrying with per-cell updates",
+                    row_index,
+                )
+                # Fall back to updating cells one by one, skipping failures
+                updated_any = False
+                for col_idx, value in enumerate(row_values):
+                    col_letter = _col_index_to_letter(col_idx)
+                    cell_ref = f"{col_letter}{row_index}"
+                    try:
+                        worksheet.update(
+                            cell_ref, [[value]], value_input_option="USER_ENTERED"
+                        )
+                        updated_any = True
+                    except APIError as cell_exc:
+                        cell_status = getattr(getattr(cell_exc, "response", None), "status_code", None)
+                        if cell_status == 403:
+                            # This cell is protected, skip it
+                            logger.debug("sheets.update.cell_protected col=%s row=%d", col_letter, row_index)
+                            continue
+                        raise
+                if not updated_any:
+                    raise
+            else:
+                logger.error(
+                    "sheets.update FAILED range=%s row_index=%d num_values=%d status=%s body=%s exc=%s",
+                    cell_range, row_index, len(row_values), status, resp_body, str(exc)[:300],
+                )
+                raise
+
+        updated_range = f"{worksheet.title}!A{row_index}:{end_col}{row_index}"
+
     logger.info("sheets.update ok range=%s", updated_range)
 
     # Invalidate cached reads so subsequent queries see the updated row.

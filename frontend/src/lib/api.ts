@@ -150,6 +150,22 @@ export async function checkSheetAccess(
 }
 
 /**
+ * GET /api/sheet/protected-columns?sheet_url=…&worksheet_name=…
+ * Get list of protected (restricted) columns that cannot be edited.
+ */
+export async function getProtectedColumns(
+  sheetUrl: string,
+  worksheetName: string | null,
+): Promise<{ protected_indices: number[]; protected_headers: string[] }> {
+  const wsParam = worksheetName
+    ? `&worksheet_name=${encodeURIComponent(worksheetName)}`
+    : "";
+  return jsonGet<{ protected_indices: number[]; protected_headers: string[] }>(
+    `/sheet/protected-columns?sheet_url=${encodeURIComponent(sheetUrl)}${wsParam}`,
+  );
+}
+
+/**
  * POST /api/sheet/preview
  * Fetch column headers from the sheet and infer field types.
  */

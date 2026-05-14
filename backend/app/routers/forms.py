@@ -28,6 +28,7 @@ from app.services.sheets_client import (
     _has_credentials,
     append_form_row,
     get_client,
+    get_protected_columns,
     map_sheet_exception,
     read_headers,
     read_sheet_rows,
@@ -191,6 +192,58 @@ async def get_sheet_access(sheet_url: str) -> dict:
     from app.services.sheets_client import check_sheet_access
 
     return await asyncio.to_thread(check_sheet_access, spreadsheet_id)
+
+
+@router.get("/sheet/protected-columns")
+async def get_sheet_protected_columns(
+    sheet_url: str,
+    worksheet_name: str | None = None,
+) -> dict:
+    """
+    Return the list of protected (restricted) column indices and their header names.
+    Frontend uses this to mark fields as read-only in the edit UI.
+    """
+    try:
+        spreadsheet_id = extract_spreadsheet_id(sheet_url)
+    except InvalidGoogleSheetUrl as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # Capture session key before entering thread
+    _session_key = get_current_oauth_session_key()
+
+    def _fetch():
+        with oauth_session_context(_session_key):
+            protected_indices = get_protected_columns(
+                spreadsheet_id=spreadsheet_id,
+                worksheet_name=worksheet_name,
+            )
+            # Also get headers to map indices to column names
+            try:
+                from app.services.sheets_client import read_headers_authenticated, _has_credentials as has_creds
+                if has_creds():
+                    _, _, headers = read_headers_authenticated(spreadsheet_id, worksheet_name)
+                else:
+                    _, _, headers = read_headers(spreadsheet_id, worksheet_name)
+            except Exception:
+                headers = []
+
+            # Map column indices to header names
+            protected_headers: list[str] = []
+            for idx in protected_indices:
+                if idx < len(headers):
+                    protected_headers.append(headers[idx])
+
+            return {
+                "protected_indices": protected_indices,
+                "protected_headers": protected_headers,
+            }
+
+    try:
+        result = await asyncio.to_thread(_fetch)
+    except Exception as exc:
+        raise _sheet_error(exc) from exc
+
+    return result
 
 
 @router.get("/sheet/worksheets")

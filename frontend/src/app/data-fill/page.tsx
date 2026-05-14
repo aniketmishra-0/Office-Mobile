@@ -13,6 +13,7 @@ import {
   lookupFormsBySheet,
   updateSheetRow,
   checkSheetAccess,
+  getProtectedColumns,
 } from "@/lib/api";
 
 interface TabOption {
@@ -82,6 +83,9 @@ function DataFillPageInner() {
   const [loaded, setLoaded] = useState<LoadedTab | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Protected columns — headers that cannot be edited by the user
+  const [protectedHeaders, setProtectedHeaders] = useState<Set<string>>(new Set());
 
   // Access status
   const [accessStatus, setAccessStatus] = useState<"checking" | "edit" | "read" | "none" | null>(null);
@@ -198,6 +202,23 @@ function DataFillPageInner() {
       // preventing "sheet structure changed" errors.
       const data = await getSheetHistory(u, tab.worksheet_name);
       setLoaded({ worksheet_name: data.worksheet_name, fields: data.fields, rows: data.rows });
+
+      // Fetch protected columns in background (non-blocking)
+      getProtectedColumns(u, tab.worksheet_name)
+        .then((res) => {
+          if (res.protected_headers?.length) {
+            // Match protected headers to field keys (case-insensitive)
+            const protectedSet = new Set<string>();
+            const protectedLower = res.protected_headers.map((h) => h.toLowerCase().trim());
+            for (const field of data.fields) {
+              if (protectedLower.includes(field.label.toLowerCase().trim())) {
+                protectedSet.add(field.key);
+              }
+            }
+            setProtectedHeaders(protectedSet);
+          }
+        })
+        .catch(() => { /* non-critical, ignore */ });
     } catch (e: any) { setError(typeof e?.message === "string" ? e.message : typeof e === "string" ? e : "Failed to load entries"); }
     finally { setLoading(false); }
   }
@@ -478,18 +499,31 @@ function DataFillPageInner() {
               const val = editValues[field.key] ?? "";
               const isFilled = field.type === "checkbox" ? true : !!val.trim();
               const isMissing = !isFilled;
+              const isProtected = protectedHeaders.has(field.key);
               return (
-                <div key={field.key} className={`px-4 py-3 ${isMissing && !editMode ? "bg-red-50/40" : ""}`}>
+                <div key={field.key} className={`px-4 py-3 ${isProtected ? "bg-amber-50/40" : isMissing && !editMode ? "bg-red-50/40" : ""}`}>
                   <div className="flex items-center gap-2 mb-1">
-                    {isFilled ? (
+                    {isProtected ? (
+                      <svg className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>
+                    ) : isFilled ? (
                       <svg className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
                     ) : (
                       <svg className="w-3.5 h-3.5 text-red-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
                     )}
                     <p className="text-[11px] font-medium text-zinc-500 uppercase tracking-wide">{field.label}</p>
-                    {isMissing && !editMode && <span className="text-[10px] font-medium text-red-500 ml-auto">MISSING</span>}
+                    {isProtected && <span className="text-[10px] font-medium text-amber-600 ml-auto">RESTRICTED</span>}
+                    {!isProtected && isMissing && !editMode && <span className="text-[10px] font-medium text-red-500 ml-auto">MISSING</span>}
                   </div>
-                  {editMode ? (
+                  {editMode && isProtected ? (
+                    /* Protected field — show value as read-only with restriction notice */
+                    <div className="mt-1">
+                      <p className={`text-[15px] ml-5.5 ${val ? "text-zinc-950 font-medium" : "text-zinc-300 italic"}`}>{val || "—"}</p>
+                      <p className="text-[10px] text-amber-600 mt-1 ml-5.5 flex items-center gap-1">
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>
+                        Cannot change · owner restricted
+                      </p>
+                    </div>
+                  ) : editMode ? (
                     field.type === "checkbox" ? (
                       <button
                         type="button"
