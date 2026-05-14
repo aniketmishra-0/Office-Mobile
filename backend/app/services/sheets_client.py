@@ -723,9 +723,10 @@ def _is_header_or_title_row(
     should be skipped during data reading.
 
     A row is considered a header/title if:
-    1. It matches 50%+ of the known header values (repeated header), OR
-    2. It has only 1-2 non-empty cells out of many columns (section title like
-       "UPSC Online Schedule - 18 May - 24 May 2026")
+    1. It matches 70%+ of the known header values AND has no data-like values
+       (numbers, times, dates in cells that aren't headers), OR
+    2. It has only 1-2 non-empty cells out of many columns AND the content
+       looks like a section title (not a data value)
 
     Returns True if the row should be SKIPPED (it's not real data).
     """
@@ -735,31 +736,66 @@ def _is_header_or_title_row(
     non_empty_cells = [cell.strip() for cell in row_data if cell.strip()]
     num_non_empty = len(non_empty_cells)
 
+    if num_non_empty == 0:
+        return False
+
     # --- Check 1: Section title row ---
     # If only 1-2 cells are filled in a row that has many columns,
-    # and the filled cell is long text (likely a title/description),
-    # skip it.
-    if total_columns >= 5 and num_non_empty <= 2 and num_non_empty > 0:
+    # and the filled cell is long text that does NOT look like data
+    # (not a date, not a time, not a number), skip it.
+    if total_columns >= 8 and num_non_empty <= 2:
         longest_cell = max(non_empty_cells, key=len)
-        if len(longest_cell) > 20:
-            return True
+        # Must be long AND not look like a data value
+        if len(longest_cell) > 30:
+            # Check it's not a date/time/number
+            is_data_like = (
+                _TIME_PATTERN.match(longest_cell)
+                or _DATE_PATTERN.match(longest_cell)
+                or longest_cell.replace(".", "").replace(",", "").isdigit()
+            )
+            if not is_data_like:
+                return True
 
     # --- Check 2: Repeated header row ---
-    # Compare row values against known headers. If 50%+ match, it's a header.
-    if not known_headers or num_non_empty == 0:
+    # Compare row values against known headers. Must be a very strong match
+    # (70%+ of known headers found in this row) AND the row must have enough
+    # cells filled to look like a header row (at least 40% of columns filled).
+    if not known_headers or num_non_empty < 3:
         return False
 
     known_headers_lower = {h.strip().lower() for h in known_headers if h.strip()}
     if not known_headers_lower:
         return False
 
+    # Row must have a reasonable fill ratio to be a header
+    fill_ratio = num_non_empty / max(total_columns, 1)
+    if fill_ratio < 0.3:
+        return False
+
     match_count = 0
+    has_data_value = False
     for cell in non_empty_cells:
-        if cell.lower() in known_headers_lower:
+        cell_lower = cell.lower()
+        if cell_lower in known_headers_lower:
             match_count += 1
+        else:
+            # Check if this non-matching cell looks like actual data
+            # (number, time, date) — if so, this is likely a data row
+            if (
+                _TIME_PATTERN.match(cell)
+                or _DATE_PATTERN.match(cell)
+                or cell.replace(".", "").replace(",", "").replace(" ", "").isdigit()
+            ):
+                has_data_value = True
+                break
+
+    # If we found data-like values, this is NOT a header row
+    if has_data_value:
+        return False
 
     match_ratio = match_count / max(len(known_headers_lower), 1)
-    if match_ratio >= 0.5 and match_count >= 3:
+    # Require 70%+ match AND at least 4 matching headers for confidence
+    if match_ratio >= 0.7 and match_count >= 4:
         return True
 
     return False
