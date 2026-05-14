@@ -26,10 +26,20 @@ jobs:
         run: |
           # Encode secret to base64 to preserve special chars and newlines
           ENCODED_JSON=$(echo "$GCP_SA_JSON_B64" | base64 -w 0)
-          gcloud compute ssh archana_tiwari@office-mobile-server \
-            --zone=us-east1-c \
-            --quiet \
-            --command='set -e; REPO="$HOME/Office-Mobile"; if [ ! -d "$REPO/.git" ]; then git clone https://github.com/aniketmishra-0/Office-Mobile.git "$REPO"; fi; cd "$REPO"; git fetch origin main; git checkout main; git pull --ff-only origin main; GOOGLE_SERVICE_ACCOUNT_JSON_B64='"$ENCODED_JSON"' bash ./scripts/deploy-backend.sh'
+
+          # Retry SSH up to 5 times to allow key propagation
+          for i in 1 2 3 4 5; do
+            echo "SSH attempt $i..."
+            gcloud compute ssh archana_tiwari@office-mobile-server \
+              --zone=us-east1-c \
+              --quiet \
+              --ssh-flag="-o ConnectTimeout=30" \
+              --ssh-flag="-o StrictHostKeyChecking=no" \
+              --command='set -e; REPO="$HOME/Office-Mobile"; if [ ! -d "$REPO/.git" ]; then git clone https://github.com/aniketmishra-0/Office-Mobile.git "$REPO"; fi; cd "$REPO"; git fetch origin main; git checkout main; git pull --ff-only origin main; GOOGLE_SERVICE_ACCOUNT_JSON_B64='"$ENCODED_JSON"' bash ./scripts/deploy-backend.sh' \
+              && break
+            echo "SSH failed, waiting 30s before retry..."
+            sleep 30
+          done
 
       - name: Trigger Frontend Vercel Deployment
         run: |
