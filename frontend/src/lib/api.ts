@@ -453,3 +453,60 @@ export interface DashboardStats {
 export async function getDashboardStats(): Promise<DashboardStats> {
   return jsonGet<DashboardStats>("/dashboard/stats");
 }
+
+// ---------------------------------------------------------------------------
+// Saved Sheets (My Sheets)
+// ---------------------------------------------------------------------------
+
+export interface SavedSheetItem {
+  id: string;
+  title: string;
+  sheet_url: string;
+  spreadsheet_id: string;
+  worksheet_name: string | null;
+  saved_at: string;
+}
+
+/**
+ * GET /api/saved-sheets
+ * List all saved sheets for the current user.
+ */
+export async function listSavedSheets(): Promise<{ items: SavedSheetItem[] }> {
+  return jsonGet<{ items: SavedSheetItem[] }>("/saved-sheets");
+}
+
+/**
+ * POST /api/saved-sheets
+ * Save a Google Sheet for quick access later.
+ */
+export async function saveSheet(payload: {
+  sheet_url: string;
+  spreadsheet_id: string;
+  title: string;
+  worksheet_name?: string | null;
+}): Promise<SavedSheetItem> {
+  return jsonRequest<SavedSheetItem>("POST", "/saved-sheets", payload);
+}
+
+/**
+ * DELETE /api/saved-sheets/:id
+ * Remove a saved sheet.
+ */
+export async function deleteSavedSheet(id: string): Promise<{ success: boolean }> {
+  return jsonRequest<{ success: boolean }>("DELETE", `/saved-sheets/${encodeURIComponent(id)}`, {});
+}
+
+/**
+ * PATCH /api/saved-sheets/:id
+ * Rename a saved sheet.
+ */
+export async function renameSavedSheet(
+  id: string,
+  title: string,
+): Promise<{ success: boolean; title: string }> {
+  return jsonRequest<{ success: boolean; title: string }>(
+    "PATCH",
+    `/saved-sheets/${encodeURIComponent(id)}`,
+    { title },
+  );
+}
