@@ -77,6 +77,7 @@ function DataFillPageInner() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [availableTabs, setAvailableTabs] = useState<TabOption[] | null>(null);
+  const [allTabs, setAllTabs] = useState<TabOption[] | null>(null); // remember all tabs for back navigation
   const [sheetUrl, setSheetUrl] = useState("");
   const [loaded, setLoaded] = useState<LoadedTab | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -181,6 +182,7 @@ function DataFillPageInner() {
         form_title: item.form_title, fields: item.fields, has_form: item.has_form,
       }));
       if (!tabs.length) { setError("No tabs found in this sheet"); return; }
+      setAllTabs(tabs); // remember all tabs for back navigation
       if (tabs.length === 1) { await selectTab(tabs[0], url); }
       else { setAvailableTabs(tabs); }
     } catch (e: any) { setError(typeof e?.message === "string" ? e.message : typeof e === "string" ? e : "Failed to load sheet"); }
@@ -325,9 +327,21 @@ function DataFillPageInner() {
   }
 
   const handleReset = useCallback(() => {
-    // Navigate back to clean data-fill page (no query params)
-    router.push("/data-fill");
-  }, [router]);
+    // If there were multiple tabs, go back to the tab picker (state change only)
+    // instead of navigating away. This prevents skipping the tab picker step.
+    if (allTabs && allTabs.length > 1) {
+      setLoaded(null);
+      setAvailableTabs(allTabs);
+      setSelectedRowIdx(null);
+      setEditMode(false);
+      setFilters([]);
+      setSortMode("default");
+      setSuccessMsg(null);
+    } else {
+      // Single tab or no tabs — go back in browser history
+      router.back();
+    }
+  }, [router, allTabs]);
 
   function getMissingCount(row: Record<string, string>): number {
     if (!loaded) return 0;
@@ -690,7 +704,7 @@ function DataFillPageInner() {
   if (sheetParam && !loaded && !availableTabs && !error) {
     return (
       <div className="flex flex-col min-h-screen">
-        <AppHeader title="Data Correction" showBack onBack={() => router.push("/data-fill")} />
+        <AppHeader title="Data Correction" showBack onBack={() => router.back()} />
         <LoadingOverlay message="Loading sheet..." />
       </div>
     );
@@ -700,7 +714,7 @@ function DataFillPageInner() {
   if (sheetParam && availableTabs) {
     return (
       <div className="flex flex-col min-h-screen">
-        <AppHeader title="Data Correction" showBack onBack={() => router.push("/data-fill")} />
+        <AppHeader title="Data Correction" showBack onBack={() => router.back()} />
         <div className="flex-1 w-full max-w-[560px] mx-auto px-6 pt-14 pb-10 space-y-8">
           <section>
             <p
@@ -760,7 +774,7 @@ function DataFillPageInner() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <AppHeader title="Data Correction" showBack />
+      <AppHeader title="Data Correction" showBack onBack={() => router.push("/")} />
       {loading && <LoadingOverlay message="Loading sheet..." />}
       <div className="flex-1 w-full max-w-[560px] mx-auto px-6 pt-14 pb-10 space-y-8">
         {/* Editorial hero */}
