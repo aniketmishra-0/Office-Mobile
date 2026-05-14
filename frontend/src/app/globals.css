@@ -93,7 +93,9 @@ body {
 body {
   background-color: var(--cream);
   color: var(--ink);
-  font-family: var(--font-newsreader), Georgia, "ui-serif", serif;
+  font-family: var(--user-font-family);
+  font-size: var(--user-font-size);
+  line-height: var(--user-line-height);
   font-weight: 300;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -107,29 +109,48 @@ body {
   );
 }
 
-/* User display preferences — applied to main content areas.
-   The settings panel and chrome keep their own fonts; only the
-   form/content body respects the user's chosen font/size. */
-.om-user-content,
-.om-form-body,
-main {
-  font-family: var(--user-font-family);
-  font-size: var(--user-font-size);
-  line-height: var(--user-line-height);
+/* ─── User display preferences ─────────────────────────────────
+   When the user picks a custom font/size/spacing, we set
+   data-display="custom" on <html>. This attribute selector gives
+   us enough specificity to override component-level style jsx
+   without resorting to !important everywhere. */
+[data-display="custom"] body,
+[data-display="custom"] body p,
+[data-display="custom"] body span,
+[data-display="custom"] body h1,
+[data-display="custom"] body h2,
+[data-display="custom"] body h3,
+[data-display="custom"] body h4,
+[data-display="custom"] body label,
+[data-display="custom"] body li,
+[data-display="custom"] body a,
+[data-display="custom"] body div {
+  font-family: var(--user-font-family) !important;
+  font-size: var(--user-font-size) !important;
+  line-height: var(--user-line-height) !important;
 }
 
-.om-user-content input,
-.om-user-content textarea,
-.om-user-content select,
-.om-form-body input,
-.om-form-body textarea,
-.om-form-body select {
-  border-radius: var(--user-border-radius);
+[data-display="custom"] body input,
+[data-display="custom"] body textarea,
+[data-display="custom"] body select {
+  font-family: var(--user-font-family) !important;
+  font-size: var(--user-font-size) !important;
+  border-radius: var(--user-border-radius) !important;
 }
 
-.om-user-content button:not([class*="om-settings"]),
-.om-form-body button:not([class*="om-settings"]) {
-  border-radius: var(--user-border-radius);
+[data-display="custom"] body button {
+  font-family: var(--user-font-family) !important;
+  border-radius: var(--user-border-radius) !important;
+}
+
+/* Exclude the settings panel chrome from user font overrides so
+   it stays readable regardless of what the user picks. */
+[data-display="custom"] .om-settings__panel,
+[data-display="custom"] .om-settings__panel * {
+  font-family: revert !important;
+  font-size: revert !important;
+  line-height: revert !important;
+  border-radius: revert !important;
 }
 
 /* ============================================================

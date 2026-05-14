@@ -152,6 +152,19 @@ export function applyDisplay(display: DisplayPrefs): void {
   root.style.setProperty("--user-font-size", FONT_SIZE_MAP[display.font_size] || FONT_SIZE_MAP.md);
   root.style.setProperty("--user-line-height", LINE_HEIGHT_MAP[display.line_height] || LINE_HEIGHT_MAP.normal);
   root.style.setProperty("--user-border-radius", BORDER_RADIUS_MAP[display.border_radius] || BORDER_RADIUS_MAP.md);
+
+  // Set data-display="custom" so CSS specificity overrides kick in.
+  // If everything is default, remove the attribute so the base styles apply.
+  const isDefault =
+    display.font_family === "system" &&
+    display.font_size === "md" &&
+    display.line_height === "normal" &&
+    display.border_radius === "md";
+  if (isDefault) {
+    root.removeAttribute("data-display");
+  } else {
+    root.setAttribute("data-display", "custom");
+  }
 }
 
 export function setDisplay(patch: Partial<DisplayPrefs>): void {
@@ -169,6 +182,7 @@ export function resetDisplay(): void {
     window.localStorage.removeItem(DISPLAY_KEY);
   } catch {}
   applyDisplay(DEFAULT_DISPLAY);
+  // applyDisplay already removes data-display when defaults are active
   emitChange();
 }
 
