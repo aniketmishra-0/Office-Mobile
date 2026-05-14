@@ -404,7 +404,7 @@ export default function DataFillPage() {
       <div className="flex flex-col min-h-screen bg-zinc-100">
         <AppHeader title="Data Correction" showBack onBack={() => { setSelectedRowIdx(null); setEditMode(false); }} />
         {saving && <LoadingOverlay message="Saving..." />}
-        <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-32">
+        <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-10">
           {/* Nav: Prev / Info / Next */}
           <div className="flex items-center justify-between mb-4">
             <button onClick={goToPrevRow} disabled={!hasPrev}
