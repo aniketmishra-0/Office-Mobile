@@ -302,7 +302,7 @@ function HistoryPageInner() {
         <AppHeader title="History" showBack onBack={handleBackToTabs} />
         {loading && <LoadingOverlay message="Loading entries..." />}
 
-        <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-10">
+        <div className="flex-1 w-full max-w-[560px] md:max-w-[720px] lg:max-w-[900px] xl:max-w-[1100px] mx-auto px-5 pt-8 pb-10">
           <div className="flex items-center justify-between mb-4">
             <div className="min-w-0 flex-1">
               <h2 className="text-[16px] font-bold text-zinc-950 truncate">

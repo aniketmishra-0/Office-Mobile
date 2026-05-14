@@ -637,10 +637,10 @@ function DataFillPageInner() {
   // ═══════════════════════ Filtered List View ═══════════════════════
   if (loaded) {
     return (
-      <div className="flex flex-col min-h-screen bg-zinc-100">
+      <div className="flex flex-col min-h-screen bg-zinc-100 overflow-y-auto">
         <AppHeader title="Data Correction" showBack onBack={handleReset} />
         {loading && <LoadingOverlay message="Loading entries..." />}
-        <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-10">
+        <div className="flex-1 w-full max-w-[560px] md:max-w-[720px] lg:max-w-[900px] xl:max-w-[1100px] mx-auto px-5 pt-8 pb-10">
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
             <div className="min-w-0 flex-1">
