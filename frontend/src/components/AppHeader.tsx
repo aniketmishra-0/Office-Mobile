@@ -133,6 +133,7 @@ export default function AppHeader({
   })();
 
   return (
+    <>
     <header
       className="om-header"
       style={{ paddingTop: "env(safe-area-inset-top)" }}
@@ -289,7 +290,6 @@ export default function AppHeader({
               </div>
             )}
 
-            {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
           </div>
         )}
       </div>
@@ -585,5 +585,8 @@ export default function AppHeader({
         }
       `}</style>
     </header>
+
+    {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
+    </>
   );
 }
