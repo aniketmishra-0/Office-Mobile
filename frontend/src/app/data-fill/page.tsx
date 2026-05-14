@@ -675,7 +675,7 @@ export default function DataFillPage() {
     <div className="flex flex-col min-h-screen bg-zinc-100">
       <AppHeader title="Data Correction" showBack />
       {loading && <LoadingOverlay message="Loading sheet..." />}
-      <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-14 pb-32">
+      <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-14 pb-10">
         <div className="mb-8">
           <h1 className="text-[26px] font-bold text-zinc-950 leading-tight tracking-tight">Fill & fix your<br />sheet data</h1>
           <p className="text-[15px] text-zinc-600 mt-2.5 leading-relaxed">Paste your sheet link, filter rows, see what&apos;s missing, and update values directly.</p>
@@ -746,7 +746,7 @@ export default function DataFillPage() {
         )}
       </div>
       {!availableTabs && (
-        <div className="fixed bottom-0 left-0 right-0 max-w-[560px] mx-auto px-5 pt-3 pb-3 bg-white border-t border-zinc-200 shadow-sticky z-40" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}>
+        <div className="w-full max-w-[560px] mx-auto px-5 pb-5" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 20px)" }}>
           <SubmitButton
             label="Load Sheet"
             submitting={loading}
