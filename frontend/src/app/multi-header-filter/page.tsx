@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import ErrorToast from "@/components/ErrorToast";
@@ -28,7 +28,7 @@ interface LoadedData {
   sections: Section[];
 }
 
-const MAX_OPEN_SECTIONS = 2;
+const MAX_OPEN = 2;
 
 export default function MultiHeaderFilterPage() {
   return (
@@ -52,9 +52,9 @@ function MultiHeaderFilterInner() {
   const [loaded, setLoaded] = useState<LoadedData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Which sections are open (by index)
-  const [openSections, setOpenSections] = useState<number[]>([]);
-  // Search query — only searches open sections
+  // Selected sections (max 2) — by index
+  const [selectedSections, setSelectedSections] = useState<number[]>([]);
+  // Search query — searches only selected/open sections
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
@@ -77,7 +77,7 @@ function MultiHeaderFilterInner() {
 
   async function loadSheetFromUrl(url: string) {
     setLoading(true); setError(null); setAvailableTabs(null); setLoaded(null);
-    setOpenSections([]); setSearchQuery("");
+    setSelectedSections([]); setSearchQuery("");
     try {
       const result = await lookupFormsBySheet(url);
       setSheetUrl(url);
@@ -96,35 +96,30 @@ function MultiHeaderFilterInner() {
     setAvailableTabs(null); setLoading(true); setError(null);
     try {
       const data = await getSheetSections(sheet_url ?? sheetUrl, tab.worksheet_name);
-      setLoaded({
-        worksheet_name: data.worksheet_name,
-        fields: data.fields,
-        sections: data.sections,
-      });
-      // Auto-open first section
-      if (data.sections.length > 0) setOpenSections([0]);
+      setLoaded({ worksheet_name: data.worksheet_name, fields: data.fields, sections: data.sections });
+      if (data.sections.length > 0) setSelectedSections([0]);
     } catch (e: any) { setError(e.message ?? "Failed to load data"); }
     finally { setLoading(false); }
   }
 
-  // Toggle section open/close with max 2 open rule
-  const toggleSection = (idx: number) => {
-    setOpenSections((prev) => {
-      if (prev.includes(idx)) {
-        // Close it
-        return prev.filter((i) => i !== idx);
-      } else {
-        // Open it — if already 2 open, close the oldest one
-        const next = [...prev, idx];
-        if (next.length > MAX_OPEN_SECTIONS) {
-          return next.slice(next.length - MAX_OPEN_SECTIONS);
-        }
-        return next;
-      }
+  // Handle dropdown selection
+  const handleDropdownSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const idx = parseInt(e.target.value, 10);
+    if (isNaN(idx)) return;
+    setSelectedSections((prev) => {
+      if (prev.includes(idx)) return prev; // already selected
+      const next = [...prev, idx];
+      if (next.length > MAX_OPEN) return next.slice(next.length - MAX_OPEN);
+      return next;
     });
   };
 
-  // Filter rows in open sections based on search
+  // Remove a selected section
+  const removeSection = (idx: number) => {
+    setSelectedSections((prev) => prev.filter((i) => i !== idx));
+  };
+
+  // Filter rows based on search
   const getFilteredRows = (section: Section): Record<string, string>[] => {
     const q = searchQuery.trim().toLowerCase();
     if (!q || !loaded) return section.rows;
@@ -146,7 +141,7 @@ function MultiHeaderFilterInner() {
           <div style={{ width: "100%", maxWidth: 440 }}>
             <h2 style={{ fontFamily: "var(--font-newsreader)", fontWeight: 400, fontSize: 22, color: "var(--ink)", marginBottom: 6, textAlign: "center" }}>Multi-Header Filtering</h2>
             <p style={{ fontFamily: "var(--font-plex-mono)", fontSize: 11, color: "var(--stone)", textAlign: "center", marginBottom: 20, lineHeight: 1.5 }}>
-              Sheets with multiple header sections? Each section shows as a collapsible block. Click to open, search within.
+              Select up to 2 date sections to view and search within them.
             </p>
             <input type="url" value={formInput}
               onChange={(e) => { setFormInput(e.target.value); validateUrl(e.target.value); }}
@@ -199,118 +194,142 @@ function MultiHeaderFilterInner() {
     );
   }
 
-  // Step 3: Sections view
+  // Step 3: Main view — dropdown + search at top, selected sections data below
   const sortedFields = [...loaded.fields].sort((a, b) => a.order - b.order);
 
   return (
     <div className="flex flex-col min-h-screen" style={{ background: "var(--cream)" }}>
-      <AppHeader title="Multi-Header Filtering" showBack onBack={() => { setLoaded(null); setOpenSections([]); setSearchQuery(""); if (sheetUrl) loadSheetFromUrl(sheetUrl); }} />
+      <AppHeader title="Multi-Header Filtering" showBack onBack={() => { setLoaded(null); setSelectedSections([]); setSearchQuery(""); if (sheetUrl) loadSheetFromUrl(sheetUrl); }} />
 
-      {/* Top bar: info + search */}
-      <div style={{ borderBottom: "1px solid var(--rule)", padding: "10px 16px" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+      {/* Top bar: info + dropdown + search */}
+      <div style={{ borderBottom: "1px solid var(--rule)", padding: "10px 16px", position: "sticky", top: 0, background: "var(--cream)", zIndex: 10 }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          {/* Info */}
           <div style={{ flex: "0 0 auto" }}>
-            <h2 style={{ fontFamily: "var(--font-newsreader)", fontWeight: 400, fontSize: 15, color: "var(--ink)", margin: 0 }}>{loaded.worksheet_name}</h2>
-            <p style={{ fontFamily: "var(--font-plex-mono)", fontSize: 10, color: "var(--stone)", margin: 0 }}>
-              {loaded.sections.length} sections · {totalRows.toLocaleString()} total rows
+            <h2 style={{ fontFamily: "var(--font-newsreader)", fontWeight: 400, fontSize: 14, color: "var(--ink)", margin: 0 }}>{loaded.worksheet_name}</h2>
+            <p style={{ fontFamily: "var(--font-plex-mono)", fontSize: 9, color: "var(--stone)", margin: 0 }}>
+              {loaded.sections.length} sections · {totalRows.toLocaleString()} rows
             </p>
           </div>
 
-          {/* Search — only searches open sections */}
-          <div style={{ position: "relative", flex: 1, minWidth: 160, maxWidth: 300 }}>
-            <svg style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: "var(--stone)", pointerEvents: "none" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          {/* Dropdown to select sections */}
+          <select
+            onChange={handleDropdownSelect}
+            value=""
+            style={{ fontFamily: "var(--font-plex-mono)", fontSize: 11, color: "var(--ink)", background: "var(--paper)", border: "1px solid var(--rule)", borderRadius: 4, padding: "6px 8px", outline: "none", maxWidth: 260 }}
+          >
+            <option value="">+ Select date section (max {MAX_OPEN})...</option>
+            {loaded.sections.map((section, idx) => (
+              <option key={idx} value={idx} disabled={selectedSections.includes(idx)}>
+                {section.title} ({section.rows.length} rows)
+              </option>
+            ))}
+          </select>
+
+          {/* Search */}
+          <div style={{ position: "relative", flex: 1, minWidth: 140, maxWidth: 260 }}>
+            <svg style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", width: 12, height: 12, color: "var(--stone)", pointerEvents: "none" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
             </svg>
             <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search open sections..."
-              style={{ width: "100%", fontFamily: "var(--font-plex-mono)", fontSize: 11, color: "var(--ink)", background: "var(--paper)", border: "1px solid var(--rule)", borderRadius: 4, padding: "7px 8px 7px 28px", outline: "none" }}
+              placeholder="Search selected sections..."
+              style={{ width: "100%", fontFamily: "var(--font-plex-mono)", fontSize: 11, color: "var(--ink)", background: "var(--paper)", border: "1px solid var(--rule)", borderRadius: 4, padding: "6px 8px 6px 26px", outline: "none" }}
             />
           </div>
 
           {searchQuery && (
             <button onClick={() => setSearchQuery("")}
-              style={{ fontFamily: "var(--font-plex-mono)", fontSize: 10, color: "var(--ember)", background: "none", border: "1px solid var(--ember)", borderRadius: 4, padding: "4px 8px", cursor: "pointer" }}>
-              Clear search
+              style={{ fontFamily: "var(--font-plex-mono)", fontSize: 9, color: "var(--ember)", background: "none", border: "1px solid var(--ember)", borderRadius: 3, padding: "3px 6px", cursor: "pointer" }}>
+              Clear
             </button>
           )}
-
-          <span style={{ fontFamily: "var(--font-plex-mono)", fontSize: 9, color: "var(--stone)" }}>
-            Max {MAX_OPEN_SECTIONS} sections open at a time
-          </span>
         </div>
+
+        {/* Selected section chips */}
+        {selectedSections.length > 0 && (
+          <div style={{ maxWidth: 1200, margin: "6px auto 0", display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {selectedSections.map((idx) => (
+              <span key={idx} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: "var(--font-plex-mono)", fontSize: 10, background: "var(--ink)", color: "var(--paper)", borderRadius: 12, padding: "3px 8px 3px 10px" }}>
+                {loaded.sections[idx]?.title ?? `Section ${idx}`}
+                <button onClick={() => removeSection(idx)}
+                  style={{ background: "none", border: "none", color: "var(--paper)", cursor: "pointer", fontSize: 12, padding: 0, lineHeight: 1, opacity: 0.7 }}
+                  aria-label="Remove">×</button>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Sections accordion */}
+      {/* Selected sections data — shown directly at top, no scrolling to find */}
       <div style={{ flex: 1, overflow: "auto", padding: "12px 16px" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", flexDirection: "column", gap: 8 }}>
-          {loaded.sections.map((section, idx) => {
-            const isOpen = openSections.includes(idx);
-            const filteredRows = isOpen ? getFilteredRows(section) : [];
+        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+          {selectedSections.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--stone)" }}>
+              <p style={{ fontFamily: "var(--font-plex-mono)", fontSize: 12, marginBottom: 8 }}>No section selected</p>
+              <p style={{ fontFamily: "var(--font-plex-mono)", fontSize: 10 }}>Use the dropdown above to select a date section</p>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {selectedSections.map((idx) => {
+                const section = loaded.sections[idx];
+                if (!section) return null;
+                const rows = getFilteredRows(section);
 
-            return (
-              <div key={idx} style={{ border: "1px solid var(--rule)", borderRadius: 6, overflow: "hidden", background: "var(--paper)" }}>
-                {/* Section header — clickable */}
-                <button
-                  onClick={() => toggleSection(idx)}
-                  style={{
-                    width: "100%", display: "flex", alignItems: "center", gap: 10,
-                    padding: "12px 16px", border: "none", cursor: "pointer", textAlign: "left",
-                    background: isOpen ? "var(--ink)" : "var(--cream)",
-                    color: isOpen ? "var(--paper)" : "var(--ink)",
-                    transition: "all 0.2s",
-                  }}
-                >
-                  <span style={{ fontSize: 14, transition: "transform 0.2s", transform: isOpen ? "rotate(90deg)" : "rotate(0deg)" }}>▶</span>
-                  <span style={{ fontFamily: "var(--font-plex-mono)", fontSize: 12, fontWeight: 500, flex: 1 }}>
-                    {section.title}
-                  </span>
-                  <span style={{ fontFamily: "var(--font-plex-mono)", fontSize: 10, opacity: 0.7 }}>
-                    {section.rows.length} rows
-                  </span>
-                </button>
+                return (
+                  <div key={idx} style={{ border: "1px solid var(--rule)", borderRadius: 6, overflow: "hidden", background: "var(--paper)" }}>
+                    {/* Section title bar */}
+                    <div style={{ display: "flex", alignItems: "center", padding: "10px 14px", background: "var(--ink)", color: "var(--paper)", gap: 8 }}>
+                      <span style={{ fontFamily: "var(--font-plex-mono)", fontSize: 11, fontWeight: 500, flex: 1 }}>{section.title}</span>
+                      <span style={{ fontFamily: "var(--font-plex-mono)", fontSize: 9, opacity: 0.7 }}>
+                        {searchQuery ? `${rows.length} matches` : `${section.rows.length} rows`}
+                      </span>
+                      <button onClick={() => removeSection(idx)}
+                        style={{ background: "none", border: "none", color: "var(--paper)", cursor: "pointer", fontSize: 14, padding: "0 4px", opacity: 0.7 }}
+                        aria-label="Close section">×</button>
+                    </div>
 
-                {/* Section content — table */}
-                {isOpen && (
-                  <div style={{ overflowX: "auto", maxHeight: 400, overflow: "auto" }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-plex-mono)", fontSize: 10 }}>
-                      <thead>
-                        <tr>
-                          <th style={{ padding: "6px 8px", textAlign: "left", fontSize: 9, color: "var(--stone)", borderBottom: "1px solid var(--rule)", whiteSpace: "nowrap", position: "sticky", top: 0, background: "var(--paper)" }}>#</th>
-                          {sortedFields.map((field) => (
-                            <th key={field.key} style={{ padding: "6px 8px", textAlign: "left", fontSize: 9, letterSpacing: "0.03em", textTransform: "uppercase", color: "var(--stone)", borderBottom: "1px solid var(--rule)", whiteSpace: "nowrap", position: "sticky", top: 0, background: "var(--paper)" }}>
-                              {field.source_header || field.label || field.key}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredRows.slice(0, 100).map((row, rIdx) => (
-                          <tr key={rIdx} style={{ borderBottom: "1px solid var(--rule)", background: rIdx % 2 === 0 ? "transparent" : "rgba(0,0,0,0.02)" }}>
-                            <td style={{ padding: "4px 8px", color: "var(--stone)", fontSize: 9 }}>{row._row_index ?? rIdx + 1}</td>
+                    {/* Table */}
+                    <div style={{ overflowX: "auto", maxHeight: 450, overflow: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-plex-mono)", fontSize: 10 }}>
+                        <thead>
+                          <tr>
+                            <th style={{ padding: "5px 8px", textAlign: "left", fontSize: 9, color: "var(--stone)", borderBottom: "1px solid var(--rule)", whiteSpace: "nowrap", position: "sticky", top: 0, background: "var(--paper)" }}>#</th>
                             {sortedFields.map((field) => (
-                              <td key={field.key} style={{ padding: "4px 8px", color: "var(--ink)", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row[field.key] ?? ""}>
-                                {row[field.key] ?? ""}
-                              </td>
+                              <th key={field.key} style={{ padding: "5px 8px", textAlign: "left", fontSize: 9, letterSpacing: "0.03em", textTransform: "uppercase", color: "var(--stone)", borderBottom: "1px solid var(--rule)", whiteSpace: "nowrap", position: "sticky", top: 0, background: "var(--paper)" }}>
+                                {field.source_header || field.label || field.key}
+                              </th>
                             ))}
                           </tr>
-                        ))}
-                        {filteredRows.length === 0 && (
-                          <tr><td colSpan={sortedFields.length + 1} style={{ padding: "20px", textAlign: "center", color: "var(--stone)", fontSize: 11 }}>
-                            {searchQuery ? "No matches in this section" : "No data"}
-                          </td></tr>
-                        )}
-                        {filteredRows.length > 100 && (
-                          <tr><td colSpan={sortedFields.length + 1} style={{ padding: "8px", textAlign: "center", color: "var(--stone)", fontSize: 10 }}>
-                            Showing 100 of {filteredRows.length} rows
-                          </td></tr>
-                        )}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {rows.slice(0, 150).map((row, rIdx) => (
+                            <tr key={rIdx} style={{ borderBottom: "1px solid var(--rule)", background: rIdx % 2 === 0 ? "transparent" : "rgba(0,0,0,0.02)" }}>
+                              <td style={{ padding: "4px 8px", color: "var(--stone)", fontSize: 9 }}>{row._row_index ?? rIdx + 1}</td>
+                              {sortedFields.map((field) => (
+                                <td key={field.key} style={{ padding: "4px 8px", color: "var(--ink)", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row[field.key] ?? ""}>
+                                  {row[field.key] ?? ""}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                          {rows.length === 0 && (
+                            <tr><td colSpan={sortedFields.length + 1} style={{ padding: "20px", textAlign: "center", color: "var(--stone)", fontSize: 11 }}>
+                              {searchQuery ? "No matches" : "No data in this section"}
+                            </td></tr>
+                          )}
+                          {rows.length > 150 && (
+                            <tr><td colSpan={sortedFields.length + 1} style={{ padding: "6px", textAlign: "center", color: "var(--stone)", fontSize: 9 }}>
+                              Showing 150 of {rows.length}
+                            </td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                )}
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
