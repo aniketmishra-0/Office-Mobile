@@ -1019,11 +1019,40 @@ def read_sheet_sections(
                 # Start new section — extract title from the row
                 non_empty = [cell.strip() for cell in row_data if cell.strip()]
                 if len(non_empty) <= 2 and non_empty:
-                    # Title row (single long text)
+                    # Title row (single long text) — use it directly
                     current_section_title = non_empty[0][:80]
                 else:
-                    # Repeated header row — use a generic name with row number
-                    current_section_title = f"Section (Row {sheet_row})"
+                    # Repeated header row — look for date-like values among ALL cells
+                    # (including cells that match known headers, since headers can be dates)
+                    date_pattern = re.compile(
+                        r'\b(?:mon|tue|wed|thu|fri|sat|sun)\w*[,.]?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{1,2}',
+                        re.IGNORECASE
+                    )
+                    date_pattern2 = re.compile(
+                        r'\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{1,2}',
+                        re.IGNORECASE
+                    )
+                    date_pattern3 = re.compile(
+                        r'\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)',
+                        re.IGNORECASE
+                    )
+
+                    date_values = []
+                    for cell in non_empty:
+                        if date_pattern.search(cell) or date_pattern2.search(cell) or date_pattern3.search(cell) or _DATE_PATTERN.match(cell):
+                            date_values.append(cell.strip()[:30])
+
+                    if date_values:
+                        # Use first and last date to show the date range
+                        if len(date_values) == 1:
+                            current_section_title = date_values[0]
+                        elif len(date_values) <= 3:
+                            current_section_title = " · ".join(date_values)
+                        else:
+                            current_section_title = f"{date_values[0]} → {date_values[-1]}"
+                    else:
+                        # No dates found — just show row number
+                        current_section_title = f"Section (Row {sheet_row})"
 
                 current_section_rows = []
                 current_section_start = sheet_row + 1
