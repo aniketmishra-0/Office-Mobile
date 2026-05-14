@@ -252,6 +252,18 @@ export default function AppHeader({
                   <span className="om-header__menu-icon" aria-hidden>⊞</span>
                   <span>Quick View</span>
                 </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="om-header__menu-item"
+                  onClick={() => {
+                    router.push("/multi-header-filter");
+                    setOpenMenu(false);
+                  }}
+                >
+                  <span className="om-header__menu-icon" aria-hidden>⊟</span>
+                  <span>Multi-Header Filtering</span>
+                </button>
                 <hr className="om-header__menu-rule" />
 
                 {/* Secondary */}

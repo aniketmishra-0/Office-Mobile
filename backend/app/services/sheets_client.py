@@ -699,6 +699,73 @@ def append_form_row(
 
 
 # ---------------------------------------------------------------------------
+# Mid-sheet header / title row detection
+# ---------------------------------------------------------------------------
+
+# Patterns that look like time values (e.g., "1:30 PM", "09:00", "7:30:00 PM")
+_TIME_PATTERN = re.compile(
+    r"^\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM|am|pm)?$"
+)
+
+# Patterns that look like dates (e.g., "18 May 2026", "2026-05-18", "05/18/2026")
+_DATE_PATTERN = re.compile(
+    r"^\d{1,4}[-/\.]\d{1,2}[-/\.]\d{1,4}$|^\d{1,2}\s+\w+\s+\d{4}$|\w+\s+\d{1,2},?\s+\d{4}$"
+)
+
+
+def _is_header_or_title_row(
+    row_data: list[str],
+    known_headers: list[str],
+    total_columns: int,
+) -> bool:
+    """
+    Detect if a row is a repeated header row or a section title row that
+    should be skipped during data reading.
+
+    A row is considered a header/title if:
+    1. It matches 50%+ of the known header values (repeated header), OR
+    2. It has only 1-2 non-empty cells out of many columns (section title like
+       "UPSC Online Schedule - 18 May - 24 May 2026")
+
+    Returns True if the row should be SKIPPED (it's not real data).
+    """
+    if not row_data:
+        return False
+
+    non_empty_cells = [cell.strip() for cell in row_data if cell.strip()]
+    num_non_empty = len(non_empty_cells)
+
+    # --- Check 1: Section title row ---
+    # If only 1-2 cells are filled in a row that has many columns,
+    # and the filled cell is long text (likely a title/description),
+    # skip it.
+    if total_columns >= 5 and num_non_empty <= 2 and num_non_empty > 0:
+        longest_cell = max(non_empty_cells, key=len)
+        if len(longest_cell) > 20:
+            return True
+
+    # --- Check 2: Repeated header row ---
+    # Compare row values against known headers. If 50%+ match, it's a header.
+    if not known_headers or num_non_empty == 0:
+        return False
+
+    known_headers_lower = {h.strip().lower() for h in known_headers if h.strip()}
+    if not known_headers_lower:
+        return False
+
+    match_count = 0
+    for cell in non_empty_cells:
+        if cell.lower() in known_headers_lower:
+            match_count += 1
+
+    match_ratio = match_count / max(len(known_headers_lower), 1)
+    if match_ratio >= 0.5 and match_count >= 3:
+        return True
+
+    return False
+
+
+# ---------------------------------------------------------------------------
 # Read existing rows for autofill suggestions
 # ---------------------------------------------------------------------------
 
@@ -779,9 +846,19 @@ def read_sheet_rows(
         if not all_data:
             return []
 
-        # Convert to list of dicts
+        # Convert to list of dicts, skipping mid-sheet header/title rows
+        total_columns = len(live_headers)
         rows: list[dict[str, str]] = []
+        skipped_header_rows = 0
         for data_idx, row_data in enumerate(all_data):
+            # Skip rows that look like repeated headers or section titles
+            if _is_header_or_title_row(row_data, live_headers, total_columns):
+                skipped_header_rows += 1
+                logger.debug(
+                    "Skipping header/title row at sheet row %d", data_idx + 2
+                )
+                continue
+
             row_dict: dict[str, str] = {}
             has_data = False
             for field in fields:
@@ -794,6 +871,11 @@ def read_sheet_rows(
                 # Store the actual 1-based sheet row index (data starts at row 2)
                 row_dict["_row_index"] = str(data_idx + 2)
                 rows.append(row_dict)
+
+        if skipped_header_rows:
+            logger.info(
+                "Skipped %d mid-sheet header/title rows", skipped_header_rows
+            )
 
         # Detect checkbox columns: if all non-empty values in a column are
         # exclusively TRUE/FALSE (case-insensitive), mark the field as checkbox.
