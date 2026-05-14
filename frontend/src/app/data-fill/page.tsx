@@ -471,7 +471,7 @@ export default function DataFillPage() {
           )}
 
           {/* Fields */}
-          <div className="rounded-lg border border-zinc-200 bg-white divide-y divide-zinc-100 overflow-hidden">
+          <div className="rounded-lg border border-zinc-200 bg-white divide-y divide-zinc-100 overflow-hidden desktop-detail-fields">
             {sortedFields.map((field, fieldIdx) => {
               const val = editValues[field.key] ?? "";
               const isFilled = field.type === "checkbox" ? true : !!val.trim();
@@ -537,11 +537,30 @@ export default function DataFillPage() {
         </div>
 
         {editMode && (
-          <div className="fixed bottom-0 left-0 right-0 max-w-[560px] mx-auto px-5 pt-3 pb-3 bg-white border-t border-zinc-200 shadow-sticky z-40"
-            style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}>
+          <div className="w-full max-w-[560px] mx-auto mt-6 mb-4">
             <button onClick={handleSave} disabled={saving}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 disabled:bg-zinc-200 disabled:text-zinc-500 text-white font-semibold text-[15px] rounded-lg h-[52px] flex items-center justify-center gap-2 transition-all duration-150">
-              {saving ? (<><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /><span>Saving...</span></>) : (<span>Save Changes to Sheet</span>)}
+              style={{
+                position: "relative",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "100%",
+                height: 48,
+                overflow: "hidden",
+                background: "var(--ink)",
+                color: "var(--on-ink, #fff)",
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontWeight: 500,
+                fontSize: 11,
+                letterSpacing: "0.2em",
+                textTransform: "uppercase",
+                border: 0,
+                borderRadius: 0,
+                cursor: saving ? "not-allowed" : "pointer",
+                opacity: saving ? 0.6 : 1,
+                transition: "opacity 200ms ease-out",
+              }}>
+              {saving ? "SAVING..." : "SAVE CHANGES TO SHEET →"}
             </button>
           </div>
         )}
@@ -588,7 +607,7 @@ export default function DataFillPage() {
           {showFilterPanel && (
             <div className="mb-4 p-4 rounded-lg border border-zinc-200 bg-white space-y-3 animate-fade-in">
               {filters.map((filter, idx) => (
-                <div key={idx} className="flex items-center gap-2 flex-wrap">
+                <div key={idx} className="flex items-center gap-2 flex-wrap desktop-filter-row">
                   <select value={filter.fieldKey} onChange={(e) => updateFilter(idx, { fieldKey: e.target.value })}
                     className="flex-1 min-w-[100px] px-2 py-1.5 text-[12px] rounded-md border border-zinc-200 bg-zinc-50 focus:outline-none focus:ring-1 focus:ring-zinc-900">
                     {loaded.fields.map((f) => (<option key={f.key} value={f.key}>{f.label}</option>))}
@@ -656,7 +675,7 @@ export default function DataFillPage() {
             </div>
           )}
           {filteredAndSortedRows.length > 0 && (
-            <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden">
+            <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden desktop-grid-list">
               {visibleRows.map((row, idx) => {
                 const missing = getMissingCount(row);
                 const filled = getFilledCount(row);

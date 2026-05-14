@@ -806,7 +806,7 @@ export default function Dashboard() {
                 )}
               </div>
 
-              <div style={{ borderTop: "1px solid var(--rule)" }}>
+              <div style={{ borderTop: "1px solid var(--rule)" }} className="desktop-library-grid">
                 {pagedLibrary.map((item) => (
                   <div
                     key={item.id}

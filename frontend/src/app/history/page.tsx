@@ -255,7 +255,7 @@ export default function HistoryPage() {
             </h2>
             <p className="text-[12px] text-zinc-500">Full entry</p>
           </div>
-          <div className="rounded-lg border border-zinc-200 bg-white divide-y divide-zinc-100 overflow-hidden">
+          <div className="rounded-lg border border-zinc-200 bg-white divide-y divide-zinc-100 overflow-hidden desktop-detail-fields">
             {[...loaded.fields]
               .sort((a, b) => a.order - b.order)
               .map((field) => {
@@ -343,7 +343,7 @@ export default function HistoryPage() {
                   {matches.length === 1 ? "match" : "matches"}
                 </p>
               )}
-              <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden">
+              <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden desktop-grid-list">
                 {visibleMatches.map((row, idx) => {
                   const parts: string[] = [];
                   for (const f of loaded.fields) {
@@ -672,7 +672,7 @@ export default function HistoryPage() {
       {/* Sticky CTA */}
       {!availableTabs && (
         <div
-          className="fixed bottom-0 left-0 right-0 max-w-[560px] mx-auto z-40"
+          className="fixed bottom-0 left-0 right-0 max-w-[560px] mx-auto z-40 desktop-bottom-bar"
         >
           <SubmitButton
             label="Load sheet"

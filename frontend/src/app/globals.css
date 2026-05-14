@@ -528,19 +528,131 @@ button:active:not(:disabled) {
   .max-w-\[560px\] { max-width: 620px !important; }
 }
 @media (min-width: 768px) {
-  .max-w-\[560px\] { max-width: 680px !important; }
+  .max-w-\[560px\] { max-width: 720px !important; }
 }
 @media (min-width: 1024px) {
-  .max-w-\[560px\] { max-width: 760px !important; }
-}
-@media (min-width: 1280px) {
   .max-w-\[560px\] { max-width: 860px !important; }
 }
-@media (min-width: 1536px) {
+@media (min-width: 1280px) {
   .max-w-\[560px\] { max-width: 960px !important; }
 }
-@media (min-width: 1920px) {
+@media (min-width: 1536px) {
   .max-w-\[560px\] { max-width: 1080px !important; }
+}
+@media (min-width: 1920px) {
+  .max-w-\[560px\] { max-width: 1200px !important; }
+}
+
+/* ============================================================
+   Desktop-aware layout utilities
+   On md+ screens, the data-fill list view renders rows in a
+   two-column grid and the detail view uses a wider panel.
+   ============================================================ */
+@media (min-width: 768px) {
+  .desktop-grid-list {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0 !important;
+  }
+  .desktop-grid-list > button {
+    border-bottom: 1px solid var(--rule) !important;
+    border-right: 1px solid var(--rule) !important;
+  }
+  .desktop-grid-list > button:nth-child(2n) {
+    border-right: 0 !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .desktop-grid-list {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  .desktop-detail-fields {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0 !important;
+  }
+  .desktop-detail-fields > div {
+    border-bottom: 1px solid var(--rule) !important;
+    border-right: 1px solid var(--rule) !important;
+  }
+  .desktop-detail-fields > div:nth-child(2n) {
+    border-right: 0 !important;
+  }
+  .desktop-detail-fields > div:last-child,
+  .desktop-detail-fields > div:nth-last-child(2):nth-child(odd) {
+    border-bottom: 0 !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  .desktop-grid-list {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+  .desktop-grid-list > button:nth-child(2n) {
+    border-right: 1px solid var(--rule) !important;
+  }
+  .desktop-grid-list > button:nth-child(3n) {
+    border-right: 0 !important;
+  }
+}
+
+/* Desktop library grid — forms library on dashboard */
+@media (min-width: 768px) {
+  .desktop-library-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0 !important;
+    border-top: 0 !important;
+  }
+  .desktop-library-grid > div {
+    border-bottom: 1px solid var(--rule) !important;
+    border-right: 1px solid var(--rule) !important;
+    padding: 14px 12px !important;
+  }
+  .desktop-library-grid > div:nth-child(2n) {
+    border-right: 0 !important;
+  }
+}
+@media (min-width: 1280px) {
+  .desktop-library-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+  .desktop-library-grid > div:nth-child(2n) {
+    border-right: 1px solid var(--rule) !important;
+  }
+  .desktop-library-grid > div:nth-child(3n) {
+    border-right: 0 !important;
+  }
+}
+
+/* Desktop filter row — horizontal layout on wider screens */
+@media (min-width: 768px) {
+  .desktop-filter-row {
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+  }
+  .desktop-filter-row select,
+  .desktop-filter-row input {
+    min-width: 140px !important;
+  }
+}
+
+/* Fixed bottom bar on desktop — wider */
+@media (min-width: 768px) {
+  .desktop-bottom-bar {
+    max-width: 720px !important;
+  }
+}
+@media (min-width: 1024px) {
+  .desktop-bottom-bar {
+    max-width: 860px !important;
+  }
+}
+@media (min-width: 1280px) {
+  .desktop-bottom-bar {
+    max-width: 960px !important;
+  }
 }
 
 /* Loading overlay — ensure it covers every viewport size, including
