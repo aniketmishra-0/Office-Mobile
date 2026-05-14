@@ -158,7 +158,7 @@ export default function DataFillPage() {
       if (!tabs.length) { setError("No tabs found in this sheet"); return; }
       if (tabs.length === 1) { await selectTab(tabs[0], trimmed); }
       else { setAvailableTabs(tabs); }
-    } catch (e: any) { setError(e.message ?? "Failed to load sheet"); }
+    } catch (e: any) { setError(typeof e?.message === "string" ? e.message : typeof e === "string" ? e : "Failed to load sheet"); }
     finally { setLoading(false); }
   }
 
@@ -179,7 +179,7 @@ export default function DataFillPage() {
         const data = await getSheetHistory(u, tab.worksheet_name);
         setLoaded({ worksheet_name: data.worksheet_name, fields: data.fields, rows: data.rows });
       }
-    } catch (e: any) { setError(e.message ?? "Failed to load entries"); }
+    } catch (e: any) { setError(typeof e?.message === "string" ? e.message : typeof e === "string" ? e : "Failed to load entries"); }
     finally { setLoading(false); }
   }
 
@@ -278,7 +278,7 @@ export default function DataFillPage() {
       setEditMode(false);
       setSuccessMsg("Row updated successfully!");
       setTimeout(() => setSuccessMsg(null), 3000);
-    } catch (e: any) { setError(e.message ?? "Failed to update row"); }
+    } catch (e: any) { setError(typeof e?.message === "string" ? e.message : typeof e === "string" ? e : "Failed to update row"); }
     finally { setSaving(false); }
   }
 
