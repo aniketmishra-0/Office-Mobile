@@ -490,3 +490,294 @@ function MultiHeaderFilterInner() {
     </div>
   );
 }
+
+function MultiHeaderFilterInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const sheetParam = searchParams.get("sheet");
+
+  const [formInput, setFormInput] = useState("");
+  const [urlValid, setUrlValid] = useState(false);
+  const [urlError, setUrlError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [availableTabs, setAvailableTabs] = useState<TabOption[] | null>(null);
+  const [sheetUrl, setSheetUrl] = useState("");
+  const [loaded, setLoaded] = useState<LoadedData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const calBtnRef = useRef<HTMLButtonElement | null>(null);
+  const [selectedSections, setSelectedSections] = useState<number[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => {
+    if (sheetParam) loadSheetFromUrl(sheetParam);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheetParam]);
+
+  function validateUrl(value: string): boolean {
+    if (!value.trim()) { setUrlError(""); setUrlValid(false); return false; }
+    const isValid = value.includes("docs.google.com/spreadsheets") || /^[a-zA-Z0-9-_]{20,}$/.test(value.trim());
+    setUrlValid(isValid);
+    setUrlError(isValid ? "" : "Not a valid Google Sheet URL");
+    return isValid;
+  }
+
+  async function handleLoadSheet() {
+    if (!validateUrl(formInput)) return;
+    router.push(`/multi-header-filter?sheet=${encodeURIComponent(formInput.trim())}`);
+  }
+
+  async function loadSheetFromUrl(url: string) {
+    setLoading(true); setError(null); setAvailableTabs(null); setLoaded(null);
+    setSelectedSections([]); setSearchQuery("");
+    try {
+      const result = await lookupFormsBySheet(url);
+      setSheetUrl(url);
+      const tabs: TabOption[] = result.items.map((item) => ({
+        id: item.id, worksheet_name: item.worksheet_name,
+        form_title: item.form_title, fields: item.fields, has_form: item.has_form,
+      }));
+      if (!tabs.length) { setError("No tabs found"); return; }
+      if (tabs.length === 1) { await selectTab(tabs[0], url); }
+      else { setAvailableTabs(tabs); }
+    } catch (e: any) { setError(e.message ?? "Failed to load sheet"); }
+    finally { setLoading(false); }
+  }
+
+  async function selectTab(tab: TabOption, sheet_url?: string) {
+    setAvailableTabs(null); setLoading(true); setError(null);
+    try {
+      const data = await getSheetSections(sheet_url ?? sheetUrl, tab.worksheet_name);
+      setLoaded({ worksheet_name: data.worksheet_name, fields: data.fields, sections: data.sections });
+      if (data.sections.length > 0) setSelectedSections([0]);
+    } catch (e: any) { setError(e.message ?? "Failed to load data"); }
+    finally { setLoading(false); }
+  }
+
+  const addSection = (idx: number) => {
+    setSelectedSections((prev) => {
+      if (prev.includes(idx)) return prev;
+      const next = [...prev, idx];
+      if (next.length > MAX_OPEN) return next.slice(next.length - MAX_OPEN);
+      return next;
+    });
+  };
+
+  const removeSection = (idx: number) => {
+    setSelectedSections((prev) => prev.filter((i) => i !== idx));
+  };
+
+  const getFilteredRows = (section: Section): Record<string, string>[] => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q || !loaded) return section.rows;
+    return section.rows.filter((row) =>
+      loaded.fields.some((f) => (row[f.key] ?? "").toLowerCase().includes(q))
+    );
+  };
+
+  const totalRows = loaded?.sections.reduce((sum, s) => sum + s.rows.length, 0) ?? 0;
+  const closeCalendar = useCallback(() => setShowCalendar(false), []);
+
+  // Step 1: URL input
+  if (!sheetParam && !loaded && !availableTabs) {
+    return (
+      <div className="flex flex-col min-h-screen" style={{ background: "var(--cream)" }}>
+        <AppHeader title="Multi-Header Filtering" showBack onBack={() => router.push("/")} />
+        <div className="flex-1 w-full max-w-[560px] mx-auto px-6 pt-14 pb-10 space-y-8">
+          <div className="text-center">
+            <h2 style={{ fontFamily: "var(--font-newsreader), Georgia, serif", fontWeight: 400, fontSize: 22, color: "var(--ink)", marginBottom: 6 }}>Multi-Header Filtering</h2>
+            <p style={{ fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontSize: 11, color: "var(--stone)", lineHeight: 1.5 }}>
+              Select up to 2 date sections to view and search within them.
+            </p>
+          </div>
+          <div>
+            <input type="url" value={formInput}
+              onChange={(e) => { setFormInput(e.target.value); validateUrl(e.target.value); }}
+              onKeyDown={(e) => e.key === "Enter" && handleLoadSheet()}
+              placeholder="Paste Google Sheet URL..."
+              style={{ width: "100%", fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontSize: 13, color: "var(--ink)", background: "var(--paper)", border: `1px solid ${urlError ? "var(--error)" : "var(--rule)"}`, borderRadius: 4, padding: "10px 12px", outline: "none", marginBottom: 8 }}
+            />
+            {urlError && <p style={{ color: "var(--error)", fontSize: 11, margin: "0 0 8px" }}>{urlError}</p>}
+            <button onClick={handleLoadSheet} disabled={!urlValid || loading}
+              style={{ width: "100%", fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontSize: 12, fontWeight: 500, color: urlValid ? "var(--cream)" : "var(--stone)", background: urlValid ? "var(--ink)" : "var(--paper)", border: "1px solid var(--rule)", borderRadius: 4, padding: "10px 0", cursor: urlValid ? "pointer" : "not-allowed" }}>
+              {loading ? "Loading..." : "Load Sheet"}
+            </button>
+          </div>
+        </div>
+        {error && <ErrorToast message={error} onDismiss={() => setError(null)} />}
+      </div>
+    );
+  }
+
+  // Step 2: Tab selection
+  if (availableTabs && !loaded) {
+    return (
+      <div className="flex flex-col min-h-screen" style={{ background: "var(--cream)" }}>
+        <AppHeader title="Multi-Header Filtering" showBack onBack={() => router.back()} />
+        {loading && <LoadingOverlay message="Loading..." />}
+        <div className="flex-1 w-full max-w-[560px] mx-auto px-6 pt-14 pb-10 space-y-8">
+          <h3 style={{ fontFamily: "var(--font-newsreader), Georgia, serif", fontWeight: 400, fontSize: 18, color: "var(--ink)", textAlign: "center" }}>Select a tab</h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {availableTabs.map((tab, i) => (
+              <button key={i} onClick={() => selectTab(tab)}
+                style={{ fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontSize: 13, color: "var(--ink)", background: "var(--paper)", border: "1px solid var(--rule)", borderRadius: 4, padding: "12px 16px", cursor: "pointer", textAlign: "left" }}>
+                {tab.worksheet_name || tab.form_title}
+              </button>
+            ))}
+          </div>
+        </div>
+        {error && <ErrorToast message={error} onDismiss={() => setError(null)} />}
+      </div>
+    );
+  }
+
+  // Loading
+  if (!loaded) {
+    return (
+      <div className="flex flex-col min-h-screen" style={{ background: "var(--cream)" }}>
+        <AppHeader title="Multi-Header Filtering" showBack onBack={() => router.back()} />
+        {loading && <LoadingOverlay message="Loading data..." />}
+        {error && <ErrorToast message={error} onDismiss={() => setError(null)} />}
+      </div>
+    );
+  }
+
+  // Step 3: Main data view — matches Quick View layout exactly
+  const sortedFields = [...loaded.fields].sort((a, b) => a.order - b.order);
+
+  return (
+    <div className="flex flex-col min-h-screen" style={{ background: "var(--cream)" }}>
+      <AppHeader title="Multi-Header Filtering" showBack onBack={() => { setLoaded(null); setSelectedSections([]); setSearchQuery(""); if (sheetUrl) loadSheetFromUrl(sheetUrl); }} />
+      {loading && <LoadingOverlay message="Loading..." />}
+
+      {/* Top bar: info + dropdown + search + calendar — same as Quick View */}
+      <div style={{ borderBottom: "1px solid var(--rule)", padding: "12px 16px" }}>
+        <div style={{ maxWidth: 1400, margin: "0 auto", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          {/* Sheet info */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: "0 0 auto" }}>
+            <div>
+              <h2 style={{ fontFamily: "var(--font-newsreader), Georgia, serif", fontWeight: 400, fontSize: 16, color: "var(--ink)", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }}>{loaded.worksheet_name}</h2>
+              <p style={{ fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontWeight: 300, fontSize: 10, letterSpacing: "0.04em", color: "var(--stone)", margin: 0 }}>
+                {loaded.sections.length} sections · {totalRows.toLocaleString()} rows
+              </p>
+            </div>
+          </div>
+
+          {/* Dropdown */}
+          <SectionDropdown sections={loaded.sections} selectedSections={selectedSections} onSelect={addSection} />
+
+          {/* Search */}
+          <div style={{ position: "relative", flex: 1, minWidth: 180, maxWidth: 400 }}>
+            <svg style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "var(--stone)", pointerEvents: "none" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search all columns..."
+              style={{ width: "100%", fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontSize: 12, color: "var(--ink)", background: "var(--paper)", border: "1px solid var(--rule)", borderRadius: 4, padding: "7px 30px 7px 30px", outline: "none" }}
+            />
+            {searchQuery && (
+              <button type="button" onClick={() => setSearchQuery("")}
+                style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: 0, cursor: "pointer", padding: 2 }}
+                aria-label="Clear search">
+                <svg style={{ width: 12, height: 12, color: "var(--stone)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+
+          {/* Calendar button */}
+          <button ref={calBtnRef} type="button" onClick={() => setShowCalendar((s) => !s)} aria-label="Show calendar"
+            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: "50%", border: showCalendar ? "1.5px solid var(--ink)" : "1px solid var(--rule)", background: showCalendar ? "var(--paper)" : "transparent", color: "var(--ink)", cursor: "pointer", flexShrink: 0 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Chips */}
+        {selectedSections.length > 0 && (
+          <div style={{ maxWidth: 1400, margin: "8px auto 0", display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {selectedSections.map((idx) => (
+              <span key={idx} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontSize: 10, background: "var(--ink)", color: "var(--cream)", borderRadius: 14, padding: "4px 10px 4px 12px" }}>
+                {loaded.sections[idx]?.title ?? `Section ${idx}`}
+                <button onClick={() => removeSection(idx)} style={{ background: "none", border: "none", color: "var(--cream)", cursor: "pointer", fontSize: 13, padding: 0, lineHeight: 1, opacity: 0.7 }} aria-label="Remove">×</button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Data table area — same structure as Quick View */}
+      <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        {selectedSections.length === 0 && (
+          <div style={{ textAlign: "center", padding: "60px 20px" }}>
+            <p style={{ fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontSize: 12, color: "var(--stone)" }}>No section selected</p>
+            <p style={{ fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontSize: 11, color: "var(--stone)", marginTop: 4 }}>Use the dropdown above to select a date section</p>
+          </div>
+        )}
+
+        {selectedSections.length > 0 && (
+          <div style={{ flex: 1, overflow: "auto", position: "relative" }}>
+            {selectedSections.map((idx) => {
+              const section = loaded.sections[idx];
+              if (!section) return null;
+              const rows = getFilteredRows(section);
+              return (
+                <div key={idx}>
+                  {/* Section header */}
+                  <div style={{ display: "flex", alignItems: "center", padding: "8px 16px", background: "var(--ink)", color: "var(--cream)", gap: 8, position: "sticky", top: 0, zIndex: 5 }}>
+                    <span style={{ fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontSize: 12, fontWeight: 500, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{section.title}</span>
+                    <span style={{ fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontSize: 9, opacity: 0.7 }}>
+                      {searchQuery ? `${rows.length} matches` : `${section.rows.length} rows`}
+                    </span>
+                    <button onClick={() => removeSection(idx)} style={{ background: "none", border: "none", color: "var(--cream)", cursor: "pointer", fontSize: 16, padding: "0 4px", opacity: 0.7, lineHeight: 1 }} aria-label="Close section">×</button>
+                  </div>
+                  {/* Table */}
+                  <table style={{ width: "100%", minWidth: sortedFields.length * 140, borderCollapse: "collapse", fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontSize: 12 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ position: "sticky", top: 38, zIndex: 4, background: "var(--paper)", padding: "6px 12px", textAlign: "left", fontSize: 9, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--stone)", borderBottom: "1px solid var(--rule)", whiteSpace: "nowrap", fontWeight: 500 }}>#</th>
+                        {sortedFields.map((field) => (
+                          <th key={field.key} style={{ position: "sticky", top: 38, zIndex: 4, background: "var(--paper)", padding: "6px 12px", textAlign: "left", fontSize: 9, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--stone)", borderBottom: "1px solid var(--rule)", whiteSpace: "nowrap", fontWeight: 500 }}>
+                            {field.source_header || field.label || field.key}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.slice(0, 200).map((row, rIdx) => (
+                        <tr key={rIdx} style={{ borderBottom: "1px solid var(--rule)" }}>
+                          <td style={{ padding: "6px 12px", color: "var(--stone)", fontSize: 10 }}>{row._row_index ?? rIdx + 1}</td>
+                          {sortedFields.map((field) => (
+                            <td key={field.key} style={{ padding: "6px 12px", color: "var(--ink)", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row[field.key] ?? ""}>
+                              {row[field.key] ?? ""}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                      {rows.length === 0 && (
+                        <tr><td colSpan={sortedFields.length + 1} style={{ padding: 24, textAlign: "center", color: "var(--stone)", fontSize: 11 }}>
+                          {searchQuery ? "No matches" : "No data"}
+                        </td></tr>
+                      )}
+                      {rows.length > 200 && (
+                        <tr><td colSpan={sortedFields.length + 1} style={{ padding: 8, textAlign: "center", color: "var(--stone)", fontSize: 9 }}>
+                          Showing 200 of {rows.length}
+                        </td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {showCalendar && <CalendarPopup anchorRef={calBtnRef} onClose={closeCalendar} />}
+      {error && <ErrorToast message={error} onDismiss={() => setError(null)} />}
+    </div>
+  );
+}
