@@ -152,6 +152,13 @@ async def create_sheet(payload: CreateSheetRequest) -> CreateSheetResponse:
     return await asyncio.to_thread(_do_create)
 
 
+@router.get("/dashboard/stats")
+async def get_dashboard_stats() -> dict:
+    """Aggregated stats for the dashboard widgets page."""
+    stats = await asyncio.to_thread(form_store.get_dashboard_stats)
+    return stats
+
+
 @router.get("/forms/library")
 async def list_form_library(limit: int = Query(50, ge=1, le=200)) -> dict:
     items = await asyncio.to_thread(form_store.list_forms, limit)
@@ -332,11 +339,20 @@ async def update_sheet_row_endpoint(
     except InvalidGoogleSheetUrl as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    # Read headers to build field schema
+    # Use authenticated header reading to ensure consistency with the
+    # live headers that update_sheet_row will read internally. The public
+    # gviz endpoint can return different column labels than the actual row 1
+    # values, causing field.source_header mismatches and wrong column mapping.
+    from app.services.sheets_client import read_headers_authenticated, _has_credentials as has_creds
     try:
-        spreadsheet_title, actual_worksheet, headers = await asyncio.to_thread(
-            read_headers, spreadsheet_id, worksheet_name
-        )
+        if has_creds():
+            spreadsheet_title, actual_worksheet, headers = await asyncio.to_thread(
+                read_headers_authenticated, spreadsheet_id, worksheet_name
+            )
+        else:
+            spreadsheet_title, actual_worksheet, headers = await asyncio.to_thread(
+                read_headers, spreadsheet_id, worksheet_name
+            )
     except Exception as exc:
         raise _sheet_error(exc) from exc
 
@@ -344,10 +360,20 @@ async def update_sheet_row_endpoint(
     if not fields:
         raise HTTPException(status_code=400, detail="No usable headers found in the sheet.")
 
-    # Build complete values dict ensuring all fields have a value
+    # Build complete values dict ensuring all fields have a value.
+    # Also pass through any keys from the frontend that match field keys,
+    # converting boolean-like values to proper strings for Google Sheets.
     complete_values = {}
     for field in fields:
-        complete_values[field.key] = values.get(field.key, "")
+        raw_val = values.get(field.key, "")
+        # Ensure the value is always a string for consistency
+        if raw_val is None:
+            raw_val = ""
+        elif isinstance(raw_val, bool):
+            raw_val = "TRUE" if raw_val else "FALSE"
+        else:
+            raw_val = str(raw_val)
+        complete_values[field.key] = raw_val
 
     try:
         updated_range = await asyncio.to_thread(
@@ -558,6 +584,20 @@ async def list_submissions(form_id: str, token: str = Query(..., min_length=16))
 
     items = await asyncio.to_thread(form_store.list_submissions, form_id=form_id)
     return {"items": items}
+
+
+@router.get("/forms/{form_id}/ai-suggestions")
+async def get_ai_suggestions(form_id: str) -> dict:
+    """
+    AI Auto-Fill: Analyze submission history to detect patterns
+    (day-of-week, recurring values) and return predicted field values.
+    """
+    await _get_record_or_404_async(form_id)
+
+    from app.services.autofill_ai import get_ai_suggestions as _get_ai
+
+    result = await asyncio.to_thread(_get_ai, form_id)
+    return result
 
 
 @router.get("/forms/{form_id}/suggestions")

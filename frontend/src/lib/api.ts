@@ -290,6 +290,29 @@ export async function getFormSuggestions(
 }
 
 /**
+ * GET /api/forms/:id/ai-suggestions
+ * AI Auto-Fill: Get predicted field values based on submission history patterns.
+ */
+export interface AiSuggestionsResponse {
+  predictions: Record<string, string>;
+  confidence: Record<string, number>;
+  pattern_type: Record<string, "day_of_week" | "recurring">;
+  context: {
+    current_day: string;
+    total_submissions: number;
+    day_submissions: number;
+  };
+}
+
+export async function getAiSuggestions(
+  id: string,
+): Promise<AiSuggestionsResponse> {
+  return jsonGet<AiSuggestionsResponse>(
+    `/forms/${encodeURIComponent(id)}/ai-suggestions`,
+  );
+}
+
+/**
  * GET /api/forms/lookup/by-sheet?sheet_url=…
  * Find forms linked to a Google Sheet URL.
  */
@@ -381,4 +404,30 @@ export async function deleteForm(id: string, token?: string): Promise<{ success:
  */
 export async function unauthorizeForm(id: string, token?: string): Promise<{ success: boolean }> {
   return jsonRequest<{ success: boolean }>("POST", `/forms/${encodeURIComponent(id)}/unauthorize`, { token });
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard stats
+// ---------------------------------------------------------------------------
+
+export interface DashboardStats {
+  total_forms: number;
+  total_submissions: number;
+  today_submissions: number;
+  daily: Array<{ date: string; count: number }>;
+  top_forms: Array<{ id: string; form_title: string; submission_count: number }>;
+  recent_submissions: Array<{
+    id: string;
+    form_id: string;
+    form_title: string;
+    submitted_at: string;
+  }>;
+}
+
+/**
+ * GET /api/dashboard/stats
+ * Fetch aggregated stats for the dashboard widgets page.
+ */
+export async function getDashboardStats(): Promise<DashboardStats> {
+  return jsonGet<DashboardStats>("/dashboard/stats");
 }

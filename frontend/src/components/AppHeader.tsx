@@ -212,6 +212,18 @@ export default function AppHeader({
                   role="menuitem"
                   className="om-header__menu-item"
                   onClick={() => {
+                    router.push("/dashboard");
+                    setOpenMenu(false);
+                  }}
+                >
+                  <span className="om-header__menu-icon" aria-hidden>◧</span>
+                  <span>Dashboard</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="om-header__menu-item"
+                  onClick={() => {
                     router.push("/history");
                     setOpenMenu(false);
                   }}
@@ -229,7 +241,7 @@ export default function AppHeader({
                   }}
                 >
                   <span className="om-header__menu-icon" aria-hidden>✎</span>
-                  <span>Data Fill</span>
+                  <span>Data Correction</span>
                 </button>
                 <button
                   type="button"
@@ -305,6 +317,9 @@ export default function AppHeader({
           z-index: 40;
           background: var(--cream);
           border-bottom: 1px solid var(--rule);
+          /* Ensure header always renders above scrolling content on iOS */
+          transform: translateZ(0);
+          -webkit-transform: translateZ(0);
         }
         .om-header__row {
           display: flex;
