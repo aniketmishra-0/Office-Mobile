@@ -849,14 +849,14 @@ function FormsSection() {
       {/* Delete confirmation modal */}
       {deleteTarget && (
         <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-          <div onClick={() => setDeleteTarget(null)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(2px)" }} />
-          <div style={{ position: "relative", width: "100%", maxWidth: 300, background: "#fff", borderRadius: 16, padding: "24px 20px 18px", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
-            <p style={{ margin: "0 0 16px 0", fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontSize: 13, color: "var(--ink)", textAlign: "center" }}>
+          <div onClick={() => setDeleteTarget(null)} style={{ position: "absolute", inset: 0, background: "rgba(26,23,20,0.25)" }} />
+          <div style={{ position: "relative", width: "100%", maxWidth: 300, background: "var(--cream)", borderRadius: 4, border: "1px solid var(--rule)", padding: "24px 20px 18px" }}>
+            <p style={{ margin: "0 0 16px 0", fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontSize: 12, letterSpacing: "0.02em", color: "var(--ink)", textAlign: "center" }}>
               Delete this form? This cannot be undone.
             </p>
             <div style={{ display: "flex", gap: 10 }}>
-              <button type="button" onClick={() => setDeleteTarget(null)} style={{ flex: 1, padding: "10px 14px", borderRadius: 10, border: "1px solid var(--rule)", background: "#fff", fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontWeight: 500, fontSize: 12, color: "var(--ink)", cursor: "pointer" }}>Cancel</button>
-              <button type="button" onClick={confirmDeleteForm} style={{ flex: 1, padding: "10px 14px", borderRadius: 10, border: 0, background: "#dc2626", fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontWeight: 500, fontSize: 12, color: "#fff", cursor: "pointer" }}>Delete</button>
+              <button type="button" onClick={() => setDeleteTarget(null)} style={{ flex: 1, padding: "10px 14px", borderRadius: 4, border: "1px solid var(--rule)", background: "var(--cream)", fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontWeight: 500, fontSize: 12, letterSpacing: "0.04em", color: "var(--ink)", cursor: "pointer" }}>Cancel</button>
+              <button type="button" onClick={confirmDeleteForm} style={{ flex: 1, padding: "10px 14px", borderRadius: 4, border: 0, background: "var(--error)", fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontWeight: 500, fontSize: 12, letterSpacing: "0.04em", color: "#fff", cursor: "pointer" }}>Delete</button>
             </div>
           </div>
         </div>
@@ -865,14 +865,14 @@ function FormsSection() {
       {/* Unauthorize confirmation modal */}
       {unauthorizeTarget && (
         <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-          <div onClick={() => setUnauthorizeTarget(null)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(2px)" }} />
-          <div style={{ position: "relative", width: "100%", maxWidth: 300, background: "#fff", borderRadius: 16, padding: "24px 20px 18px", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
-            <p style={{ margin: "0 0 16px 0", fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontSize: 13, color: "var(--ink)", textAlign: "center" }}>
+          <div onClick={() => setUnauthorizeTarget(null)} style={{ position: "absolute", inset: 0, background: "rgba(26,23,20,0.25)" }} />
+          <div style={{ position: "relative", width: "100%", maxWidth: 300, background: "var(--cream)", borderRadius: 4, border: "1px solid var(--rule)", padding: "24px 20px 18px" }}>
+            <p style={{ margin: "0 0 16px 0", fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontSize: 12, letterSpacing: "0.02em", color: "var(--ink)", textAlign: "center" }}>
               Unauthorize this form for this session?
             </p>
             <div style={{ display: "flex", gap: 10 }}>
-              <button type="button" onClick={() => setUnauthorizeTarget(null)} style={{ flex: 1, padding: "10px 14px", borderRadius: 10, border: "1px solid var(--rule)", background: "#fff", fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontWeight: 500, fontSize: 12, color: "var(--ink)", cursor: "pointer" }}>Cancel</button>
-              <button type="button" onClick={confirmUnauthorize} style={{ flex: 1, padding: "10px 14px", borderRadius: 10, border: 0, background: "var(--ink)", fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontWeight: 500, fontSize: 12, color: "#fff", cursor: "pointer" }}>Revoke</button>
+              <button type="button" onClick={() => setUnauthorizeTarget(null)} style={{ flex: 1, padding: "10px 14px", borderRadius: 4, border: "1px solid var(--rule)", background: "var(--cream)", fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontWeight: 500, fontSize: 12, letterSpacing: "0.04em", color: "var(--ink)", cursor: "pointer" }}>Cancel</button>
+              <button type="button" onClick={confirmUnauthorize} style={{ flex: 1, padding: "10px 14px", borderRadius: 4, border: 0, background: "var(--ink)", fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontWeight: 500, fontSize: 12, letterSpacing: "0.04em", color: "var(--on-ink)", cursor: "pointer" }}>Revoke</button>
             </div>
           </div>
         </div>

@@ -409,7 +409,7 @@ export default function Dashboard() {
         <AppHeader showLogo />
         {loadingPreview && <LoadingOverlay message="Reading your sheet..." />}
 
-        <div className="flex-1 w-full max-w-[560px] mx-auto px-6 pt-10 pb-8 space-y-8">
+        <div className="flex-1 w-full max-w-[560px] mx-auto px-6 pt-14 pb-8 space-y-8">
           {/* Editorial hero */}
           <section>
             <p
@@ -962,45 +962,26 @@ export default function Dashboard() {
                 style={{
                   position: "absolute",
                   inset: 0,
-                  background: "rgba(0,0,0,0.4)",
-                  backdropFilter: "blur(2px)",
+                  background: "rgba(26,23,20,0.25)",
                 }}
               />
               <div
                 style={{
                   position: "relative",
                   width: "100%",
-                  maxWidth: 320,
-                  background: "#fff",
-                  borderRadius: 16,
-                  padding: "28px 24px 20px",
-                  boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
+                  maxWidth: 300,
+                  background: "var(--cream)",
+                  borderRadius: 4,
+                  border: "1px solid var(--rule)",
+                  padding: "28px 24px 22px",
                 }}
               >
                 <div style={{ textAlign: "center", marginBottom: 20 }}>
-                  <div
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: "50%",
-                      background: "#fef2f2",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      marginBottom: 14,
-                    }}
-                  >
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14" />
-                      <line x1="10" y1="11" x2="10" y2="17" />
-                      <line x1="14" y1="11" x2="14" y2="17" />
-                    </svg>
-                  </div>
                   <h3
                     style={{
                       fontFamily: "var(--font-newsreader), Georgia, serif",
                       fontWeight: 500,
-                      fontSize: 18,
+                      fontSize: 17,
                       color: "var(--ink)",
                       margin: "0 0 8px 0",
                     }}
@@ -1011,8 +992,9 @@ export default function Dashboard() {
                     style={{
                       fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
                       fontWeight: 300,
-                      fontSize: 12,
+                      fontSize: 11,
                       lineHeight: 1.5,
+                      letterSpacing: "0.02em",
                       color: "var(--stone)",
                       margin: 0,
                     }}
@@ -1026,13 +1008,14 @@ export default function Dashboard() {
                     onClick={() => setDeleteTarget(null)}
                     style={{
                       flex: 1,
-                      padding: "12px 16px",
-                      borderRadius: 10,
+                      padding: "10px 14px",
+                      borderRadius: 4,
                       border: "1px solid var(--rule)",
-                      background: "#fff",
+                      background: "var(--cream)",
                       fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
                       fontWeight: 500,
-                      fontSize: 13,
+                      fontSize: 12,
+                      letterSpacing: "0.04em",
                       color: "var(--ink)",
                       cursor: "pointer",
                     }}
@@ -1044,13 +1027,14 @@ export default function Dashboard() {
                     onClick={confirmDelete}
                     style={{
                       flex: 1,
-                      padding: "12px 16px",
-                      borderRadius: 10,
+                      padding: "10px 14px",
+                      borderRadius: 4,
                       border: 0,
-                      background: "#dc2626",
+                      background: "var(--error)",
                       fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
                       fontWeight: 500,
-                      fontSize: 13,
+                      fontSize: 12,
+                      letterSpacing: "0.04em",
                       color: "#fff",
                       cursor: "pointer",
                     }}
@@ -1080,7 +1064,7 @@ export default function Dashboard() {
         />
         {reapplying && <LoadingOverlay message="Updating fields..." />}
 
-        <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-5 pb-8 space-y-5">
+        <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-8 space-y-5">
           {/* Warnings */}
           {warnings.length > 0 && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5">
@@ -1196,7 +1180,7 @@ export default function Dashboard() {
         }
       />
 
-      <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-6 pb-10 stagger-children">
+      <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-10 stagger-children">
         {/* Success header */}
         <div className="flex flex-col items-center pt-4 pb-6">
           <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center border-2 border-emerald-100">
