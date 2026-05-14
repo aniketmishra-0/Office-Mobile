@@ -5,6 +5,7 @@ import AppHeader from "@/components/AppHeader";
 import ErrorToast from "@/components/ErrorToast";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import ClearButton from "@/components/ClearButton";
+import SubmitButton from "@/components/SubmitButton";
 import type { FieldSchema } from "@/types/field";
 import {
   getSheetHistory,
@@ -310,7 +311,8 @@ export default function DataFillPage() {
     setLoaded(null); setAvailableTabs(null); setFilters([]);
     setSelectedRowIdx(null); setEditMode(false); setFormInput("");
     setSheetUrl(""); setUrlValid(false); setUrlError(""); setError(null);
-    setSuccessMsg(null); setSortMode("default");
+    setSuccessMsg(null); setSortMode("default"); setAccessStatus(null);
+    setVisibleCount(ROWS_PER_PAGE);
   }, []);
 
   function getMissingCount(row: Record<string, string>): number {
@@ -509,31 +511,12 @@ export default function DataFillPage() {
         </div>
 
         {editMode && (
-          <div className="w-full max-w-[560px] mx-auto mt-6 mb-4">
-            <button onClick={handleSave} disabled={saving}
-              style={{
-                position: "relative",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: "100%",
-                height: 48,
-                overflow: "hidden",
-                background: "var(--ink)",
-                color: "var(--on-ink, #fff)",
-                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                fontWeight: 500,
-                fontSize: 11,
-                letterSpacing: "0.2em",
-                textTransform: "uppercase",
-                border: 0,
-                borderRadius: 0,
-                cursor: saving ? "not-allowed" : "pointer",
-                opacity: saving ? 0.6 : 1,
-                transition: "opacity 200ms ease-out",
-              }}>
-              {saving ? "SAVING..." : "SAVE CHANGES TO SHEET →"}
-            </button>
+          <div className="w-full max-w-[560px] mx-auto px-5 mt-6 mb-4">
+            <SubmitButton
+              label="Save Changes to Sheet"
+              submitting={saving}
+              onClick={handleSave}
+            />
           </div>
         )}
         <ErrorToast message={error} onDismiss={() => setError(null)} />
@@ -758,34 +741,12 @@ export default function DataFillPage() {
         )}
         {!availableTabs && (
           <div className="mb-6">
-            <button
-              type="button"
+            <SubmitButton
+              label="Load Sheet"
+              submitting={loading}
               onClick={handleLoadSheet}
-              disabled={!formInput.trim() || loading}
-              style={{
-                position: "relative",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: "100%",
-                height: 48,
-                overflow: "hidden",
-                background: "var(--ink)",
-                color: "var(--on-ink, #fff)",
-                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                fontWeight: 500,
-                fontSize: 11,
-                letterSpacing: "0.2em",
-                textTransform: "uppercase",
-                border: 0,
-                borderRadius: 0,
-                cursor: !formInput.trim() || loading ? "not-allowed" : "pointer",
-                opacity: !formInput.trim() ? 0.4 : 1,
-                transition: "opacity 200ms ease-out",
-              }}
-            >
-              {loading ? "WORKING..." : "LOAD SHEET →"}
-            </button>
+              disabled={!formInput.trim()}
+            />
           </div>
         )}
         {!availableTabs && (
