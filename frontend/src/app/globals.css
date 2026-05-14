@@ -586,13 +586,7 @@ button:active:not(:disabled) {
 
 @media (min-width: 1280px) {
   .desktop-grid-list {
-    grid-template-columns: repeat(3, 1fr) !important;
-  }
-  .desktop-grid-list > button:nth-child(2n) {
-    border-right: 1px solid var(--rule) !important;
-  }
-  .desktop-grid-list > button:nth-child(3n) {
-    border-right: 0 !important;
+    grid-template-columns: repeat(2, 1fr) !important;
   }
 }
 
