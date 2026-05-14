@@ -100,6 +100,7 @@ export default function SubmitButton({
         }
         .om-submit:disabled {
           cursor: not-allowed;
+          opacity: 0.45;
         }
         .om-submit__fill {
           position: absolute;

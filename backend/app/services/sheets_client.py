@@ -391,9 +391,19 @@ def list_worksheet_names(spreadsheet_id: str) -> list[str]:
         pass
 
     if _has_credentials():
-        client = get_client()
-        spreadsheet = client.open_by_key(spreadsheet_id)
-        return [ws.title for ws in spreadsheet.worksheets()]
+        try:
+            client = get_client()
+            spreadsheet = client.open_by_key(spreadsheet_id)
+            return [ws.title for ws in spreadsheet.worksheets()]
+        except Exception as exc:
+            logger.warning("list_worksheet_names authenticated fallback failed: %s", exc)
+
+    # Last resort: if the gviz endpoint works, we know at least one sheet exists
+    try:
+        _fetch_gviz_json(spreadsheet_id, None)
+        return ["Sheet1"]
+    except PublicSheetError:
+        pass
 
     raise PublicSheetError(
         "Sheet not found or not publicly accessible. "
@@ -432,7 +442,12 @@ def check_sheet_access(spreadsheet_id: str) -> dict[str, bool]:
         _read_public_sheet_names(spreadsheet_id)
         public_read = True
     except PublicSheetError:
-        public_read = False
+        # The xlsx export failed — try the lighter gviz endpoint as fallback
+        try:
+            _fetch_gviz_json(spreadsheet_id, None)
+            public_read = True
+        except PublicSheetError:
+            public_read = False
 
     if public_read:
         result = {"read": True, "edit": False}

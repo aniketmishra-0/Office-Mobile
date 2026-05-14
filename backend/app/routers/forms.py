@@ -647,6 +647,19 @@ async def lookup_forms_by_sheet(sheet_url: str) -> dict:
         logger.warning(f"Could not list worksheet tabs: {exc}")
         tab_names = []
 
+    # If listing tabs failed but the sheet might still be readable (e.g.,
+    # publicly shared sheets where the xlsx export was rate-limited), fall
+    # back to a default "Sheet1" entry so the user can still open the sheet.
+    if not tab_names and not records:
+        # Try one more time using the gviz endpoint which is lighter weight
+        try:
+            from app.services.sheets_client import read_headers_public
+            await asyncio.to_thread(read_headers_public, spreadsheet_id, None)
+            # If we got here, the sheet IS publicly readable — use default tab
+            tab_names = ["Sheet1"]
+        except Exception:
+            pass
+
     if not tab_names and not records:
         raise HTTPException(
             status_code=404,

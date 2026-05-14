@@ -682,7 +682,7 @@ export default function Dashboard() {
                     }}
                   >
                     <strong style={{ fontWeight: 500 }}>view only.</strong>{" "}
-                    we can read the sheet, but you must grant editor access{" "}
+                    you can open and view the sheet, but grant editor access{" "}
                     {serviceAccountEmail ? (
                       <>
                         to <strong style={{ fontWeight: 500 }}>{serviceAccountEmail}</strong>{" "}
@@ -739,7 +739,7 @@ export default function Dashboard() {
                     if (!validateUrl(sheetUrl)) return;
                     setShowOpenIn(true);
                   }}
-                  disabled={!sheetUrl.trim() || accessStatus === "none" || accessStatus === "read"}
+                  disabled={!sheetUrl.trim() || accessStatus === "checking"}
                 />
               </div>
             </div>
