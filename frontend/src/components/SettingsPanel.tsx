@@ -81,22 +81,22 @@ export default function SettingsPanel({ onClose }: Props) {
     };
   }, []);
 
-  function changeTheme(next: Theme) {
+  async function changeTheme(next: Theme) {
     setThemeLocal(next);
     persistTheme(next);
-    syncPrefsToBackend();
+    await syncPrefsToBackend();
   }
 
-  function changeDisplay(patch: Partial<DisplayPrefs>) {
+  async function changeDisplay(patch: Partial<DisplayPrefs>) {
     setDisplayLocal((prev) => ({ ...prev, ...patch }));
     persistDisplay(patch);
-    syncPrefsToBackend();
+    await syncPrefsToBackend();
   }
 
-  function resetDisplayToDefaults() {
+  async function resetDisplayToDefaults() {
     resetDisplay();
     setDisplayLocal({ ...DEFAULT_DISPLAY });
-    syncPrefsToBackend();
+    await syncPrefsToBackend();
   }
 
   function updateCopy(key: keyof EditorialCopy, value: string) {
@@ -104,19 +104,19 @@ export default function SettingsPanel({ onClose }: Props) {
     setCopyDirty(true);
   }
 
-  function saveCopy() {
+  async function saveCopy() {
     persistCopy(copy);
     setCopyDirty(false);
     setSaved(true);
-    syncPrefsToBackend();
+    await syncPrefsToBackend();
     window.setTimeout(() => setSaved(false), 1600);
   }
 
-  function resetCopyToDefaults() {
+  async function resetCopyToDefaults() {
     resetCopy();
     setCopyLocal({ ...DEFAULT_COPY });
     setCopyDirty(false);
-    syncPrefsToBackend();
+    await syncPrefsToBackend();
   }
 
   const [signingOut, setSigningOut] = useState(false);

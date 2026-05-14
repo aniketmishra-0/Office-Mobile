@@ -77,6 +77,7 @@ export function applyTheme(theme: Theme): void {
 export function setTheme(theme: Theme): void {
   try {
     window.localStorage.setItem(THEME_KEY, theme);
+    window.localStorage.setItem("om_prefs_ts", String(Date.now()));
   } catch {}
   // Flag the root for a brief universal color/bg transition so dark ↔ light
   // doesn't snap. Removed after the animation settles.
@@ -172,6 +173,7 @@ export function setDisplay(patch: Partial<DisplayPrefs>): void {
   const next = { ...current, ...patch };
   try {
     window.localStorage.setItem(DISPLAY_KEY, JSON.stringify(next));
+    window.localStorage.setItem("om_prefs_ts", String(Date.now()));
   } catch {}
   applyDisplay(next);
   emitChange();
@@ -205,6 +207,7 @@ export function setCopy(patch: Partial<EditorialCopy>): void {
   const next = { ...current, ...patch };
   try {
     window.localStorage.setItem(COPY_KEY, JSON.stringify(next));
+    window.localStorage.setItem("om_prefs_ts", String(Date.now()));
   } catch {}
   emitChange();
 }
@@ -252,6 +255,11 @@ function _sessionHeaders(): Record<string, string> {
 /**
  * Load preferences from the backend and apply them locally.
  * Call this after sign-in to hydrate from the user's saved prefs.
+ *
+ * NOTE: If a preference already exists locally (e.g. the user just
+ * changed their theme), we treat the local value as authoritative and
+ * push it back to the backend instead of overwriting it. This prevents
+ * a stale backend value from reverting a recent local change on refresh.
  */
 export async function syncPrefsFromBackend(): Promise<void> {
   try {
@@ -263,33 +271,55 @@ export async function syncPrefsFromBackend(): Promise<void> {
     const data = await res.json();
     const prefs = data.preferences || {};
 
-    // Apply theme
-    if (prefs.theme) {
+    // Check if we have unsaved local changes (set within the last 5 seconds).
+    // This handles the edge case where the user changed a pref and the PUT
+    // hadn't completed before the page refreshed.
+    const lastLocalWrite = (() => {
+      try { return parseInt(window.localStorage.getItem("om_prefs_ts") || "0", 10); } catch { return 0; }
+    })();
+    const isRecentLocalWrite = (Date.now() - lastLocalWrite) < 5000;
+
+    // Theme: if we have a recent local write, local wins; otherwise DB wins.
+    const localTheme = (() => {
+      try { return window.localStorage.getItem(THEME_KEY); } catch { return null; }
+    })();
+
+    if (isRecentLocalWrite && localTheme) {
+      // Local change is very recent — push to backend to ensure DB is in sync
+      if (prefs.theme !== localTheme) {
+        syncPrefsToBackend();
+      }
+    } else if (prefs.theme) {
+      // DB is authoritative — apply backend value
       try { window.localStorage.setItem(THEME_KEY, prefs.theme); } catch {}
       applyTheme(prefs.theme as Theme);
     }
 
-    // Apply display prefs
-    const display: Partial<DisplayPrefs> = {};
-    if (prefs.font_family) display.font_family = prefs.font_family;
-    if (prefs.font_size) display.font_size = prefs.font_size;
-    if (prefs.line_height) display.line_height = prefs.line_height;
-    if (prefs.border_radius) display.border_radius = prefs.border_radius;
-    if (Object.keys(display).length > 0) {
-      const merged = { ...DEFAULT_DISPLAY, ...display };
-      try { window.localStorage.setItem(DISPLAY_KEY, JSON.stringify(merged)); } catch {}
-      applyDisplay(merged);
+    // Apply display prefs (skip if recent local write)
+    if (!isRecentLocalWrite) {
+      const display: Partial<DisplayPrefs> = {};
+      if (prefs.font_family) display.font_family = prefs.font_family;
+      if (prefs.font_size) display.font_size = prefs.font_size;
+      if (prefs.line_height) display.line_height = prefs.line_height;
+      if (prefs.border_radius) display.border_radius = prefs.border_radius;
+      if (Object.keys(display).length > 0) {
+        const merged = { ...DEFAULT_DISPLAY, ...display };
+        try { window.localStorage.setItem(DISPLAY_KEY, JSON.stringify(merged)); } catch {}
+        applyDisplay(merged);
+      }
     }
 
-    // Apply editorial copy
-    const copy: Partial<EditorialCopy> = {};
-    if (prefs.hero_title !== undefined) copy.hero_title = prefs.hero_title;
-    if (prefs.hero_sub !== undefined) copy.hero_sub = prefs.hero_sub;
-    if (prefs.submit_label !== undefined) copy.submit_label = prefs.submit_label;
-    if (prefs.success_title !== undefined) copy.success_title = prefs.success_title;
-    if (Object.keys(copy).length > 0) {
-      const merged = { ...DEFAULT_COPY, ...copy };
-      try { window.localStorage.setItem(COPY_KEY, JSON.stringify(merged)); } catch {}
+    // Apply editorial copy (skip if recent local write)
+    if (!isRecentLocalWrite) {
+      const copy: Partial<EditorialCopy> = {};
+      if (prefs.hero_title !== undefined) copy.hero_title = prefs.hero_title;
+      if (prefs.hero_sub !== undefined) copy.hero_sub = prefs.hero_sub;
+      if (prefs.submit_label !== undefined) copy.submit_label = prefs.submit_label;
+      if (prefs.success_title !== undefined) copy.success_title = prefs.success_title;
+      if (Object.keys(copy).length > 0) {
+        const merged = { ...DEFAULT_COPY, ...copy };
+        try { window.localStorage.setItem(COPY_KEY, JSON.stringify(merged)); } catch {}
+      }
     }
 
     emitChange();
@@ -319,7 +349,7 @@ export async function syncPrefsToBackend(): Promise<void> {
       success_title: copy.success_title,
     };
 
-    await fetch(`${API_BASE}/api/preferences`, {
+    const res = await fetch(`${API_BASE}/api/preferences`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -328,6 +358,12 @@ export async function syncPrefsToBackend(): Promise<void> {
       credentials: "include",
       body: JSON.stringify(payload),
     });
+
+    // If the PUT succeeded, clear the local-write timestamp so the next
+    // page load trusts the backend as authoritative.
+    if (res.ok) {
+      try { window.localStorage.removeItem("om_prefs_ts"); } catch {}
+    }
   } catch {
     // Silently fail — local prefs still work
   }
