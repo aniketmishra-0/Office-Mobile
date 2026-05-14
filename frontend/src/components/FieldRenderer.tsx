@@ -134,7 +134,9 @@ function FieldControl({
 
   // Treat text fields as checkbox if the current value is TRUE/FALSE
   const effectiveType =
-    field.type === "text" &&
+    field.type !== "checkbox" &&
+    field.type !== "date" &&
+    field.type !== "time" &&
     (value.trim().toUpperCase() === "TRUE" || value.trim().toUpperCase() === "FALSE")
       ? "checkbox"
       : field.type;

@@ -544,7 +544,7 @@ function DataFillPageInner() {
               const val = editValues[field.key] ?? "";
               // Treat as checkbox if field type is checkbox OR value is TRUE/FALSE
               const isCheckboxField = field.type === "checkbox" || 
-                (field.type === "text" && (val.trim().toUpperCase() === "TRUE" || val.trim().toUpperCase() === "FALSE"));
+                ((val.trim().toUpperCase() === "TRUE" || val.trim().toUpperCase() === "FALSE") && field.type !== "date" && field.type !== "time");
               const isFilled = isCheckboxField ? true : !!val.trim();
               const isMissing = !isFilled;
               const isProtected = protectedHeaders.has(field.key);
