@@ -59,6 +59,14 @@ CREATE TABLE IF NOT EXISTS oauth_tokens (
 )
 """
 
+CREATE_USER_PREFERENCES_SQL = """
+CREATE TABLE IF NOT EXISTS user_preferences (
+    session_key     TEXT PRIMARY KEY,
+    prefs_json      JSONB NOT NULL DEFAULT '{}'::jsonb,
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+)
+"""
+
 CREATE_INDEXES_SQL = [
     "CREATE INDEX IF NOT EXISTS idx_forms_spreadsheet_id ON forms(spreadsheet_id)",
     "CREATE INDEX IF NOT EXISTS idx_forms_updated_at ON forms(updated_at DESC)",
@@ -74,6 +82,7 @@ def init_db() -> None:
             cur.execute(CREATE_FORMS_SQL)
             cur.execute(CREATE_SUBMISSIONS_SQL)
             cur.execute(CREATE_OAUTH_TOKENS_SQL)
+            cur.execute(CREATE_USER_PREFERENCES_SQL)
             for stmt in CREATE_INDEXES_SQL:
                 cur.execute(stmt)
 
@@ -388,6 +397,43 @@ def clear_oauth_token(key: str | None = None) -> None:
     if not resolved:
         return
     execute("DELETE FROM oauth_tokens WHERE key = %s", (resolved,))
+
+
+# ---------------------------------------------------------------------------
+# Dashboard stats
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# User Preferences
+# ---------------------------------------------------------------------------
+
+
+def get_user_preferences(session_key: str) -> dict[str, Any]:
+    """Return the user's saved preferences, or an empty dict if none exist."""
+    row = fetchone(
+        "SELECT prefs_json FROM user_preferences WHERE session_key = %s",
+        (session_key,),
+    )
+    if not row:
+        return {}
+    data = _coerce_json(row.get("prefs_json"))
+    return data if isinstance(data, dict) else {}
+
+
+def set_user_preferences(session_key: str, prefs: dict[str, Any]) -> dict[str, Any]:
+    """Upsert the user's preferences. Returns the saved prefs dict."""
+    execute(
+        """
+        INSERT INTO user_preferences (session_key, prefs_json, updated_at)
+        VALUES (%s, %s, now())
+        ON CONFLICT (session_key) DO UPDATE
+          SET prefs_json = EXCLUDED.prefs_json,
+              updated_at = EXCLUDED.updated_at
+        """,
+        (session_key, Jsonb(prefs)),
+    )
+    return prefs
 
 
 # ---------------------------------------------------------------------------

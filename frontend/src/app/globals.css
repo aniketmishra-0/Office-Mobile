@@ -21,6 +21,12 @@
   --on-clay:   #FFFFFF;
   --on-ink:    #F7F3EE;
   color-scheme: light;
+
+  /* User-customisable display prefs (overridden via JS) */
+  --user-font-family: system-ui, -apple-system, sans-serif;
+  --user-font-size: 15px;
+  --user-line-height: 1.55;
+  --user-border-radius: 8px;
 }
 
 /* ───── Dark theme ─────────────────────────────────────────────
@@ -99,6 +105,31 @@ body {
     rgba(26, 23, 20, 0.012) 2px,
     rgba(26, 23, 20, 0.012) 4px
   );
+}
+
+/* User display preferences — applied to main content areas.
+   The settings panel and chrome keep their own fonts; only the
+   form/content body respects the user's chosen font/size. */
+.om-user-content,
+.om-form-body,
+main {
+  font-family: var(--user-font-family);
+  font-size: var(--user-font-size);
+  line-height: var(--user-line-height);
+}
+
+.om-user-content input,
+.om-user-content textarea,
+.om-user-content select,
+.om-form-body input,
+.om-form-body textarea,
+.om-form-body select {
+  border-radius: var(--user-border-radius);
+}
+
+.om-user-content button:not([class*="om-settings"]),
+.om-form-body button:not([class*="om-settings"]) {
+  border-radius: var(--user-border-radius);
 }
 
 /* ============================================================

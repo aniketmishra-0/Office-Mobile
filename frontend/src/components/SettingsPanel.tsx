@@ -6,16 +6,26 @@ import type { FormLibraryItem } from "@/types/field";
 import ClearButton from "@/components/ClearButton";
 import {
   DEFAULT_COPY,
+  DEFAULT_DISPLAY,
   getStoredCopy,
+  getStoredDisplay,
   getStoredTheme,
   resetCopy,
+  resetDisplay,
   setCopy as persistCopy,
+  setDisplay as persistDisplay,
   setTheme as persistTheme,
+  syncPrefsToBackend,
+  type DisplayPrefs,
   type EditorialCopy,
+  type FontFamily,
+  type FontSize,
+  type LineHeight,
+  type BorderRadius,
   type Theme,
 } from "@/lib/prefs";
 
-type Section = "profile" | "theme" | "text" | "forms";
+type Section = "profile" | "theme" | "display" | "text" | "forms";
 
 interface Props {
   onClose: () => void;
@@ -39,12 +49,14 @@ export default function SettingsPanel({ onClose }: Props) {
   const [user, setUser] = useState<{ email?: string | null; name?: string | null; picture?: string | null } | null>(null);
   const [theme, setThemeLocal] = useState<Theme>("light");
   const [copy, setCopyLocal] = useState<EditorialCopy>(() => ({ ...DEFAULT_COPY }));
+  const [display, setDisplayLocal] = useState<DisplayPrefs>(() => ({ ...DEFAULT_DISPLAY }));
   const [copyDirty, setCopyDirty] = useState(false);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     setThemeLocal(getStoredTheme());
     setCopyLocal(getStoredCopy());
+    setDisplayLocal(getStoredDisplay());
   }, []);
 
   useEffect(() => {
@@ -72,6 +84,19 @@ export default function SettingsPanel({ onClose }: Props) {
   function changeTheme(next: Theme) {
     setThemeLocal(next);
     persistTheme(next);
+    syncPrefsToBackend();
+  }
+
+  function changeDisplay(patch: Partial<DisplayPrefs>) {
+    setDisplayLocal((prev) => ({ ...prev, ...patch }));
+    persistDisplay(patch);
+    syncPrefsToBackend();
+  }
+
+  function resetDisplayToDefaults() {
+    resetDisplay();
+    setDisplayLocal({ ...DEFAULT_DISPLAY });
+    syncPrefsToBackend();
   }
 
   function updateCopy(key: keyof EditorialCopy, value: string) {
@@ -83,6 +108,7 @@ export default function SettingsPanel({ onClose }: Props) {
     persistCopy(copy);
     setCopyDirty(false);
     setSaved(true);
+    syncPrefsToBackend();
     window.setTimeout(() => setSaved(false), 1600);
   }
 
@@ -90,6 +116,7 @@ export default function SettingsPanel({ onClose }: Props) {
     resetCopy();
     setCopyLocal({ ...DEFAULT_COPY });
     setCopyDirty(false);
+    syncPrefsToBackend();
   }
 
   const [signingOut, setSigningOut] = useState(false);
@@ -117,6 +144,7 @@ export default function SettingsPanel({ onClose }: Props) {
   const sections: { id: Section; label: string }[] = [
     { id: "profile", label: "Profile" },
     { id: "theme", label: "Theme" },
+    { id: "display", label: "Display" },
     { id: "text", label: "Text" },
     { id: "forms", label: "Forms" },
   ];
@@ -151,6 +179,13 @@ export default function SettingsPanel({ onClose }: Props) {
           )}
           {section === "theme" && (
             <ThemeSection theme={theme} onChange={changeTheme} />
+          )}
+          {section === "display" && (
+            <DisplaySection
+              display={display}
+              onChange={changeDisplay}
+              onReset={resetDisplayToDefaults}
+            />
           )}
           {section === "text" && (
             <TextSection
@@ -226,7 +261,7 @@ export default function SettingsPanel({ onClose }: Props) {
         }
         .om-settings__tabs {
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
+          grid-template-columns: repeat(5, 1fr);
           border-bottom: 1px solid var(--rule);
         }
         .om-settings__tab {
@@ -520,6 +555,277 @@ function ThemeSection({ theme, onChange }: { theme: Theme; onChange: (t: Theme) 
           font-size: 10px;
           letter-spacing: 0.04em;
           color: var(--stone);
+        }
+      `}</style>
+    </div>
+  );
+}
+
+/* ============================================================
+   Display (font, size, line-height, border-radius)
+   ============================================================ */
+
+function DisplaySection({
+  display,
+  onChange,
+  onReset,
+}: {
+  display: DisplayPrefs;
+  onChange: (patch: Partial<DisplayPrefs>) => void;
+  onReset: () => void;
+}) {
+  const fonts: { value: FontFamily; label: string; sample: string }[] = [
+    { value: "system", label: "System", sample: "Aa" },
+    { value: "newsreader", label: "Newsreader", sample: "Aa" },
+    { value: "plex-mono", label: "Plex Mono", sample: "Aa" },
+    { value: "inter", label: "Inter", sample: "Aa" },
+    { value: "georgia", label: "Georgia", sample: "Aa" },
+    { value: "merriweather", label: "Merriweather", sample: "Aa" },
+  ];
+
+  const sizes: { value: FontSize; label: string }[] = [
+    { value: "xs", label: "XS" },
+    { value: "sm", label: "S" },
+    { value: "md", label: "M" },
+    { value: "lg", label: "L" },
+    { value: "xl", label: "XL" },
+  ];
+
+  const lineHeights: { value: LineHeight; label: string }[] = [
+    { value: "compact", label: "Compact" },
+    { value: "normal", label: "Normal" },
+    { value: "relaxed", label: "Relaxed" },
+  ];
+
+  const radii: { value: BorderRadius; label: string }[] = [
+    { value: "none", label: "Sharp" },
+    { value: "sm", label: "Subtle" },
+    { value: "md", label: "Rounded" },
+    { value: "lg", label: "Pill" },
+  ];
+
+  const fontFamilyCSS: Record<FontFamily, string> = {
+    system: "system-ui, -apple-system, sans-serif",
+    newsreader: "var(--font-newsreader), Georgia, serif",
+    "plex-mono": "var(--font-plex-mono), ui-monospace, monospace",
+    inter: "'Inter', system-ui, sans-serif",
+    georgia: "Georgia, 'Times New Roman', serif",
+    merriweather: "'Merriweather', Georgia, serif",
+  };
+
+  return (
+    <div className="om-s-display">
+      <p className="om-s-hint">
+        customise how the app looks for you. font, size, spacing — all saved
+        to your account.
+      </p>
+
+      {/* Font Family */}
+      <div className="om-s-display__group">
+        <p className="om-s-label">Font Family</p>
+        <div className="om-s-display__font-grid">
+          {fonts.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => onChange({ font_family: f.value })}
+              className={`om-s-display__font-btn ${display.font_family === f.value ? "is-active" : ""}`}
+              style={{ fontFamily: fontFamilyCSS[f.value] }}
+            >
+              <span className="om-s-display__font-sample">{f.sample}</span>
+              <span className="om-s-display__font-name">{f.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Font Size */}
+      <div className="om-s-display__group">
+        <p className="om-s-label">Font Size</p>
+        <div className="om-s-display__size-row">
+          {sizes.map((s) => (
+            <button
+              key={s.value}
+              type="button"
+              onClick={() => onChange({ font_size: s.value })}
+              className={`om-s-display__size-btn ${display.font_size === s.value ? "is-active" : ""}`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Line Height */}
+      <div className="om-s-display__group">
+        <p className="om-s-label">Line Spacing</p>
+        <div className="om-s-display__size-row">
+          {lineHeights.map((lh) => (
+            <button
+              key={lh.value}
+              type="button"
+              onClick={() => onChange({ line_height: lh.value })}
+              className={`om-s-display__size-btn ${display.line_height === lh.value ? "is-active" : ""}`}
+            >
+              {lh.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Border Radius */}
+      <div className="om-s-display__group">
+        <p className="om-s-label">Corner Style</p>
+        <div className="om-s-display__size-row">
+          {radii.map((r) => (
+            <button
+              key={r.value}
+              type="button"
+              onClick={() => onChange({ border_radius: r.value })}
+              className={`om-s-display__size-btn ${display.border_radius === r.value ? "is-active" : ""}`}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Preview */}
+      <div className="om-s-display__preview" style={{
+        fontFamily: fontFamilyCSS[display.font_family],
+        fontSize: { xs: "12px", sm: "13px", md: "15px", lg: "17px", xl: "19px" }[display.font_size],
+        lineHeight: { compact: "1.35", normal: "1.55", relaxed: "1.75" }[display.line_height],
+        borderRadius: { none: "0px", sm: "4px", md: "8px", lg: "14px" }[display.border_radius],
+      }}>
+        <p className="om-s-display__preview-text">
+          the quick brown fox jumps over the lazy dog. 0123456789
+        </p>
+      </div>
+
+      <button type="button" onClick={onReset} className="om-s-ghost">
+        Reset defaults
+      </button>
+
+      <style jsx>{`
+        .om-s-display {
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+        }
+        .om-s-hint {
+          margin: 0;
+          font-family: var(--font-newsreader), Georgia, serif;
+          font-weight: 300;
+          font-size: 14px;
+          line-height: 1.55;
+          color: var(--charcoal);
+        }
+        .om-s-label {
+          margin: 0 0 8px 0;
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 500;
+          font-size: 10px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: var(--stone);
+        }
+        .om-s-display__group {
+          display: flex;
+          flex-direction: column;
+        }
+        .om-s-display__font-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 8px;
+        }
+        .om-s-display__font-btn {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 4px;
+          padding: 12px 8px;
+          background: transparent;
+          border: 1px solid var(--rule);
+          cursor: pointer;
+          transition: border-color 200ms ease-out, background-color 200ms ease-out;
+        }
+        .om-s-display__font-btn:hover {
+          background: var(--paper);
+        }
+        .om-s-display__font-btn.is-active {
+          border-color: var(--clay);
+          background: var(--paper);
+        }
+        .om-s-display__font-sample {
+          font-size: 20px;
+          color: var(--ink);
+          line-height: 1;
+        }
+        .om-s-display__font-name {
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-size: 9px;
+          letter-spacing: 0.06em;
+          color: var(--stone);
+          text-transform: uppercase;
+        }
+        .om-s-display__size-row {
+          display: flex;
+          gap: 0;
+          border: 1px solid var(--rule);
+        }
+        .om-s-display__size-btn {
+          flex: 1;
+          padding: 10px 8px;
+          background: transparent;
+          border: 0;
+          border-right: 1px solid var(--rule);
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 500;
+          font-size: 11px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: var(--stone);
+          cursor: pointer;
+          transition: color 200ms ease-out, background-color 200ms ease-out;
+        }
+        .om-s-display__size-btn:last-child {
+          border-right: 0;
+        }
+        .om-s-display__size-btn:hover {
+          color: var(--ink);
+          background: var(--paper);
+        }
+        .om-s-display__size-btn.is-active {
+          color: var(--clay);
+          background: var(--paper);
+        }
+        .om-s-display__preview {
+          padding: 16px;
+          border: 1px solid var(--rule);
+          background: var(--paper);
+          transition: all 200ms ease-out;
+        }
+        .om-s-display__preview-text {
+          margin: 0;
+          color: var(--ink);
+        }
+        .om-s-ghost {
+          align-self: flex-start;
+          background: transparent;
+          border: 0;
+          padding: 8px 0;
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 500;
+          font-size: 11px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: var(--stone);
+          cursor: pointer;
+          transition: color 200ms ease-out;
+        }
+        .om-s-ghost:hover {
+          color: var(--ink);
         }
       `}</style>
     </div>

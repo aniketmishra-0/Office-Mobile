@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import WelcomeScreen from "@/components/WelcomeScreen";
 import Dashboard from "@/components/Dashboard";
 import LoadingOverlay from "@/components/LoadingOverlay";
+import { syncPrefsFromBackend } from "@/lib/prefs";
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
 
@@ -30,6 +31,10 @@ export default function HomePage() {
         } catch {}
       }
       setConnected(Boolean(data.connected));
+      // If user is connected, sync their preferences from backend
+      if (data.connected) {
+        syncPrefsFromBackend();
+      }
     } catch {
       // Keep the previous state on network error so a flaky connection
       // does not log the user out. Only set to false on an explicit
@@ -107,6 +112,8 @@ export default function HomePage() {
         // Re-check so the header (user name/avatar) gets populated from
         // /api/auth/status — connected=true alone is not enough.
         checkStatus();
+        // Sync user preferences from backend after sign-in
+        syncPrefsFromBackend();
       }
     }
     // Re-check auth when the tab becomes visible again (iOS back/forward

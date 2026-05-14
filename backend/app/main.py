@@ -6,7 +6,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, ORJSONResponse
 
 from app.config import get_settings
-from app.routers import auth, forms, health, upload
+from app.routers import auth, forms, health, preferences, upload
 from app.services.session_context import OAUTH_SESSION_COOKIE, reset_oauth_session_key, set_oauth_session_key
 from app.services.form_store import init_db
 from app.db import close_pool
@@ -112,3 +112,4 @@ app.include_router(health.router)
 app.include_router(forms.router)
 app.include_router(auth.router)
 app.include_router(upload.router)
+app.include_router(preferences.router)
