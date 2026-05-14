@@ -378,7 +378,11 @@ export default function Dashboard() {
     });
   }
 
+  const [signingOut, setSigningOut] = useState(false);
+
   function handleSignOut() {
+    if (signingOut) return;
+    setSigningOut(true);
     const headers: Record<string, string> = {};
     try {
       const sk = window.localStorage.getItem("om_session");
@@ -393,9 +397,11 @@ export default function Dashboard() {
         try {
           window.localStorage.removeItem("om_session");
         } catch {}
-        window.location.reload();
+        window.location.href = "/";
       })
-      .catch(() => {});
+      .catch(() => {
+        setSigningOut(false);
+      });
   }
 
   // ─── STEP: input ─────────────────────────────────────────────────────────────
