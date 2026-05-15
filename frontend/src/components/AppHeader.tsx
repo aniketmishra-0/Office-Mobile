@@ -7,7 +7,6 @@ import SettingsPanel from "@/components/SettingsPanel";
 import { logout as apiLogout } from "@/lib/api";
 import { getStoredTheme, setTheme, syncPrefsToBackend } from "@/lib/prefs";
 import { usePrefs } from "@/lib/usePrefs";
-import { safeBack } from "@/lib/navigation";
 
 interface Props {
   title?: string;
@@ -96,10 +95,6 @@ export default function AppHeader({
     };
   }, []);
 
-  function handleBack() {
-    if (onBack) onBack();
-    else safeBack(router);
-  }
 
   const [loggingOut, setLoggingOut] = useState(false);
 
@@ -142,17 +137,9 @@ export default function AppHeader({
     >
       <div className="om-header__row">
         <div className="om-header__left">
-          {showBack && (
-            <button type="button" onClick={handleBack} aria-label="Go back" className="om-header__back">
-              <span aria-hidden>←</span>
-              <span className="om-header__back-label">back</span>
-            </button>
-          )}
-          {showLogo && !showBack && (
-            <a href="/" style={{ textDecoration: "none", display: "inline-flex" }}>
-              <Logo size="sm" showText={!title} />
-            </a>
-          )}
+          <a href="/" style={{ textDecoration: "none", display: "inline-flex" }}>
+            <Logo size="sm" showText={!title} />
+          </a>
         </div>
 
         {title && (
@@ -371,23 +358,6 @@ export default function AppHeader({
           gap: 10px;
           flex-shrink: 0;
         }
-        .om-header__back {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          padding: 6px 4px;
-          background: transparent;
-          border: 0;
-          color: var(--ink);
-          font-family: var(--font-plex-mono), ui-monospace, monospace;
-          font-weight: 500;
-          font-size: 11px;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-          cursor: pointer;
-          transition: color 200ms ease-out;
-        }
-        .om-header__back:hover { color: var(--clay); }
         .om-header__title {
           flex: 1;
           min-width: 0;
