@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import WelcomeScreen from "@/components/WelcomeScreen";
 import Dashboard from "@/components/Dashboard";
-import LoadingOverlay from "@/components/LoadingOverlay";
+import SplashScreen from "@/components/SplashScreen";
 import { syncPrefsFromBackend } from "@/lib/prefs";
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
@@ -155,7 +155,7 @@ export default function HomePage() {
 
   // Still checking auth status
   if (connected === null) {
-    return <LoadingOverlay message="Loading" />;
+    return <SplashScreen />;
   }
 
   // Not authenticated — show welcome/login screen
