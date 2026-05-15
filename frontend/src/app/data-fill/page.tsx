@@ -512,17 +512,31 @@ function DataFillPageInner() {
             <div className="flex items-center gap-2">
               {!editMode ? (
                 <button onClick={() => setEditMode(true)} title="Press E to edit"
-                  className="px-3 py-1.5 text-[12px] font-semibold bg-zinc-900 text-white rounded-lg hover:bg-zinc-700 transition-colors">
+                  className="om-action-btn">
                   Edit
+                  <style jsx>{`
+                    .om-action-btn {
+                      position: relative;
+                      overflow: hidden;
+                      padding: 6px 12px;
+                      font-family: var(--font-plex-mono), ui-monospace, monospace;
+                      font-weight: 500;
+                      font-size: 12px;
+                      letter-spacing: 0.12em;
+                      text-transform: uppercase;
+                      background: var(--ink);
+                      color: var(--on-ink);
+                      border: 0;
+                      border-radius: 0;
+                      cursor: pointer;
+                      transition: background-color 200ms ease-out;
+                    }
+                  `}</style>
                 </button>
               ) : (
                 <>
                   <button onClick={() => { const { _row_index: _ri, ...ev } = filteredAndSortedRows[selectedRowIdx]; setEditValues({ ...ev }); setEditMode(false); }} title="Esc"
                     className="px-3 py-1.5 text-[12px] font-medium text-zinc-600 rounded-lg hover:bg-zinc-200 transition-colors">Cancel</button>
-                  <button onClick={handleSave} disabled={saving} title="⌘+Enter"
-                    className="px-3 py-1.5 text-[12px] font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50 transition-colors">
-                    {saving ? "Saving..." : "Save"}
-                  </button>
                 </>
               )}
             </div>

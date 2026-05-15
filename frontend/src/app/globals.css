@@ -417,6 +417,40 @@ button, a, input, select, textarea {
   transition-timing-function: ease-out;
 }
 
+/* ============================================================
+   Global button orange sweep — terracotta fill sweeps left→right
+   on every button click. Gives tactile "working" feedback without
+   needing per-component loading states.
+   ============================================================ */
+button {
+  position: relative;
+  overflow: hidden;
+}
+button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--clay);
+  opacity: 0.18;
+  transform: translateX(-100%);
+  pointer-events: none;
+  z-index: 1;
+}
+button:active:not(:disabled)::after {
+  animation: btnSweep 600ms ease-out forwards;
+}
+@keyframes btnSweep {
+  0%   { transform: translateX(-100%); opacity: 0.22; }
+  60%  { transform: translateX(0); opacity: 0.18; }
+  100% { transform: translateX(0); opacity: 0; }
+}
+
+/* Buttons that already have their own fill animation (SubmitButton)
+   should not double-up with the global sweep. */
+.om-submit::after {
+  display: none !important;
+}
+
 /* Active state for buttons — color shift only, no movement. */
 button:active:not(:disabled) {
   transform: none;
@@ -565,6 +599,9 @@ button:active:not(:disabled) {
   .stagger-children > * {
     animation: none !important;
     opacity: 1 !important;
+  }
+  button:active:not(:disabled)::after {
+    animation: none !important;
   }
 }
 

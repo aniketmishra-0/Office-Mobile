@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import ErrorToast from "@/components/ErrorToast";
 import LoadingOverlay from "@/components/LoadingOverlay";
+import MobileDropdown from "@/components/MobileDropdown";
+import SubmitButton from "@/components/SubmitButton";
 import type { FieldSchema } from "@/types/field";
 import { lookupFormsBySheet, getSheetSections } from "@/lib/api";
 
@@ -125,85 +127,7 @@ function CalendarPopup({ anchorRef, onClose }: { anchorRef: React.RefObject<HTML
   );
 }
 
-/* ─── Custom Dropdown (replaces native select) ────────────────── */
-function SectionDropdown({ sections, selectedSections, onSelect }: {
-  sections: Section[];
-  selectedSections: number[];
-  onSelect: (idx: number) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handle(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handle);
-    return () => document.removeEventListener("mousedown", handle);
-  }, []);
-
-  const available = sections.filter((_, idx) => !selectedSections.includes(idx));
-
-  return (
-    <div ref={ref} style={{ position: "relative", flex: 1, minWidth: 0, maxWidth: 300 }}>
-      <button
-        type="button"
-        onClick={() => setOpen((s) => !s)}
-        style={{
-          width: "100%", textAlign: "left",
-          fontFamily: "var(--font-plex-mono), monospace", fontSize: 12,
-          color: "var(--ink)", background: "var(--paper)",
-          border: "1px solid var(--rule)", borderRadius: 6,
-          padding: "9px 32px 9px 12px", cursor: "pointer", outline: "none",
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        }}
-      >
-        + Select date section (max {MAX_OPEN})...
-      </button>
-      {/* Arrow */}
-      <svg style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", width: 12, height: 12, color: "var(--stone)", pointerEvents: "none" }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-      </svg>
-
-      {open && (
-        <div style={{
-          position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
-          background: "var(--cream)", border: "1px solid var(--rule)", borderRadius: 6,
-          boxShadow: "0 4px 16px rgba(0,0,0,0.1)", zIndex: 9999,
-          maxHeight: 240, overflowY: "auto",
-        }}>
-          {available.length === 0 ? (
-            <div style={{ padding: "12px 14px", fontFamily: "var(--font-plex-mono), monospace", fontSize: 11, color: "var(--stone)" }}>
-              {selectedSections.length >= MAX_OPEN ? "Max sections selected" : "No sections available"}
-            </div>
-          ) : (
-            available.map((section) => {
-              const idx = sections.indexOf(section);
-              return (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => { onSelect(idx); setOpen(false); }}
-                  style={{
-                    display: "block", width: "100%", textAlign: "left",
-                    fontFamily: "var(--font-plex-mono), monospace", fontSize: 11,
-                    color: "var(--ink)", background: "transparent",
-                    border: "none", borderBottom: "1px solid var(--rule)",
-                    padding: "10px 14px", cursor: "pointer",
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--paper)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                >
-                  {section.title} <span style={{ color: "var(--stone)", fontSize: 9 }}>({section.rows.length} rows)</span>
-                </button>
-              );
-            })
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+/* ─── Section dropdown now uses MobileDropdown (multi-select) ── */
 
 export default function MultiHeaderFilterPage() {
   return (
@@ -277,15 +201,6 @@ function MultiHeaderFilterInner() {
     finally { setLoading(false); }
   }
 
-  const addSection = (idx: number) => {
-    setSelectedSections((prev) => {
-      if (prev.includes(idx)) return prev;
-      const next = [...prev, idx];
-      if (next.length > MAX_OPEN) return next.slice(next.length - MAX_OPEN);
-      return next;
-    });
-  };
-
   const removeSection = (idx: number) => {
     setSelectedSections((prev) => prev.filter((i) => i !== idx));
   };
@@ -321,10 +236,12 @@ function MultiHeaderFilterInner() {
               style={{ width: "100%", fontFamily: "var(--font-plex-mono), monospace", fontSize: 13, color: "var(--ink)", background: "var(--paper)", border: `1px solid ${urlError ? "var(--error)" : "var(--rule)"}`, borderRadius: 6, padding: "11px 14px", outline: "none", marginBottom: 8 }}
             />
             {urlError && <p style={{ color: "var(--error)", fontSize: 11, margin: "0 0 8px" }}>{urlError}</p>}
-            <button onClick={handleLoadSheet} disabled={!urlValid || loading}
-              style={{ width: "100%", fontFamily: "var(--font-plex-mono), monospace", fontSize: 12, fontWeight: 500, color: "var(--cream)", background: urlValid ? "var(--ink)" : "var(--stone)", border: "none", borderRadius: 6, padding: "11px 0", cursor: urlValid ? "pointer" : "not-allowed", opacity: urlValid ? 1 : 0.5 }}>
-              {loading ? "Loading..." : "Load Sheet"}
-            </button>
+            <SubmitButton
+              label="Load Sheet"
+              submitting={loading}
+              onClick={handleLoadSheet}
+              disabled={!urlValid}
+            />
           </div>
         </div>
         {error && <ErrorToast message={error} onDismiss={() => setError(null)} />}
@@ -409,11 +326,21 @@ function MultiHeaderFilterInner() {
 
           {/* Dropdown + Search row */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <SectionDropdown
-              sections={loaded.sections}
-              selectedSections={selectedSections}
-              onSelect={addSection}
-            />
+            <div style={{ flex: 1, minWidth: 0, maxWidth: 300 }}>
+              <MobileDropdown
+                multiple
+                size="sm"
+                selectedValues={selectedSections.map(String)}
+                options={loaded.sections.map((section, idx) => ({
+                  value: String(idx),
+                  label: section.title,
+                  subtitle: `${section.rows.length} rows`,
+                }))}
+                onMultiChange={(values) => setSelectedSections(values.map(Number))}
+                maxSelect={MAX_OPEN}
+                placeholder={`Select date section (max ${MAX_OPEN})...`}
+              />
+            </div>
             <div style={{ position: "relative", flex: 1, minWidth: 120, maxWidth: 220 }}>
               <svg style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: "var(--stone)", pointerEvents: "none" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />

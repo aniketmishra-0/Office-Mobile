@@ -5,6 +5,7 @@ import AppHeader from "@/components/AppHeader";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import ErrorToast from "@/components/ErrorToast";
 import ClearButton from "@/components/ClearButton";
+import SubmitButton from "@/components/SubmitButton";
 import { listSubmissions } from "@/lib/api";
 
 export default function SubmissionsPage() {
@@ -65,13 +66,12 @@ export default function SubmissionsPage() {
               {token && <ClearButton onClick={() => setToken("")} right={10} />}
             </div>
           </div>
-          <button
-            type="button"
+          <SubmitButton
+            label="Load submissions"
+            submitting={loading}
             onClick={handleLoad}
-            className="w-full bg-zinc-950 hover:bg-zinc-800 text-white font-semibold rounded-lg h-11 flex items-center justify-center text-[14px] transition-colors"
-          >
-            Load submissions
-          </button>
+            disabled={!formId.trim()}
+          />
         </div>
 
         {/* Results */}
