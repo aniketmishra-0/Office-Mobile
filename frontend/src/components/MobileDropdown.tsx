@@ -1,63 +1,133 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { createPortal } from "react-dom";
 
 export interface DropdownOption {
   value: string;
   label: string;
+  subtitle?: string;
 }
 
-interface MobileDropdownProps {
+interface SingleSelectProps {
   value: string;
   options: DropdownOption[];
   onChange: (value: string) => void;
+  multiple?: false;
+  selectedValues?: never;
+  onMultiChange?: never;
+  maxSelect?: never;
   placeholder?: string;
   disabled?: boolean;
   size?: "default" | "sm";
 }
 
-export default function MobileDropdown({
-  value,
-  options,
-  onChange,
-  placeholder = "Select an option",
-  disabled = false,
-  size = "default",
-}: MobileDropdownProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
-  const buttonRef = useRef<HTMLButtonElement>(null);
+interface MultiSelectProps {
+  multiple: true;
+  selectedValues: string[];
+  options: DropdownOption[];
+  onMultiChange: (values: string[]) => void;
+  maxSelect?: number;
+  value?: never;
+  onChange?: never;
+  placeholder?: string;
+  disabled?: boolean;
+  size?: "default" | "sm";
+}
 
+type MobileDropdownProps = SingleSelectProps | MultiSelectProps;
+
+export default function MobileDropdown(props: MobileDropdownProps) {
+  const {
+    options,
+    placeholder = "Select an option",
+    disabled = false,
+    size = "default",
+  } = props;
+
+  const isMulti = props.multiple === true;
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
   useEffect(() => {
-    setIsMounted(true);
-  }, []);
+    if (!isOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen]);
+
+  // Close on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setIsOpen(false);
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [isOpen]);
 
   const handleSelect = (val: string) => {
-    onChange(val);
-    setIsOpen(false);
+    if (isMulti) {
+      const { selectedValues, onMultiChange, maxSelect } = props as MultiSelectProps;
+      if (selectedValues.includes(val)) {
+        onMultiChange(selectedValues.filter((v) => v !== val));
+      } else {
+        if (maxSelect && selectedValues.length >= maxSelect) {
+          const next = [...selectedValues.slice(1), val];
+          onMultiChange(next);
+        } else {
+          onMultiChange([...selectedValues, val]);
+        }
+      }
+    } else {
+      (props as SingleSelectProps).onChange(val);
+      setIsOpen(false);
+    }
   };
 
-  const selectedOption = options.find((o) => o.value === value);
+  // Display text for the button
+  let displayText: string | null = null;
+  if (isMulti) {
+    const { selectedValues } = props as MultiSelectProps;
+    if (selectedValues.length > 0) {
+      const selectedLabels = selectedValues
+        .map((v) => options.find((o) => o.value === v)?.label)
+        .filter(Boolean);
+      displayText = selectedLabels.join(", ");
+    }
+  } else {
+    const { value } = props as SingleSelectProps;
+    const selectedOption = options.find((o) => o.value === value);
+    displayText = selectedOption ? selectedOption.label : null;
+  }
+
+  const selectedValue = isMulti ? "" : (props as SingleSelectProps).value;
+  const selectedValues = isMulti ? (props as MultiSelectProps).selectedValues : [];
 
   return (
-    <>
+    <div ref={containerRef} style={{ position: "relative", width: "100%" }}>
+      {/* Trigger button */}
       <button
-        ref={buttonRef}
         type="button"
         disabled={disabled}
-        onClick={() => setIsOpen(true)}
+        onClick={() => setIsOpen((prev) => !prev)}
         className={`w-full flex items-center justify-between bg-white border border-zinc-300 rounded-lg appearance-none transition-colors ${
           size === "sm" ? "px-2.5 py-2 text-xs min-h-[36px]" : "px-3 py-2.5 text-[15px] min-h-[48px]"
         } ${
-          disabled ? "opacity-50 cursor-not-allowed bg-zinc-50" : "hover:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent"
+          disabled
+            ? "opacity-50 cursor-not-allowed bg-zinc-50"
+            : "hover:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent"
         }`}
       >
-        <span className={selectedOption ? "text-zinc-950" : "text-zinc-400"}>
-          {selectedOption ? selectedOption.label : placeholder}
+        <span className={`truncate ${displayText ? "text-zinc-950" : "text-zinc-400"}`}>
+          {displayText || placeholder}
         </span>
         <svg
-          className={`w-4 h-4 text-zinc-500 transition-transform ${isOpen ? "rotate-180" : ""}`}
+          className={`w-4 h-4 text-zinc-500 flex-shrink-0 ml-2 transition-transform ${isOpen ? "rotate-180" : ""}`}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -67,60 +137,96 @@ export default function MobileDropdown({
         </svg>
       </button>
 
-      {isMounted &&
-        isOpen &&
-        createPortal(
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      {/* Inline dropdown list */}
+      {isOpen && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            right: 0,
+            zIndex: 50,
+            background: "var(--cream, #fff)",
+            border: "1px solid var(--rule, #e4e4e7)",
+            borderRadius: 8,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.10)",
+            maxHeight: 220,
+            overflowY: "auto",
+            overscrollBehavior: "contain",
+          }}
+        >
+          {options.length === 0 ? (
             <div
-              className="absolute inset-0 bg-black/40 transition-opacity"
-              onClick={() => setIsOpen(false)}
-            />
-            <div
-              className="relative w-full max-w-[560px] sm:max-w-md bg-white sm:rounded-lg rounded-t-lg shadow-2xl overflow-hidden animate-slide-up sm:animate-fade-in"
-              style={{ maxHeight: "85vh" }}
+              style={{
+                padding: "16px",
+                textAlign: "center",
+                fontSize: 13,
+                color: "var(--stone, #71717a)",
+              }}
             >
-              <div className="px-4 py-3 border-b border-zinc-200 flex items-center justify-between bg-zinc-50">
-                <h3 className="text-sm font-semibold text-zinc-800">{placeholder}</h3>
-                <button
-                  type="button"
-                  onClick={() => setIsOpen(false)}
-                  className="p-1.5 text-zinc-500 hover:text-zinc-800 rounded-lg hover:bg-zinc-200 transition-colors"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              <div className="overflow-y-auto overscroll-contain" style={{ maxHeight: "calc(85vh - 50px)" }}>
-                <ul className="py-2">
-                  {options.length === 0 ? (
-                    <li className="px-4 py-8 text-center text-sm text-zinc-500">No options available</li>
-                  ) : (
-                    options.map((option) => (
-                      <li key={option.value}>
-                        <button
-                          type="button"
-                          onClick={() => handleSelect(option.value)}
-                          className="w-full text-left px-4 py-3 text-[15px] hover:bg-zinc-50 flex items-center justify-between transition-colors"
-                        >
-                          <span className={option.value === value ? "text-zinc-950 font-semibold" : "text-zinc-700"}>
-                            {option.label}
-                          </span>
-                          {option.value === value && (
-                            <svg className="w-5 h-5 text-zinc-950" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </button>
-                      </li>
-                    ))
-                  )}
-                </ul>
-              </div>
+              No options available
             </div>
-          </div>,
-          document.body
-        )}
-    </>
+          ) : (
+            options.map((option) => {
+              const isSelected = isMulti
+                ? selectedValues.includes(option.value)
+                : option.value === selectedValue;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => handleSelect(option.value)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: size === "sm" ? "8px 12px" : "10px 14px",
+                    fontSize: size === "sm" ? 12 : 14,
+                    fontFamily: "inherit",
+                    color: isSelected ? "var(--ink, #18181b)" : "var(--charcoal, #3f3f46)",
+                    fontWeight: isSelected ? 600 : 400,
+                    background: isSelected ? "rgba(0,0,0,0.04)" : "transparent",
+                    border: 0,
+                    borderBottom: "1px solid var(--rule, #f4f4f5)",
+                    cursor: "pointer",
+                    transition: "background 120ms ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isSelected) e.currentTarget.style.background = "rgba(0,0,0,0.03)";
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isSelected) e.currentTarget.style.background = "transparent";
+                  }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {option.label}
+                    </span>
+                    {option.subtitle && (
+                      <span style={{ fontSize: 11, color: "var(--stone, #a1a1aa)", marginTop: 2 }}>
+                        {option.subtitle}
+                      </span>
+                    )}
+                  </div>
+                  {isSelected && (
+                    <svg
+                      style={{ width: 16, height: 16, flexShrink: 0, marginLeft: 8 }}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2.5}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
   );
 }
