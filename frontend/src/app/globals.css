@@ -418,27 +418,20 @@ button, a, input, select, textarea {
 }
 
 /* ============================================================
-   Global button orange sweep — terracotta fill sweeps left→right
-   on every button click. Mirrors the Customize page's SubmitButton
-   behaviour: same clay colour, same 800ms linear timing, same
-   visible band that washes across the button before fading out.
-
-   How the layering works:
-     • `isolation: isolate` makes each button its own stacking
-       context, so a child with `z-index: -1` is contained.
-     • `::after` is positioned absolute with `z-index: -1`, which
-       per the CSS painting order sits ABOVE the button's own
-       background-color but BELOW its text content and child
-       elements. Result: a clay wash that covers the bg without
-       obscuring labels or icons — the same visual effect the
-       SubmitButton achieves with an explicit z-indexed label.
+   Action-button orange sweep — terracotta band sweeps left→right
+   on tap. Scoped to primary action buttons only (.om-submit and
+   .om-band). Toggle buttons, back arrows, menu items, and other
+   secondary buttons stay clean — sweep is reserved for the action
+   that commits something.
    ============================================================ */
-button {
+.om-submit,
+.om-band {
   position: relative;
   overflow: hidden;
   isolation: isolate;
 }
-button::after {
+.om-submit::after,
+.om-band::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -448,8 +441,10 @@ button::after {
   pointer-events: none;
   z-index: -1;
 }
-button:active:not(:disabled)::after,
-button.is-sweeping:not(:disabled)::after {
+.om-submit:active:not(:disabled)::after,
+.om-submit.is-sweeping:not(:disabled)::after,
+.om-band:active:not(:disabled)::after,
+.om-band.is-sweeping:not(:disabled)::after {
   animation: btnSweep 800ms linear forwards;
 }
 @keyframes btnSweep {
@@ -458,16 +453,13 @@ button.is-sweeping:not(:disabled)::after {
   100% { transform: translateX(0);     opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  button:active:not(:disabled)::after,
-  button.is-sweeping:not(:disabled)::after {
+  .om-submit:active:not(:disabled)::after,
+  .om-submit.is-sweeping:not(:disabled)::after,
+  .om-band:active:not(:disabled)::after,
+  .om-band.is-sweeping:not(:disabled)::after {
     animation: none;
   }
 }
-
-/* Click-flash sweep on SubmitButton works alongside its internal
-   submitting fill: the global ::after fires on tap (800ms), the
-   component's __fill paints during async work. Same clay colour
-   so the user sees one continuous orange band on every action. */
 
 /* Active state for buttons — color shift only, no movement. */
 button:active:not(:disabled) {
@@ -618,7 +610,8 @@ button:active:not(:disabled) {
     animation: none !important;
     opacity: 1 !important;
   }
-  button:active:not(:disabled)::after {
+  .om-submit:active:not(:disabled)::after,
+  .om-band:active:not(:disabled)::after {
     animation: none !important;
   }
 }
