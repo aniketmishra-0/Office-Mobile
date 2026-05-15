@@ -7,6 +7,7 @@ import ErrorToast from "@/components/ErrorToast";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import SubmitButton from "@/components/SubmitButton";
 import OpenInModal from "@/components/OpenInModal";
+import { safeBack } from "@/lib/navigation";
 import {
   listSavedSheets,
   saveSheet,
@@ -31,6 +32,9 @@ export default function MySheetsPage() {
   // Rename state
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+
+  // Copy-link feedback state
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // "Open In" modal state
   const [openInSheet, setOpenInSheet] = useState<SavedSheetItem | null>(null);
@@ -114,6 +118,31 @@ export default function MySheetsPage() {
     }
   }
 
+  async function handleCopyLink(sheet: SavedSheetItem) {
+    const url = sheet.sheet_url;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        // Fallback for older / non-secure contexts
+        const ta = document.createElement("textarea");
+        ta.value = url;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      setCopiedId(sheet.id);
+      setTimeout(() => {
+        setCopiedId((curr) => (curr === sheet.id ? null : curr));
+      }, 1500);
+    } catch {
+      setError("Failed to copy link");
+    }
+  }
+
   function openSheet(sheet: SavedSheetItem) {
     // Show the "Open In" modal so user can pick how to open this sheet
     setOpenInSheet(sheet);
@@ -159,7 +188,7 @@ export default function MySheetsPage() {
 
   return (
     <div className="flex flex-col min-h-screen" style={{ background: "var(--cream)" }}>
-      <AppHeader title="My Sheets" showBack onBack={() => router.push("/")} />
+      <AppHeader title="My Sheets" showBack onBack={() => safeBack(router)} />
       {loading && sheets.length === 0 && <LoadingOverlay message="Loading..." />}
 
       <div className="flex-1 w-full max-w-[560px] mx-auto px-6 pt-10 pb-32">
@@ -549,6 +578,54 @@ export default function MySheetsPage() {
                 {/* Actions */}
                 {renamingId !== sheet.id && (
                   <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyLink(sheet)}
+                      title={copiedId === sheet.id ? "Copied!" : "Copy sheet link"}
+                      style={{
+                        background: "none",
+                        border: 0,
+                        cursor: "pointer",
+                        padding: "4px 6px",
+                        fontSize: 13,
+                        color: copiedId === sheet.id ? "var(--ink)" : "var(--stone)",
+                        transition: "color 200ms ease-out",
+                      }}
+                      aria-label="Copy sheet link"
+                    >
+                      {copiedId === sheet.id ? (
+                        // Check icon for "copied" feedback
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden
+                        >
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      ) : (
+                        // Two-square copy icon
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden
+                        >
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                        </svg>
+                      )}
+                    </button>
                     <button
                       type="button"
                       onClick={() => { setRenamingId(sheet.id); setRenameValue(sheet.title); }}

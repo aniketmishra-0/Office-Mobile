@@ -10,6 +10,7 @@ import DynamicForm from "@/components/DynamicForm";
 import type { DynamicFormHandle } from "@/components/DynamicForm";
 import SubmitButton from "@/components/SubmitButton";
 import { submitForm, getPublicForm, getFormSuggestions, getAiSuggestions } from "@/lib/api";
+import { safeBack } from "@/lib/navigation";
 import type { AiSuggestionsResponse } from "@/lib/api";
 import type { PublicFormResponse } from "@/types/field";
 import AiAutofillBanner from "@/components/AiAutofillBanner";
@@ -153,7 +154,7 @@ export default function FillFormPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-zinc-100">
-      <AppHeader title={formData!.worksheet_name || formData!.form_title} showBack onBack={() => router.push("/")} />
+      <AppHeader title={formData!.worksheet_name || formData!.form_title} showBack onBack={() => safeBack(router)} />
 
       <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-8 overflow-y-auto">
         <AiAutofillBanner

@@ -9,6 +9,7 @@ import MobileDropdown from "@/components/MobileDropdown";
 import SubmitButton from "@/components/SubmitButton";
 import type { FieldSchema } from "@/types/field";
 import { lookupFormsBySheet, getSheetSections } from "@/lib/api";
+import { safeBack } from "@/lib/navigation";
 
 interface TabOption {
   id: string | null;
@@ -222,7 +223,7 @@ function MultiHeaderFilterInner() {
   if (!sheetParam && !loaded && !availableTabs) {
     return (
       <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", backgroundColor: "var(--cream)" }}>
-        <AppHeader title="Multi-Header Filtering" showBack onBack={() => router.push("/")} />
+        <AppHeader title="Multi-Header Filtering" showBack onBack={() => safeBack(router)} />
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
           <div style={{ width: "100%", maxWidth: 400 }}>
             <h2 style={{ fontFamily: "var(--font-newsreader), Georgia, serif", fontWeight: 400, fontSize: 22, color: "var(--ink)", marginBottom: 6, textAlign: "center" }}>Multi-Header Filtering</h2>
@@ -253,7 +254,7 @@ function MultiHeaderFilterInner() {
   if (availableTabs && !loaded) {
     return (
       <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", backgroundColor: "var(--cream)" }}>
-        <AppHeader title="Multi-Header Filtering" showBack onBack={() => router.back()} />
+        <AppHeader title="Multi-Header Filtering" showBack onBack={() => safeBack(router)} />
         {loading && <LoadingOverlay message="Loading..." />}
         <div style={{ flex: 1, padding: 24 }}>
           <h3 style={{ fontFamily: "var(--font-newsreader), Georgia, serif", fontWeight: 400, fontSize: 18, color: "var(--ink)", marginBottom: 16, textAlign: "center" }}>Select a tab</h3>
@@ -275,7 +276,7 @@ function MultiHeaderFilterInner() {
   if (!loaded) {
     return (
       <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", backgroundColor: "var(--cream)" }}>
-        <AppHeader title="Multi-Header Filtering" showBack onBack={() => router.back()} />
+        <AppHeader title="Multi-Header Filtering" showBack onBack={() => safeBack(router)} />
         {loading && <LoadingOverlay message="Loading data..." />}
         {error && <ErrorToast message={error} onDismiss={() => setError(null)} />}
       </div>

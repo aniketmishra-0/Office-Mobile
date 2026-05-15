@@ -1,14 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import ErrorToast from "@/components/ErrorToast";
 import ClearButton from "@/components/ClearButton";
 import SubmitButton from "@/components/SubmitButton";
 import { listSubmissions } from "@/lib/api";
+import { safeBack } from "@/lib/navigation";
 
 export default function SubmissionsPage() {
+  const router = useRouter();
   const [formId, setFormId] = useState("");
   const [token, setToken] = useState("");
   const [loading, setLoading] = useState(false);
@@ -36,7 +39,7 @@ export default function SubmissionsPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-zinc-100">
-      <AppHeader title="Submissions" showBack onBack={() => window.location.href = "/"} />
+      <AppHeader title="Submissions" showBack onBack={() => safeBack(router)} />
       {loading && <LoadingOverlay message="Loading submissions..." />}
 
       <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-10 space-y-4">

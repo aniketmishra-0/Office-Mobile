@@ -13,6 +13,7 @@ import SubmitButton from "@/components/SubmitButton";
 import ClearButton from "@/components/ClearButton";
 import { QRCodeCanvas } from "qrcode.react";
 import { usePrefs } from "@/lib/usePrefs";
+import { safeBack } from "@/lib/navigation";
 import {
   createSheet,
   previewSheet,
@@ -262,7 +263,7 @@ function FormFillInner() {
   if (step === "input") {
     return (
       <div className="flex flex-col min-h-screen">
-        <AppHeader title="Form Fill" showBack onBack={() => router.push("/")} />
+        <AppHeader title="Form Fill" showBack onBack={() => safeBack(router)} />
         {loadingPreview && <LoadingOverlay message="Reading your sheet..." />}
 
         <div className="flex-1 w-full max-w-[560px] mx-auto px-6 pt-14 pb-8 space-y-8">
@@ -464,7 +465,7 @@ function FormFillInner() {
                   label="Preview your form"
                   submitting={loadingPreview}
                   onClick={handleGenerate}
-                  disabled={!sheetUrl.trim() || accessStatus === "none" || accessStatus === "read"}
+                  disabled={!sheetUrl.trim() || accessStatus === "none"}
                 />
               </div>
             </div>

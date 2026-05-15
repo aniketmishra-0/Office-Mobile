@@ -7,6 +7,7 @@ import SettingsPanel from "@/components/SettingsPanel";
 import { logout as apiLogout } from "@/lib/api";
 import { getStoredTheme, setTheme, syncPrefsToBackend } from "@/lib/prefs";
 import { usePrefs } from "@/lib/usePrefs";
+import { safeBack } from "@/lib/navigation";
 
 interface Props {
   title?: string;
@@ -97,7 +98,7 @@ export default function AppHeader({
 
   function handleBack() {
     if (onBack) onBack();
-    else router.back();
+    else safeBack(router);
   }
 
   const [loggingOut, setLoggingOut] = useState(false);

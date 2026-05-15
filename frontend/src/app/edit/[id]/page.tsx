@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import ErrorToast from "@/components/ErrorToast";
@@ -13,10 +13,12 @@ import SubmitButton from "@/components/SubmitButton";
 import { getEditForm, updateForm, previewSheet } from "@/lib/api";
 import type { EditFormResponse, FieldSchema, CustomKeywordRule } from "@/types/field";
 import { QRCodeCanvas } from "qrcode.react";
+import { safeBack } from "@/lib/navigation";
 
 export default function EditFormPage() {
   const params = useParams();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const id = params.id as string;
   const token = searchParams.get("token") ?? "";
 
@@ -154,7 +156,7 @@ export default function EditFormPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-zinc-100">
-      <AppHeader title="Edit form" showBack onBack={() => window.location.href = "/"} />
+      <AppHeader title="Edit form" showBack onBack={() => safeBack(router)} />
       {reapplying && <LoadingOverlay message="Updating fields..." />}
 
       {/* Saved toast */}

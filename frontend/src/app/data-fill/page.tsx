@@ -8,6 +8,7 @@ import LoadingOverlay from "@/components/LoadingOverlay";
 import ClearButton from "@/components/ClearButton";
 import SubmitButton from "@/components/SubmitButton";
 import type { FieldSchema } from "@/types/field";
+import { safeBack } from "@/lib/navigation";
 import {
   getSheetHistory,
   lookupFormsBySheet,
@@ -800,7 +801,7 @@ function DataFillPageInner() {
   if (sheetParam && !loaded && !availableTabs && !error) {
     return (
       <div className="flex flex-col min-h-screen">
-        <AppHeader title="Data Correction" showBack onBack={() => router.back()} />
+        <AppHeader title="Data Correction" showBack onBack={() => safeBack(router)} />
         <LoadingOverlay message="Loading sheet..." />
       </div>
     );
@@ -810,7 +811,7 @@ function DataFillPageInner() {
   if (sheetParam && availableTabs) {
     return (
       <div className="flex flex-col min-h-screen">
-        <AppHeader title="Data Correction" showBack onBack={() => router.back()} />
+        <AppHeader title="Data Correction" showBack onBack={() => safeBack(router)} />
         <div className="flex-1 w-full max-w-[560px] mx-auto px-6 pt-14 pb-10 space-y-8">
           <section>
             <p
@@ -870,7 +871,7 @@ function DataFillPageInner() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <AppHeader title="Data Correction" showBack onBack={() => router.push("/")} />
+      <AppHeader title="Data Correction" showBack onBack={() => safeBack(router)} />
       {loading && <LoadingOverlay message="Loading sheet..." />}
       <div className="flex-1 w-full max-w-[560px] mx-auto px-6 pt-14 pb-10 space-y-8">
         {/* Editorial hero */}
