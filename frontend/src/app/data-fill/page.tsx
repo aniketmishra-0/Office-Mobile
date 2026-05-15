@@ -9,6 +9,7 @@ import ClearButton from "@/components/ClearButton";
 import SubmitButton from "@/components/SubmitButton";
 import type { FieldSchema } from "@/types/field";
 import { safeBack } from "@/lib/navigation";
+import { useStepHistory } from "@/lib/useStepHistory";
 import {
   getSheetHistory,
   lookupFormsBySheet,
@@ -410,6 +411,57 @@ function DataFillPageInner() {
     }
   }, [router, allTabs]);
 
+  // ─── Back-gesture wiring ────────────────────────────────────────────
+  // Translate the multi-state flow (input → tabs → loaded → detail) into
+  // a single derived step name so the step-history hook can record each
+  // transition as a synthetic browser history entry and drive backwards
+  // motion on swipe / back button.
+  type FlowStep = "input" | "tabs" | "loaded" | "detail";
+  const flowStep: FlowStep =
+    selectedRowIdx !== null
+      ? "detail"
+      : loaded
+      ? "loaded"
+      : availableTabs
+      ? "tabs"
+      : "input";
+
+  const setFlowStep = useCallback(
+    (next: FlowStep) => {
+      switch (next) {
+        case "input":
+          setSelectedRowIdx(null);
+          setEditMode(false);
+          setLoaded(null);
+          setAvailableTabs(null);
+          setFilters([]);
+          setSortMode("default");
+          break;
+        case "tabs":
+          // Pop from "loaded" or "detail" back to the tab picker.
+          setSelectedRowIdx(null);
+          setEditMode(false);
+          setLoaded(null);
+          setFilters([]);
+          setSortMode("default");
+          if (allTabs && !availableTabs) {
+            setAvailableTabs(allTabs);
+          }
+          break;
+        case "loaded":
+          // From "detail", clearing the row puts us back on the loaded list.
+          setSelectedRowIdx(null);
+          setEditMode(false);
+          break;
+        case "detail":
+          break;
+      }
+    },
+    [allTabs, availableTabs],
+  );
+
+  useStepHistory(flowStep, setFlowStep, ["input", "tabs", "loaded", "detail"]);
+
   function getMissingCount(row: Record<string, string>): number {
     if (!loaded) return 0;
     return loaded.fields.filter((f) => !(row[f.key] ?? "").trim()).length;
@@ -471,7 +523,7 @@ function DataFillPageInner() {
 
     return (
       <div className="flex flex-col min-h-screen bg-zinc-100">
-        <AppHeader title="Data Correction" showBack onBack={() => { setSelectedRowIdx(null); setEditMode(false); }} />
+        <AppHeader title="Data Correction" showBack onBack={() => window.history.back()} />
         {saving && <LoadingOverlay message="Saving..." />}
         <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-10">
           {/* Nav: Prev / Info / Next */}
@@ -653,7 +705,7 @@ function DataFillPageInner() {
   if (loaded) {
     return (
       <div className="flex flex-col min-h-screen bg-zinc-100 overflow-y-auto">
-        <AppHeader title="Data Correction" showBack onBack={handleReset} />
+        <AppHeader title="Data Correction" showBack onBack={() => window.history.back()} />
         {loading && <LoadingOverlay message="Loading entries..." />}
         <div className="flex-1 w-full max-w-[560px] md:max-w-[720px] lg:max-w-[900px] xl:max-w-[1100px] mx-auto px-5 pt-8 pb-10">
           {/* Header */}

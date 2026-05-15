@@ -14,6 +14,7 @@ import ClearButton from "@/components/ClearButton";
 import { QRCodeCanvas } from "qrcode.react";
 import { usePrefs } from "@/lib/usePrefs";
 import { safeBack } from "@/lib/navigation";
+import { useStepHistory } from "@/lib/useStepHistory";
 import {
   createSheet,
   previewSheet,
@@ -39,6 +40,8 @@ export default function FormFillPage() {
 
 type Step = "input" | "preview" | "done";
 
+const FORM_FILL_STEPS = ["input", "preview", "done"] as const;
+
 function FormFillInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -47,6 +50,7 @@ function FormFillInner() {
   const { copy } = usePrefs();
 
   const [step, setStep] = useState<Step>("input");
+  useStepHistory(step, setStep, FORM_FILL_STEPS);
   const [mode, setMode] = useState<"paste" | "create">("paste");
   const [sheetUrl, setSheetUrl] = useState(sheetParam || "");
   const [urlError, setUrlError] = useState("");
@@ -484,7 +488,7 @@ function FormFillInner() {
         <AppHeader
           title="Customize"
           showBack
-          onBack={() => setStep("input")}
+          onBack={() => window.history.back()}
           rightAction={
             <span className="text-[11px] font-medium text-zinc-500">2 of 3</span>
           }
@@ -594,7 +598,7 @@ function FormFillInner() {
       <AppHeader
         showLogo
         showBack
-        onBack={() => setStep("preview")}
+        onBack={() => window.history.back()}
         rightAction={
           <span className="text-[11px] font-medium text-zinc-500">3 of 3</span>
         }

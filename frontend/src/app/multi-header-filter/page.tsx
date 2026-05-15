@@ -10,6 +10,7 @@ import SubmitButton from "@/components/SubmitButton";
 import type { FieldSchema } from "@/types/field";
 import { lookupFormsBySheet, getSheetSections } from "@/lib/api";
 import { safeBack } from "@/lib/navigation";
+import { useStepHistory } from "@/lib/useStepHistory";
 
 interface TabOption {
   id: string | null;
@@ -217,6 +218,35 @@ function MultiHeaderFilterInner() {
   const totalRows = loaded?.sections.reduce((sum, s) => sum + s.rows.length, 0) ?? 0;
   const closeCalendar = useCallback(() => setShowCalendar(false), []);
 
+  // ─── Back-gesture wiring ────────────────────────────────────────────
+  // Translate the multi-state flow (input → tabs → loaded) into a single
+  // derived step name for useStepHistory.
+  type FlowStep = "input" | "tabs" | "loaded";
+  const flowStep: FlowStep = loaded ? "loaded" : availableTabs ? "tabs" : "input";
+
+  const setFlowStep = useCallback(
+    (next: FlowStep) => {
+      switch (next) {
+        case "input":
+          setLoaded(null);
+          setAvailableTabs(null);
+          setSelectedSections([]);
+          setSearchQuery("");
+          break;
+        case "tabs":
+          setLoaded(null);
+          setSelectedSections([]);
+          setSearchQuery("");
+          break;
+        case "loaded":
+          break;
+      }
+    },
+    [],
+  );
+
+  useStepHistory(flowStep, setFlowStep, ["input", "tabs", "loaded"]);
+
   // --- RENDER ---
 
   // Step 1: URL input
@@ -288,7 +318,7 @@ function MultiHeaderFilterInner() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", backgroundColor: "var(--cream)" }}>
-      <AppHeader title="Multi-Header Filtering" showBack onBack={() => { setLoaded(null); setSelectedSections([]); setSearchQuery(""); if (sheetUrl) loadSheetFromUrl(sheetUrl); }} />
+      <AppHeader title="Multi-Header Filtering" showBack onBack={() => window.history.back()} />
 
       {/* Content */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>

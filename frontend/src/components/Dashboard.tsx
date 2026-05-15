@@ -15,6 +15,7 @@ import ClearButton from "@/components/ClearButton";
 import OpenInModal from "@/components/OpenInModal";
 import { QRCodeCanvas } from "qrcode.react";
 import { usePrefs } from "@/lib/usePrefs";
+import { useStepHistory } from "@/lib/useStepHistory";
 import {
   createSheet,
   previewSheet,
@@ -37,6 +38,8 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").re
 
 type Step = "input" | "preview" | "done";
 
+const DASHBOARD_STEPS = ["input", "preview", "done"] as const;
+
 type RecentSheet = {
   url: string;
   title: string;
@@ -49,6 +52,7 @@ export default function Dashboard() {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const { copy } = usePrefs();
   const [step, setStep] = useState<Step>("input");
+  useStepHistory(step, setStep, DASHBOARD_STEPS);
   const [mode, setMode] = useState<"paste" | "create">("paste");
   const [mounted, setMounted] = useState(false);
   const [recentSheets, setRecentSheets] = useState<RecentSheet[]>([]);
@@ -1244,7 +1248,7 @@ export default function Dashboard() {
         <AppHeader
           title="Customize"
           showBack
-          onBack={() => setStep("input")}
+          onBack={() => window.history.back()}
           rightAction={
             <span className="text-[11px] font-medium text-zinc-500">2 of 3</span>
           }
@@ -1355,13 +1359,7 @@ export default function Dashboard() {
       <AppHeader
         showLogo
         showBack
-          onBack={() => {
-            if (previewData) {
-              setStep("preview");
-            } else {
-              setStep("input");
-            }
-          }}
+          onBack={() => window.history.back()}
         rightAction={
           <span className="text-[11px] font-medium text-zinc-500">3 of 3</span>
         }

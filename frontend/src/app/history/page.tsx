@@ -9,6 +9,7 @@ import ClearButton from "@/components/ClearButton";
 import SubmitButton from "@/components/SubmitButton";
 import type { FieldSchema } from "@/types/field";
 import { safeBack } from "@/lib/navigation";
+import { useStepHistory } from "@/lib/useStepHistory";
 import {
   getFormSuggestions,
   getSheetHistory,
@@ -262,11 +263,71 @@ function HistoryPageInner() {
   // Step indicator
   const step: 1 | 2 | 3 = availableTabs ? 2 : loaded ? 3 : 1;
 
+  // ─── Back-gesture wiring ────────────────────────────────────────────
+  // Translate the multi-state flow (input → tabs → loaded → detail) into
+  // a single derived step name so the step-history hook can record each
+  // transition as a synthetic browser history entry and drive backwards
+  // motion on swipe / back button.
+  type FlowStep = "input" | "tabs" | "loaded" | "detail";
+  const flowStep: FlowStep = selectedRow
+    ? "detail"
+    : loaded
+    ? "loaded"
+    : availableTabs
+    ? "tabs"
+    : "input";
+
+  const setFlowStep = useCallback(
+    (next: FlowStep) => {
+      switch (next) {
+        case "input":
+          setSelectedRow(null);
+          setLoaded(null);
+          setAvailableTabs(null);
+          setSearchQuery("");
+          break;
+        case "tabs":
+          // Pop from "loaded" or "detail" back to the tab picker.
+          setSelectedRow(null);
+          setLoaded(null);
+          setSearchQuery("");
+          if (sheetUrl && !availableTabs) {
+            lookupFormsBySheet(sheetUrl)
+              .then((result) => {
+                setAvailableTabs(
+                  result.items.map((item) => ({
+                    id: item.id,
+                    worksheet_name: item.worksheet_name,
+                    form_title: item.form_title,
+                    fields: item.fields,
+                    has_form: item.has_form,
+                  })),
+                );
+              })
+              .catch(() => {});
+          }
+          break;
+        case "loaded":
+          // From "detail", clearing the row puts us back on the loaded list.
+          setSelectedRow(null);
+          break;
+        case "detail":
+          // Forward-only via row click — nothing to do for back.
+          break;
+      }
+    },
+    [sheetUrl, availableTabs],
+  );
+
+  useStepHistory(flowStep, setFlowStep, ["input", "tabs", "loaded", "detail"]);
+
+  // ════════════════════════════════════════════════════════════════════
+
   // ═══════════════════════ Detail view ═══════════════════════
   if (selectedRow && loaded) {
     return (
       <div className="flex flex-col min-h-screen" style={{ background: "var(--cream)" }}>
-        <AppHeader title="Entry details" showBack onBack={() => setSelectedRow(null)} />
+        <AppHeader title="Entry details" showBack onBack={() => window.history.back()} />
         <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-10">
           <div style={{ marginBottom: 16 }}>
             <h2 style={{
@@ -350,7 +411,7 @@ function HistoryPageInner() {
 
     return (
       <div className="flex flex-col min-h-screen" style={{ background: "var(--cream)" }}>
-        <AppHeader title="Quick View" showBack onBack={handleBackToTabs} />
+        <AppHeader title="Quick View" showBack onBack={() => window.history.back()} />
         {loading && <LoadingOverlay message="Loading entries..." />}
 
         {/* Top bar: sheet info + search */}
