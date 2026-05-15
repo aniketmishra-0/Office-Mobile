@@ -10,8 +10,8 @@
   "orientation": "portrait",
   "dir": "ltr",
   "lang": "en",
-  "background_color": "#F7F3EE",
-  "theme_color": "#F7F3EE",
+  "background_color": "#EDEAE5",
+  "theme_color": "#EDEAE5",
   "categories": ["productivity", "business", "utilities"],
   "prefer_related_applications": false,
   "launch_handler": {

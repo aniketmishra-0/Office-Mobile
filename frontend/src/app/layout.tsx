@@ -65,7 +65,7 @@ export const viewport: Viewport = {
   // Light/dark adaptive theme colour so the installed app chrome
   // matches the user's OS preference.
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#F7F3EE' },
+    { media: '(prefers-color-scheme: light)', color: '#EDEAE5' },
     { media: '(prefers-color-scheme: dark)', color: '#1B1B1B' },
   ],
 }
@@ -73,6 +73,37 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${newsreader.variable} ${plexMono.variable}`}>
+      <head>
+        {/* Solid cream startup images — replaces native PWA splash icon
+            so the animated React SplashScreen shows immediately */}
+        <link rel="apple-touch-startup-image"
+          href="/icons/startup.png"
+          media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)" />
+        <link rel="apple-touch-startup-image"
+          href="/icons/startup.png"
+          media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3)" />
+        <link rel="apple-touch-startup-image"
+          href="/icons/startup.png"
+          media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3)" />
+        <link rel="apple-touch-startup-image"
+          href="/icons/startup.png"
+          media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2)" />
+        <link rel="apple-touch-startup-image"
+          href="/icons/startup.png"
+          media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)" />
+        <link rel="apple-touch-startup-image"
+          href="/icons/startup.png"
+          media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)" />
+        <link rel="apple-touch-startup-image"
+          href="/icons/startup.png"
+          media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)" />
+        <link rel="apple-touch-startup-image"
+          href="/icons/startup-small.png"
+          media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)" />
+        <link rel="apple-touch-startup-image"
+          href="/icons/startup-small.png"
+          media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)" />
+      </head>
       <body>
         <Script id="theme-init" strategy="beforeInteractive">
           {`(function(){try{var t=localStorage.getItem('om_theme');var theme=t==='dark'?'dark':'light';document.documentElement.setAttribute('data-theme',theme);if(theme==='dark'){document.documentElement.classList.add('dark')}else{document.documentElement.classList.remove('dark')}}catch(e){}})()`}
