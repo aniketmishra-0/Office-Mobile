@@ -162,7 +162,8 @@ async def get_dashboard_stats() -> dict:
 
 @router.get("/forms/library")
 async def list_form_library(limit: int = Query(50, ge=1, le=200)) -> dict:
-    items = await asyncio.to_thread(form_store.list_forms, limit)
+    oauth_key = get_current_oauth_session_key()
+    items = await asyncio.to_thread(form_store.list_forms, limit, oauth_key)
     return {
         "items": [
             {
@@ -718,8 +719,11 @@ async def get_public_form(form_id: str) -> PublicFormResponse:
 
 @router.delete("/forms")
 async def delete_all_forms_endpoint() -> dict:
-    """Delete ALL saved forms and their submissions."""
-    count = await asyncio.to_thread(form_store.delete_all_forms)
+    """Delete all saved forms belonging to the current user."""
+    oauth_key = get_current_oauth_session_key()
+    if not oauth_key:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    count = await asyncio.to_thread(form_store.delete_all_forms, oauth_key)
     return {"success": True, "deleted_count": count}
 
 

@@ -213,18 +213,32 @@ def find_forms_by_spreadsheet(spreadsheet_id: str) -> list[dict[str, Any]]:
     return [r for r in (_row_to_record(row) for row in rows) if r]
 
 
-def list_forms(limit: int = 100) -> list[dict[str, Any]]:
-    rows = fetchall(
-        """
-        SELECT f.*, COUNT(s.id) AS submission_count
-        FROM forms f
-        LEFT JOIN submissions s ON s.form_id = f.id
-        GROUP BY f.id
-        ORDER BY f.updated_at DESC
-        LIMIT %s
-        """,
-        (limit,),
-    )
+def list_forms(limit: int = 100, oauth_key: str | None = None) -> list[dict[str, Any]]:
+    if oauth_key:
+        rows = fetchall(
+            """
+            SELECT f.*, COUNT(s.id) AS submission_count
+            FROM forms f
+            LEFT JOIN submissions s ON s.form_id = f.id
+            WHERE f.oauth_key = %s
+            GROUP BY f.id
+            ORDER BY f.updated_at DESC
+            LIMIT %s
+            """,
+            (oauth_key, limit),
+        )
+    else:
+        rows = fetchall(
+            """
+            SELECT f.*, COUNT(s.id) AS submission_count
+            FROM forms f
+            LEFT JOIN submissions s ON s.form_id = f.id
+            GROUP BY f.id
+            ORDER BY f.updated_at DESC
+            LIMIT %s
+            """,
+            (limit,),
+        )
     return [r for r in (_row_to_record(row) for row in rows) if r]
 
 
@@ -277,14 +291,17 @@ def delete_form(form_id: str) -> bool:
             return cur.rowcount > 0
 
 
-def delete_all_forms() -> int:
+def delete_all_forms(oauth_key: str | None = None) -> int:
     """
-    Delete ALL forms and their submissions.
+    Delete all forms belonging to the given oauth_key (user).
+    If oauth_key is None, no rows are deleted (safety guard).
     Returns the number of forms deleted.
     """
+    if not oauth_key:
+        return 0
     with connection() as conn:
         with conn.cursor() as cur:
-            cur.execute("DELETE FROM forms")
+            cur.execute("DELETE FROM forms WHERE oauth_key = %s", (oauth_key,))
             return cur.rowcount
 
 
