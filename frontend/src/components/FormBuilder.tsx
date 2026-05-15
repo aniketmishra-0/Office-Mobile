@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { FieldSchema, FieldType } from "@/types/field";
 import ClearButton from "@/components/ClearButton";
 import SubmitButton from "@/components/SubmitButton";
+import MobileDropdown from "@/components/MobileDropdown";
 
 type DraftField = {
   id: string;
@@ -200,17 +201,13 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                   <label className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-1">
                     Field type
                   </label>
-                  <select
+                  <MobileDropdown
+                    size="sm"
                     value={field.type}
-                    onChange={(e) => updateField(field.id, { type: e.target.value as FieldType })}
-                    className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2.5 text-[14px] text-zinc-950 focus:outline-none focus:ring-2 focus:ring-zinc-900"
-                  >
-                    {FIELD_TYPES.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                    options={FIELD_TYPES}
+                    onChange={(val) => updateField(field.id, { type: val as FieldType })}
+                    placeholder="Select field type"
+                  />
                 </div>
 
                 <div className="flex items-center justify-end gap-1.5">

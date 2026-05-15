@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import type { CustomKeywordRule, FieldType } from "@/types/field";
+import MobileDropdown from "./MobileDropdown";
 
 interface Props {
   rules: CustomKeywordRule[];
@@ -97,19 +98,16 @@ export default function KeywordRulesEditor({ rules, onChange }: Props) {
                     placeholder="keyword"
                     className="flex-1 rounded-lg border border-zinc-300 px-3 py-2.5 text-sm min-h-[44px] focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent"
                   />
-                  <select
+                  <MobileDropdown
+                    size="sm"
                     value={rule.type}
-                    onChange={(e) => {
+                    options={(Object.keys(TYPE_LABELS) as FieldType[]).map((t) => ({ value: t, label: TYPE_LABELS[t] }))}
+                    onChange={(val) => {
                       const updated = [...rules];
-                      updated[i] = { ...updated[i], type: e.target.value as FieldType };
+                      updated[i] = { ...updated[i], type: val as FieldType };
                       onChange(updated);
                     }}
-                    className="rounded-lg border border-zinc-300 px-2 py-2.5 text-sm min-h-[44px] focus:outline-none focus:ring-2 focus:ring-zinc-900"
-                  >
-                    {(Object.keys(TYPE_LABELS) as FieldType[]).map((t) => (
-                      <option key={t} value={t}>{TYPE_LABELS[t]}</option>
-                    ))}
-                  </select>
+                  />
                   <button
                     type="button"
                     onClick={() => onChange(rules.filter((_, idx) => idx !== i))}

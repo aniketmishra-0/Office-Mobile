@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 
 export interface DropdownOption {
   value: string;
@@ -36,6 +37,20 @@ interface MultiSelectProps {
 
 type MobileDropdownProps = SingleSelectProps | MultiSelectProps;
 
+/* ─── Detect mobile via viewport width ─────────────────────────── */
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    function check() {
+      setIsMobile(window.innerWidth < breakpoint);
+    }
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, [breakpoint]);
+  return isMobile;
+}
+
 export default function MobileDropdown(props: MobileDropdownProps) {
   const {
     options,
@@ -47,10 +62,11 @@ export default function MobileDropdown(props: MobileDropdownProps) {
   const isMulti = props.multiple === true;
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
 
-  // Close on outside click
+  // Close on outside click (desktop only)
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isMobile) return;
     function handleClickOutside(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
@@ -58,7 +74,7 @@ export default function MobileDropdown(props: MobileDropdownProps) {
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isOpen]);
+  }, [isOpen, isMobile]);
 
   // Close on Escape key
   useEffect(() => {
@@ -70,24 +86,38 @@ export default function MobileDropdown(props: MobileDropdownProps) {
     return () => document.removeEventListener("keydown", handleKey);
   }, [isOpen]);
 
-  const handleSelect = (val: string) => {
-    if (isMulti) {
-      const { selectedValues, onMultiChange, maxSelect } = props as MultiSelectProps;
-      if (selectedValues.includes(val)) {
-        onMultiChange(selectedValues.filter((v) => v !== val));
-      } else {
-        if (maxSelect && selectedValues.length >= maxSelect) {
-          const next = [...selectedValues.slice(1), val];
-          onMultiChange(next);
+  // Lock body scroll on mobile when bottom sheet is open
+  useEffect(() => {
+    if (!isOpen || !isMobile) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isOpen, isMobile]);
+
+  const handleSelect = useCallback(
+    (val: string) => {
+      if (isMulti) {
+        const { selectedValues, onMultiChange, maxSelect } = props as MultiSelectProps;
+        if (selectedValues.includes(val)) {
+          onMultiChange(selectedValues.filter((v) => v !== val));
         } else {
-          onMultiChange([...selectedValues, val]);
+          if (maxSelect && selectedValues.length >= maxSelect) {
+            const next = [...selectedValues.slice(1), val];
+            onMultiChange(next);
+          } else {
+            onMultiChange([...selectedValues, val]);
+          }
         }
+      } else {
+        (props as SingleSelectProps).onChange(val);
+        setIsOpen(false);
       }
-    } else {
-      (props as SingleSelectProps).onChange(val);
-      setIsOpen(false);
-    }
-  };
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isMulti, props],
+  );
 
   // Display text for the button
   let displayText: string | null = null;
@@ -137,96 +167,333 @@ export default function MobileDropdown(props: MobileDropdownProps) {
         </svg>
       </button>
 
-      {/* Inline dropdown list */}
-      {isOpen && (
-        <div
-          style={{
-            position: "absolute",
-            top: "calc(100% + 4px)",
-            left: 0,
-            right: 0,
-            zIndex: 50,
-            background: "var(--cream, #fff)",
-            border: "1px solid var(--rule, #e4e4e7)",
-            borderRadius: 8,
-            boxShadow: "0 4px 16px rgba(0,0,0,0.10)",
-            maxHeight: 220,
-            overflowY: "auto",
-            overscrollBehavior: "contain",
-          }}
-        >
-          {options.length === 0 ? (
-            <div
-              style={{
-                padding: "16px",
-                textAlign: "center",
-                fontSize: 13,
-                color: "var(--stone, #71717a)",
-              }}
-            >
-              No options available
-            </div>
-          ) : (
-            options.map((option) => {
-              const isSelected = isMulti
-                ? selectedValues.includes(option.value)
-                : option.value === selectedValue;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => handleSelect(option.value)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    width: "100%",
-                    textAlign: "left",
-                    padding: size === "sm" ? "8px 12px" : "10px 14px",
-                    fontSize: size === "sm" ? 12 : 14,
-                    fontFamily: "inherit",
-                    color: isSelected ? "var(--ink, #18181b)" : "var(--charcoal, #3f3f46)",
-                    fontWeight: isSelected ? 600 : 400,
-                    background: isSelected ? "rgba(0,0,0,0.04)" : "transparent",
-                    border: 0,
-                    borderBottom: "1px solid var(--rule, #f4f4f5)",
-                    cursor: "pointer",
-                    transition: "background 120ms ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isSelected) e.currentTarget.style.background = "rgba(0,0,0,0.03)";
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isSelected) e.currentTarget.style.background = "transparent";
-                  }}
-                >
-                  <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {option.label}
-                    </span>
-                    {option.subtitle && (
-                      <span style={{ fontSize: 11, color: "var(--stone, #a1a1aa)", marginTop: 2 }}>
-                        {option.subtitle}
-                      </span>
-                    )}
-                  </div>
-                  {isSelected && (
-                    <svg
-                      style={{ width: 16, height: 16, flexShrink: 0, marginLeft: 8 }}
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2.5}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </button>
-              );
-            })
-          )}
-        </div>
+      {/* Desktop: inline dropdown | Mobile: bottom sheet via portal */}
+      {isOpen && !isMobile && (
+        <DesktopDropdown
+          options={options}
+          size={size}
+          isMulti={isMulti}
+          selectedValue={selectedValue}
+          selectedValues={selectedValues}
+          onSelect={handleSelect}
+        />
+      )}
+
+      {isOpen && isMobile && (
+        <BottomSheet
+          options={options}
+          size={size}
+          isMulti={isMulti}
+          selectedValue={selectedValue}
+          selectedValues={selectedValues}
+          onSelect={handleSelect}
+          onClose={() => setIsOpen(false)}
+          placeholder={placeholder}
+        />
       )}
     </div>
+  );
+}
+
+/* ─── Desktop inline dropdown ──────────────────────────────────── */
+function DesktopDropdown({
+  options,
+  size,
+  isMulti,
+  selectedValue,
+  selectedValues,
+  onSelect,
+}: {
+  options: DropdownOption[];
+  size: "default" | "sm";
+  isMulti: boolean;
+  selectedValue: string;
+  selectedValues: string[];
+  onSelect: (val: string) => void;
+}) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: "calc(100% + 4px)",
+        left: 0,
+        right: 0,
+        zIndex: 50,
+        background: "var(--cream, #fff)",
+        border: "1px solid var(--rule, #e4e4e7)",
+        borderRadius: 8,
+        boxShadow: "0 4px 16px rgba(0,0,0,0.10)",
+        maxHeight: 220,
+        overflowY: "auto",
+        overscrollBehavior: "contain",
+      }}
+    >
+      <OptionsList
+        options={options}
+        size={size}
+        isMulti={isMulti}
+        selectedValue={selectedValue}
+        selectedValues={selectedValues}
+        onSelect={onSelect}
+      />
+    </div>
+  );
+}
+
+/* ─── Mobile bottom sheet via portal ───────────────────────────── */
+function BottomSheet({
+  options,
+  size,
+  isMulti,
+  selectedValue,
+  selectedValues,
+  onSelect,
+  onClose,
+  placeholder,
+}: {
+  options: DropdownOption[];
+  size: "default" | "sm";
+  isMulti: boolean;
+  selectedValue: string;
+  selectedValues: string[];
+  onSelect: (val: string) => void;
+  onClose: () => void;
+  placeholder: string;
+}) {
+  const [animating, setAnimating] = useState(true);
+  const sheetRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Trigger enter animation
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setAnimating(false);
+      });
+    });
+  }, []);
+
+  const handleClose = useCallback(() => {
+    setAnimating(true);
+    setTimeout(onClose, 250);
+  }, [onClose]);
+
+  // Handle backdrop click
+  const handleBackdropClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.target === e.currentTarget) handleClose();
+    },
+    [handleClose],
+  );
+
+  const maxSheetHeight = Math.min(options.length * 52 + 80, window.innerHeight * 0.6);
+
+  return createPortal(
+    <div
+      onClick={handleBackdropClick}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9999,
+        background: animating ? "rgba(0,0,0,0)" : "rgba(0,0,0,0.4)",
+        transition: "background 250ms ease",
+        display: "flex",
+        alignItems: "flex-end",
+        justifyContent: "center",
+      }}
+    >
+      <div
+        ref={sheetRef}
+        style={{
+          width: "100%",
+          maxHeight: maxSheetHeight,
+          background: "var(--cream, #fff)",
+          borderTopLeftRadius: 16,
+          borderTopRightRadius: 16,
+          boxShadow: "0 -8px 32px rgba(0,0,0,0.15)",
+          display: "flex",
+          flexDirection: "column",
+          transform: animating ? "translateY(100%)" : "translateY(0)",
+          transition: "transform 250ms cubic-bezier(0.32, 0.72, 0, 1)",
+          overflow: "hidden",
+        }}
+      >
+        {/* Drag handle */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            padding: "10px 0 4px 0",
+          }}
+        >
+          <div
+            style={{
+              width: 36,
+              height: 4,
+              borderRadius: 2,
+              background: "var(--rule, #d4d4d8)",
+            }}
+          />
+        </div>
+
+        {/* Header */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "6px 16px 12px 16px",
+            borderBottom: "1px solid var(--rule, #e4e4e7)",
+          }}
+        >
+          <span
+            style={{
+              fontSize: 15,
+              fontWeight: 600,
+              color: "var(--ink, #18181b)",
+            }}
+          >
+            {placeholder}
+          </span>
+          <button
+            type="button"
+            onClick={handleClose}
+            style={{
+              background: "transparent",
+              border: 0,
+              padding: "4px 8px",
+              fontSize: 13,
+              fontWeight: 500,
+              color: "var(--stone, #71717a)",
+              cursor: "pointer",
+            }}
+          >
+            Done
+          </button>
+        </div>
+
+        {/* Options */}
+        <div
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            overscrollBehavior: "contain",
+            WebkitOverflowScrolling: "touch",
+          }}
+        >
+          <OptionsList
+            options={options}
+            size="default"
+            isMulti={isMulti}
+            selectedValue={selectedValue}
+            selectedValues={selectedValues}
+            onSelect={onSelect}
+            isMobileSheet
+          />
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+/* ─── Shared options list ──────────────────────────────────────── */
+function OptionsList({
+  options,
+  size,
+  isMulti,
+  selectedValue,
+  selectedValues,
+  onSelect,
+  isMobileSheet = false,
+}: {
+  options: DropdownOption[];
+  size: "default" | "sm";
+  isMulti: boolean;
+  selectedValue: string;
+  selectedValues: string[];
+  onSelect: (val: string) => void;
+  isMobileSheet?: boolean;
+}) {
+  if (options.length === 0) {
+    return (
+      <div
+        style={{
+          padding: "16px",
+          textAlign: "center",
+          fontSize: 13,
+          color: "var(--stone, #71717a)",
+        }}
+      >
+        No options available
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {options.map((option) => {
+        const isSelected = isMulti
+          ? selectedValues.includes(option.value)
+          : option.value === selectedValue;
+
+        const padY = isMobileSheet ? 14 : size === "sm" ? 8 : 10;
+        const padX = isMobileSheet ? 18 : size === "sm" ? 12 : 14;
+        const fs = isMobileSheet ? 15 : size === "sm" ? 12 : 14;
+
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onSelect(option.value)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              width: "100%",
+              textAlign: "left",
+              padding: `${padY}px ${padX}px`,
+              fontSize: fs,
+              fontFamily: "inherit",
+              color: isSelected ? "var(--ink, #18181b)" : "var(--charcoal, #3f3f46)",
+              fontWeight: isSelected ? 600 : 400,
+              background: isSelected ? "rgba(0,0,0,0.04)" : "transparent",
+              border: 0,
+              borderBottom: "1px solid var(--rule, #f4f4f5)",
+              cursor: "pointer",
+              transition: "background 120ms ease",
+              minHeight: isMobileSheet ? 48 : undefined,
+            }}
+            onMouseEnter={(e) => {
+              if (!isSelected) e.currentTarget.style.background = "rgba(0,0,0,0.03)";
+            }}
+            onMouseLeave={(e) => {
+              if (!isSelected) e.currentTarget.style.background = "transparent";
+            }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {option.label}
+              </span>
+              {option.subtitle && (
+                <span style={{ fontSize: 11, color: "var(--stone, #a1a1aa)", marginTop: 2 }}>
+                  {option.subtitle}
+                </span>
+              )}
+            </div>
+            {isSelected && (
+              <svg
+                style={{ width: 18, height: 18, flexShrink: 0, marginLeft: 8, color: "var(--clay, #C8623A)" }}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2.5}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+          </button>
+        );
+      })}
+    </>
   );
 }
