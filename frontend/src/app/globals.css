@@ -419,30 +419,49 @@ button, a, input, select, textarea {
 
 /* ============================================================
    Global button orange sweep — terracotta fill sweeps left→right
-   on every button click. Gives tactile "working" feedback without
-   needing per-component loading states.
+   on every button click. Mirrors the Customize page's SubmitButton
+   behaviour: same clay colour, same 800ms linear timing, same
+   visible band that washes across the button before fading out.
+
+   How the layering works:
+     • `isolation: isolate` makes each button its own stacking
+       context, so a child with `z-index: -1` is contained.
+     • `::after` is positioned absolute with `z-index: -1`, which
+       per the CSS painting order sits ABOVE the button's own
+       background-color but BELOW its text content and child
+       elements. Result: a clay wash that covers the bg without
+       obscuring labels or icons — the same visual effect the
+       SubmitButton achieves with an explicit z-indexed label.
    ============================================================ */
 button {
   position: relative;
   overflow: hidden;
+  isolation: isolate;
 }
 button::after {
   content: "";
   position: absolute;
   inset: 0;
   background: var(--clay);
-  opacity: 0.18;
+  opacity: 0;
   transform: translateX(-100%);
   pointer-events: none;
-  z-index: 1;
+  z-index: -1;
 }
-button:active:not(:disabled)::after {
-  animation: btnSweep 600ms ease-out forwards;
+button:active:not(:disabled)::after,
+button.is-sweeping:not(:disabled)::after {
+  animation: btnSweep 800ms linear forwards;
 }
 @keyframes btnSweep {
-  0%   { transform: translateX(-100%); opacity: 0.22; }
-  60%  { transform: translateX(0); opacity: 0.18; }
-  100% { transform: translateX(0); opacity: 0; }
+  0%   { transform: translateX(-100%); opacity: 1; }
+  55%  { transform: translateX(0);     opacity: 1; }
+  100% { transform: translateX(0);     opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  button:active:not(:disabled)::after,
+  button.is-sweeping:not(:disabled)::after {
+    animation: none;
+  }
 }
 
 /* Buttons that already have their own fill animation (SubmitButton)
