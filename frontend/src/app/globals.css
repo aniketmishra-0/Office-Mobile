@@ -433,29 +433,12 @@ button, a, input, select, textarea {
        obscuring labels or icons — the same visual effect the
        SubmitButton achieves with an explicit z-indexed label.
    ============================================================ */
-/* ============================================================
-   Black-band button click flash — terracotta (clay) sweeps
-   left→right when a black SubmitButton / .om-band is tapped.
-   Scoped to those classes only so menu items, tab rows and
-   other transparent buttons stay clean.
-   ============================================================ */
-.om-submit,
-.om-band {
+button {
   position: relative;
   overflow: hidden;
   isolation: isolate;
 }
-.om-submit::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--clay-dark);
-  opacity: 0;
-  transform: translateX(-100%);
-  pointer-events: none;
-  z-index: -1;
-}
-.om-band::after {
+button::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -465,10 +448,8 @@ button, a, input, select, textarea {
   pointer-events: none;
   z-index: -1;
 }
-.om-submit:active:not(:disabled)::after,
-.om-submit.is-sweeping:not(:disabled)::after,
-.om-band:active:not(:disabled)::after,
-.om-band.is-sweeping:not(:disabled)::after {
+button:active:not(:disabled)::after,
+button.is-sweeping:not(:disabled)::after {
   animation: btnSweep 800ms linear forwards;
 }
 @keyframes btnSweep {
@@ -477,12 +458,16 @@ button, a, input, select, textarea {
   100% { transform: translateX(0);     opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .om-submit:active:not(:disabled)::after,
-  .om-submit.is-sweeping:not(:disabled)::after,
-  .om-band:active:not(:disabled)::after,
-  .om-band.is-sweeping:not(:disabled)::after {
+  button:active:not(:disabled)::after,
+  button.is-sweeping:not(:disabled)::after {
     animation: none;
   }
+}
+
+/* Buttons that already have their own fill animation (SubmitButton)
+   should not double-up with the global sweep. */
+.om-submit::after {
+  display: none !important;
 }
 
 /* Active state for buttons — color shift only, no movement. */

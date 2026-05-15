@@ -12,14 +12,13 @@ interface Props {
 }
 
 /**
- * SubmitButton — full-width editorial band, terracotta primary CTA.
+ * SubmitButton — full-width editorial band.
  *
  * Flows inline at the end of the page (not fixed) so scrolling reveals
- * the entire app. The band sits in clay (terracotta) by default so the
- * action stands out below the form. While submitting, a darker clay
- * fill sweeps left-to-right (800ms linear). No spinner. Bottom padding
- * respects the device safe-area so the iPhone home-indicator stays
- * clear while Android devices collapse the inset to zero.
+ * the entire app. A terracotta fill sweeps left-to-right across the band
+ * while submitting (800ms linear). No spinner. Bottom padding respects
+ * the device safe-area so the iPhone home-indicator stays clear while
+ * Android devices collapse the inset to zero.
  */
 export default function SubmitButton({
   label,
@@ -87,8 +86,8 @@ export default function SubmitButton({
           width: 100%;
           height: 48px;
           overflow: hidden;
-          background: var(--clay);
-          color: var(--on-clay);
+          background: var(--ink);
+          color: var(--on-ink);
           font-family: var(--font-plex-mono), ui-monospace, monospace;
           font-weight: 500;
           font-size: 11px;
@@ -99,9 +98,6 @@ export default function SubmitButton({
           cursor: pointer;
           transition: background-color 200ms ease-out;
         }
-        .om-submit:hover:not(:disabled) {
-          background: var(--clay-dark);
-        }
         .om-submit:disabled {
           cursor: not-allowed;
           opacity: 0.45;
@@ -109,7 +105,7 @@ export default function SubmitButton({
         .om-submit__fill {
           position: absolute;
           inset: 0;
-          background: var(--clay-dark);
+          background: var(--clay);
           transform: translateX(-100%);
           transition: transform 800ms linear;
           pointer-events: none;
