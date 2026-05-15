@@ -464,11 +464,10 @@ button.is-sweeping:not(:disabled)::after {
   }
 }
 
-/* Buttons that already have their own fill animation (SubmitButton)
-   should not double-up with the global sweep. */
-.om-submit::after {
-  display: none !important;
-}
+/* Click-flash sweep on SubmitButton works alongside its internal
+   submitting fill: the global ::after fires on tap (800ms), the
+   component's __fill paints during async work. Same clay colour
+   so the user sees one continuous orange band on every action. */
 
 /* Active state for buttons — color shift only, no movement. */
 button:active:not(:disabled) {
