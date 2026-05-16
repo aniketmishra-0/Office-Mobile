@@ -983,67 +983,49 @@ function BulkEditInner() {
                     fontSize: 11,
                     fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
                     color: "var(--stone)",
-                    margin: "0 0 12px 0",
+                    margin: "0 0 16px 0",
                   }}>
                     {sheetData.length.toLocaleString()} total rows loaded. Use filters to select rows:
                   </p>
 
-                  {/* Filter dropdowns */}
-                  <div style={{ border: "1px solid var(--rule)", padding: 16, maxHeight: "55vh", overflowY: "auto" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, position: "sticky", top: 0, background: "var(--cream)", paddingBottom: 4, zIndex: 10 }}>
-                      <span style={{
-                        fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                        fontSize: 10,
-                        fontWeight: 500,
-                        letterSpacing: "0.1em",
-                        textTransform: "uppercase",
-                        color: "var(--charcoal)",
-                      }}>
-                        Column Filters
-                      </span>
-                      {Object.values(columnFilters).some((v) => v) && (
-                        <button
-                          type="button"
-                          onClick={() => setColumnFilters({})}
-                          style={{
-                            fontSize: 10,
+                  {/* Filter dropdowns — form-fill style, each field stacked */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                    {sheetHeaders.map((field) => {
+                      const uniqueVals = columnUniqueValues[field.key];
+                      if (!uniqueVals) return null;
+                      return (
+                        <div key={field.key} style={{ padding: "14px 0", borderBottom: "1px solid var(--rule)" }}>
+                          <label style={{
+                            display: "block",
                             fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                            color: "var(--stone)",
-                            background: "none",
-                            border: 0,
-                            textDecoration: "underline",
-                            cursor: "pointer",
-                          }}
-                        >
-                          Clear all
-                        </button>
-                      )}
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 12px" }}>
-                      {sheetHeaders.map((field) => {
-                        const uniqueVals = columnUniqueValues[field.key];
-                        if (!uniqueVals) return null;
-                        return (
-                          <FilterSelect
-                            key={field.key}
-                            label={field.label}
+                            fontWeight: 500,
+                            fontSize: 10,
+                            letterSpacing: "0.14em",
+                            textTransform: "uppercase",
+                            color: "var(--charcoal)",
+                            marginBottom: 8,
+                          }}>
+                            {field.label}
+                          </label>
+                          <MobileDropdown
                             value={columnFilters[field.key] ?? ""}
-                            options={uniqueVals}
+                            options={[{ value: "", label: "All" }, ...uniqueVals.map((v) => ({ value: v, label: v }))]}
                             onChange={(val) =>
                               setColumnFilters((prev) => ({
                                 ...prev,
                                 [field.key]: val,
                               }))
                             }
+                            placeholder="All"
                           />
-                        );
-                      })}
-                    </div>
+                        </div>
+                      );
+                    })}
                   </div>
 
-                  {/* Match count + Use rows button */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 16 }}>
-                    {Object.values(columnFilters).some((v) => v) && (
+                  {/* Active filter count */}
+                  {Object.values(columnFilters).some((v) => v) && (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14 }}>
                       <p style={{
                         fontSize: 11,
                         fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
@@ -1053,24 +1035,41 @@ function BulkEditInner() {
                       }}>
                         {filteredSheetRows.length.toLocaleString()} rows match
                       </p>
-                    )}
-                    <div style={{ marginLeft: "auto" }}>
-                      <SubmitButton
-                        label={Object.values(columnFilters).some((v) => v) ? `Use Filtered (${filteredSheetRows.length})` : `Use All (${sheetData.length}) Rows`}
-                        submitting={false}
-                        onClick={() => {
-                          const mapped = filteredSheetRows.map((row) => {
-                            const newRow: Record<string, string> = {};
-                            sheetHeaders.forEach((h) => {
-                              newRow[h.source_header] = row[h.key] ?? "";
-                            });
-                            return newRow;
-                          });
-                          setRows(mapped);
+                      <button
+                        type="button"
+                        onClick={() => setColumnFilters({})}
+                        style={{
+                          fontSize: 10,
+                          fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                          color: "var(--stone)",
+                          background: "none",
+                          border: 0,
+                          textDecoration: "underline",
+                          cursor: "pointer",
                         }}
-                        disabled={!filteredSheetRows.length}
-                      />
+                      >
+                        Clear all filters
+                      </button>
                     </div>
+                  )}
+
+                  {/* Use rows button — full width */}
+                  <div style={{ marginTop: 20 }}>
+                    <SubmitButton
+                      label={Object.values(columnFilters).some((v) => v) ? `Use Filtered (${filteredSheetRows.length}) Rows` : `Use All (${sheetData.length}) Rows`}
+                      submitting={false}
+                      onClick={() => {
+                        const mapped = filteredSheetRows.map((row) => {
+                          const newRow: Record<string, string> = {};
+                          sheetHeaders.forEach((h) => {
+                            newRow[h.source_header] = row[h.key] ?? "";
+                          });
+                          return newRow;
+                        });
+                        setRows(mapped);
+                      }}
+                      disabled={!filteredSheetRows.length}
+                    />
                   </div>
                 </div>
               )}
