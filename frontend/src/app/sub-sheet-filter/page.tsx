@@ -159,6 +159,10 @@ function SubSheetFilterInner() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRow, setSelectedRow] = useState<{ sectionIdx: number; rowIdx: number; row: Record<string, string> } | null>(null);
 
+  // Column-level filters
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
+  const [showFilters, setShowFilters] = useState(false);
+
   useEffect(() => {
     if (sheetParam) loadSheetFromUrl(sheetParam);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -209,12 +213,50 @@ function SubSheetFilterInner() {
   };
 
   const getFilteredRows = (section: Section): Record<string, string>[] => {
+    let rows = section.rows;
+
+    // Apply column filters
+    const activeFilters = Object.entries(columnFilters).filter(([, v]) => v);
+    if (activeFilters.length > 0) {
+      rows = rows.filter((row) =>
+        activeFilters.every(([key, val]) => {
+          const cellValue = (row[key] ?? "").toLowerCase().trim();
+          const filterVal = val.toLowerCase().trim();
+          return cellValue === filterVal || cellValue.includes(filterVal);
+        })
+      );
+    }
+
+    // Apply search
     const q = searchQuery.trim().toLowerCase();
-    if (!q || !loaded) return section.rows;
-    return section.rows.filter((row) =>
-      loaded.fields.some((f) => (row[f.key] ?? "").toLowerCase().includes(q))
-    );
+    if (q && loaded) {
+      rows = rows.filter((row) =>
+        loaded.fields.some((f) => (row[f.key] ?? "").toLowerCase().includes(q))
+      );
+    }
+    return rows;
   };
+
+  // Unique values per column for filter dropdowns (across all selected sections)
+  const columnUniqueValues = React.useMemo(() => {
+    if (!loaded || selectedSections.length === 0) return {};
+    const result: Record<string, string[]> = {};
+    for (const field of loaded.fields) {
+      const valSet = new Set<string>();
+      for (const idx of selectedSections) {
+        const section = loaded.sections[idx];
+        if (!section) continue;
+        for (const row of section.rows) {
+          const v = (row[field.key] ?? "").trim();
+          if (v) valSet.add(v);
+        }
+      }
+      if (valSet.size > 0 && valSet.size < 500) {
+        result[field.key] = [...valSet].sort((a, b) => a.localeCompare(b));
+      }
+    }
+    return result;
+  }, [loaded, selectedSections]);
 
   const totalRows = loaded?.sections.reduce((sum, s) => sum + s.rows.length, 0) ?? 0;
   const closeCalendar = useCallback(() => setShowCalendar(false), []);
@@ -472,6 +514,81 @@ function SubSheetFilterInner() {
                     aria-label="Remove">×</button>
                 </span>
               ))}
+            </div>
+          )}
+
+          {/* Column Filters */}
+          {selectedSections.length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <button
+                type="button"
+                onClick={() => setShowFilters((v) => !v)}
+                style={{
+                  fontFamily: "var(--font-plex-mono), monospace",
+                  fontSize: 10, fontWeight: 500,
+                  letterSpacing: "0.04em", textTransform: "uppercase",
+                  color: Object.values(columnFilters).some((v) => v) ? "var(--ink)" : "var(--stone)",
+                  background: Object.values(columnFilters).some((v) => v) ? "rgba(200, 98, 58, 0.08)" : "transparent",
+                  border: Object.values(columnFilters).some((v) => v) ? "1px solid rgba(200, 98, 58, 0.3)" : "1px solid var(--rule)",
+                  borderRadius: 4, padding: "5px 10px", cursor: "pointer",
+                }}
+              >
+                ⚙ Filter{Object.values(columnFilters).filter((v) => v).length > 0 ? ` (${Object.values(columnFilters).filter((v) => v).length})` : ""}
+              </button>
+
+              {showFilters && (
+                <div style={{ marginTop: 8, padding: 10, border: "1px solid var(--rule)", borderRadius: 8, background: "var(--paper)" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                    <span style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 9, fontWeight: 500, color: "var(--stone)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      Column Filters
+                    </span>
+                    {Object.values(columnFilters).some((v) => v) && (
+                      <button onClick={() => setColumnFilters({})}
+                        style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 9, color: "var(--stone)", background: "none", border: 0, cursor: "pointer", textDecoration: "underline" }}>
+                        Clear all
+                      </button>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {sortedFields.map((field) => {
+                      const uniqueVals = columnUniqueValues[field.key];
+                      if (!uniqueVals) return null;
+                      const listId = `ssf-filter-${field.key}`;
+                      return (
+                        <div key={field.key} style={{ minWidth: 130 }}>
+                          <label style={{ display: "block", fontFamily: "var(--font-plex-mono), monospace", fontSize: 8, fontWeight: 500, color: "var(--stone)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2, paddingLeft: 2 }}>
+                            {field.label || field.source_header}
+                          </label>
+                          <input
+                            type="text"
+                            list={listId}
+                            placeholder="All"
+                            value={columnFilters[field.key] ?? ""}
+                            onChange={(e) => setColumnFilters((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                            style={{
+                              width: "100%", fontFamily: "var(--font-plex-mono), monospace", fontSize: 11,
+                              color: columnFilters[field.key] ? "var(--ink)" : "var(--stone)",
+                              background: "var(--cream)",
+                              border: columnFilters[field.key] ? "1px solid rgba(200, 98, 58, 0.4)" : "1px solid var(--rule)",
+                              borderRadius: 4, padding: "5px 8px",
+                            }}
+                          />
+                          <datalist id={listId}>
+                            {uniqueVals.map((val) => (
+                              <option key={val} value={val} />
+                            ))}
+                          </datalist>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {Object.values(columnFilters).some((v) => v) && (
+                    <p style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 10, color: "var(--stone)", margin: "8px 0 0" }}>
+                      Filtered results shown below
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
