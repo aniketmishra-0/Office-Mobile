@@ -142,9 +142,22 @@ function BulkEditInner() {
         return;
       }
       if (tabs.length === 1) {
-        setSheetHeaders(tabs[0].fields);
-        setWorksheetName(tabs[0].worksheet_name);
-        setSheetReady(true);
+        if (tabs[0].fields.length > 0) {
+          setSheetHeaders(tabs[0].fields);
+          setWorksheetName(tabs[0].worksheet_name);
+          setSheetReady(true);
+        } else {
+          // Fields empty — fetch on-demand via history endpoint
+          setWorksheetName(tabs[0].worksheet_name);
+          try {
+            const { getSheetHistory } = await import("@/lib/api");
+            const hist = await getSheetHistory(url, tabs[0].worksheet_name);
+            setSheetHeaders(hist.fields);
+          } catch {
+            setSheetHeaders([]);
+          }
+          setSheetReady(true);
+        }
       } else {
         setAvailableTabs(tabs);
       }
@@ -158,13 +171,32 @@ function BulkEditInner() {
   }, []);
 
   const selectTab = useCallback(
-    (tab: { worksheet_name: string | null; fields: FieldSchema[] }) => {
-      setSheetHeaders(tab.fields);
+    async (tab: { worksheet_name: string | null; fields: FieldSchema[] }) => {
       setWorksheetName(tab.worksheet_name);
       setAvailableTabs(null);
-      setSheetReady(true);
+
+      if (tab.fields.length > 0) {
+        setSheetHeaders(tab.fields);
+        setSheetReady(true);
+      } else {
+        // Fetch headers on-demand for tabs without pre-loaded fields
+        setSheetLoading(true);
+        try {
+          const { getSheetHistory } = await import("@/lib/api");
+          const result = await getSheetHistory(sheetUrl, tab.worksheet_name);
+          setSheetHeaders(result.fields);
+          setSheetReady(true);
+        } catch {
+          // Fallback: set ready with empty headers (user can refresh)
+          setSheetHeaders([]);
+          setSheetReady(true);
+          setSheetError("Could not load columns for this tab. Try Refresh.");
+        } finally {
+          setSheetLoading(false);
+        }
+      }
     },
-    []
+    [sheetUrl]
   );
 
   // Date/Time columns detection

@@ -674,6 +674,10 @@ async def lookup_forms_by_sheet(sheet_url: str) -> dict:
     _session_key = get_current_oauth_session_key()
 
     if tab_names:
+        # Only read live headers for the FIRST tab without a form to keep response fast.
+        # The user will select a specific tab anyway, and the frontend can re-fetch if needed.
+        first_unsaved_read = False
+
         for tab in tab_names:
             tab_key = tab.strip().lower()
             existing = forms_by_tab.get(tab_key)
@@ -687,26 +691,28 @@ async def lookup_forms_by_sheet(sheet_url: str) -> dict:
                     "has_form": True,
                 })
             else:
-                # Read live headers for tabs without a saved form
                 live_fields = []
-                try:
-                    from app.services.sheets_client import read_headers_authenticated, read_headers_public
+                # Read live headers only for the first unsaved tab (keeps response fast)
+                if not first_unsaved_read:
+                    try:
+                        from app.services.sheets_client import read_headers_authenticated, read_headers_public
 
-                    def _make_reader(tab_name: str):
-                        def _read_tab_headers():
-                            with oauth_session_context(_session_key):
-                                if _has_credentials():
-                                    _, _, hdrs = read_headers_authenticated(spreadsheet_id, tab_name)
-                                else:
-                                    _, _, hdrs = read_headers_public(spreadsheet_id, tab_name)
-                                return hdrs
-                        return _read_tab_headers
+                        def _make_reader(tab_name: str):
+                            def _read_tab_headers():
+                                with oauth_session_context(_session_key):
+                                    if _has_credentials():
+                                        _, _, hdrs = read_headers_authenticated(spreadsheet_id, tab_name)
+                                    else:
+                                        _, _, hdrs = read_headers_public(spreadsheet_id, tab_name)
+                                    return hdrs
+                            return _read_tab_headers
 
-                    hdrs = await asyncio.to_thread(_make_reader(tab))
-                    live_fields_parsed, _ = headers_to_fields(hdrs, custom_keywords=[])
-                    live_fields = [f.model_dump() for f in live_fields_parsed]
-                except Exception as exc:
-                    logger.debug(f"Could not read headers for tab '{tab}': {exc}")
+                        hdrs = await asyncio.to_thread(_make_reader(tab))
+                        live_fields_parsed, _ = headers_to_fields(hdrs, custom_keywords=[])
+                        live_fields = [f.model_dump() for f in live_fields_parsed]
+                        first_unsaved_read = True
+                    except Exception as exc:
+                        logger.debug(f"Could not read headers for tab '{tab}': {exc}")
 
                 items.append({
                     "id": None,
