@@ -262,12 +262,17 @@ function BulkEditInner() {
         // If listing fails, continue with lookupFormsBySheet
       }
 
-      const result = await lookupFormsBySheet(url);
-      const tabs = result.items.map((item) => ({
-        worksheet_name: item.worksheet_name,
-        form_title: item.form_title,
-        fields: item.fields,
-      }));
+      let tabs: { worksheet_name: string | null; form_title: string; fields: FieldSchema[] }[] = [];
+      try {
+        const result = await lookupFormsBySheet(url);
+        tabs = result.items.map((item) => ({
+          worksheet_name: item.worksheet_name,
+          form_title: item.form_title,
+          fields: item.fields,
+        }));
+      } catch {
+        // lookupFormsBySheet may 404 if no forms exist — that's okay
+      }
 
       // If we have multiple actual tabs from listWorksheets, always show tab selection
       if (tabNames.length > 1) {
@@ -280,11 +285,47 @@ function BulkEditInner() {
         return;
       }
 
-      if (!tabs.length && !tabNames.length) {
-        setSheetError("No worksheets found in this sheet");
+      // Single tab from listWorksheets — auto-select it
+      if (tabNames.length === 1) {
+        const existing = tabs.find((t) => t.worksheet_name === tabNames[0]);
+        if (existing && existing.fields.length > 0) {
+          setSheetHeaders(existing.fields);
+          setWorksheetName(existing.worksheet_name);
+          setSheetReady(true);
+        } else {
+          // Fetch headers via history
+          setWorksheetName(tabNames[0]);
+          try {
+            const { getSheetHistory } = await import("@/lib/api");
+            const hist = await getSheetHistory(url, tabNames[0]);
+            setSheetHeaders(hist.fields);
+            if (hist.worksheet_name) setWorksheetName(hist.worksheet_name);
+          } catch (histErr: any) {
+            setSheetHeaders([]);
+            setSheetError(histErr?.message ?? "Could not read sheet headers");
+          }
+          setSheetReady(true);
+        }
         return;
       }
-      if (tabs.length === 1 && tabNames.length <= 1) {
+
+      // listWorksheets failed or returned empty — use lookupFormsBySheet results or fallback
+      if (!tabs.length) {
+        // Last resort: try getSheetHistory directly (works for publicly shared sheets)
+        try {
+          const { getSheetHistory } = await import("@/lib/api");
+          const hist = await getSheetHistory(url, null);
+          setSheetHeaders(hist.fields);
+          setWorksheetName(hist.worksheet_name);
+          setAllTabNames([hist.worksheet_name]);
+          setSheetReady(true);
+        } catch (histErr: any) {
+          setSheetError("Could not load this sheet. Make sure it's shared with the service account.");
+        }
+        return;
+      }
+
+      if (tabs.length === 1) {
         if (tabs[0].fields.length > 0) {
           setSheetHeaders(tabs[0].fields);
           setWorksheetName(tabs[0].worksheet_name);
