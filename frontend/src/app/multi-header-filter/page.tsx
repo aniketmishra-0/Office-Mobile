@@ -159,6 +159,40 @@ function MultiHeaderFilterInner() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRow, setSelectedRow] = useState<{ sectionIdx: number; rowIdx: number; row: Record<string, string> } | null>(null);
 
+  // Day-of-week column filter — empty means show all
+  const ALL_DAYS = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
+  const [visibleDays, setVisibleDays] = useState<string[]>([]);
+
+  const toggleDay = (day: string) => {
+    setVisibleDays((prev) => {
+      if (prev.includes(day)) {
+        const next = prev.filter((d) => d !== day);
+        return next; // empty = show all
+      }
+      return [...prev, day];
+    });
+  };
+
+  // Filter fields based on selected days
+  const getVisibleFields = (fields: FieldSchema[]) => {
+    if (visibleDays.length === 0) return fields; // no filter = show all
+    return fields.filter((f) => {
+      const header = (f.source_header || f.label || f.key).toUpperCase().trim();
+      // If this field IS a day column, only show it if it's in visibleDays
+      if (ALL_DAYS.includes(header)) {
+        return visibleDays.includes(header);
+      }
+      // Non-day columns always show
+      return true;
+    });
+  };
+
+  // Detect if the sheet actually has day columns
+  const hasDayColumns = loaded?.fields.some((f) => {
+    const header = (f.source_header || f.label || f.key).toUpperCase().trim();
+    return ALL_DAYS.includes(header);
+  }) ?? false;
+
   useEffect(() => {
     if (sheetParam) loadSheetFromUrl(sheetParam);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -209,11 +243,29 @@ function MultiHeaderFilterInner() {
   };
 
   const getFilteredRows = (section: Section): Record<string, string>[] => {
+    let rows = section.rows;
+
+    // Day filter: if specific days are selected, only show rows that have data in at least one selected day column
+    if (visibleDays.length > 0 && loaded) {
+      const dayFieldKeys = loaded.fields
+        .filter((f) => visibleDays.includes((f.source_header || f.label || f.key).toUpperCase().trim()))
+        .map((f) => f.key);
+      if (dayFieldKeys.length > 0) {
+        rows = rows.filter((row) =>
+          dayFieldKeys.some((key) => (row[key] ?? "").trim() !== "")
+        );
+      }
+    }
+
+    // Text search filter
     const q = searchQuery.trim().toLowerCase();
-    if (!q || !loaded) return section.rows;
-    return section.rows.filter((row) =>
-      loaded.fields.some((f) => (row[f.key] ?? "").toLowerCase().includes(q))
-    );
+    if (q && loaded) {
+      rows = rows.filter((row) =>
+        loaded.fields.some((f) => (row[f.key] ?? "").toLowerCase().includes(q))
+      );
+    }
+
+    return rows;
   };
 
   const totalRows = loaded?.sections.reduce((sum, s) => sum + s.rows.length, 0) ?? 0;
@@ -321,6 +373,7 @@ function MultiHeaderFilterInner() {
 
   // Step 3: Main data view — matching original mobile layout exactly
   const sortedFields = [...loaded.fields].sort((a, b) => a.order - b.order);
+  const displayFields = getVisibleFields(sortedFields);
 
   // ─── Row Detail View (like data-fill detail) ────────────────────────
   if (selectedRow) {
@@ -370,7 +423,7 @@ function MultiHeaderFilterInner() {
 
           {/* 2-column fields grid */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, background: "var(--rule)", border: "1px solid var(--rule)", borderRadius: 10, overflow: "hidden" }}>
-            {sortedFields.map((field) => {
+            {getVisibleFields(sortedFields).map((field) => {
               const val = (row[field.key] ?? "").trim();
               const isFilled = !!val;
               return (
@@ -477,6 +530,44 @@ function MultiHeaderFilterInner() {
               ))}
             </div>
           )}
+
+          {/* Day-of-week filter */}
+          {hasDayColumns && (
+            <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 9, color: "var(--stone)", textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 500, marginRight: 2 }}>Days:</span>
+              {ALL_DAYS.map((day) => {
+                const isActive = visibleDays.includes(day);
+                return (
+                  <button
+                    key={day}
+                    onClick={() => toggleDay(day)}
+                    style={{
+                      fontFamily: "var(--font-plex-mono), monospace",
+                      fontSize: 10,
+                      fontWeight: 500,
+                      padding: "4px 10px",
+                      borderRadius: 14,
+                      border: isActive ? "1.5px solid var(--ink)" : "1px solid var(--rule)",
+                      background: isActive ? "var(--ink)" : "var(--paper)",
+                      color: isActive ? "var(--cream)" : "var(--stone)",
+                      cursor: "pointer",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    {day.slice(0, 3)}
+                  </button>
+                );
+              })}
+              {visibleDays.length > 0 && (
+                <button
+                  onClick={() => setVisibleDays([])}
+                  style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 9, color: "var(--clay)", background: "none", border: "1px solid var(--clay)", borderRadius: 4, padding: "3px 7px", cursor: "pointer" }}
+                >
+                  All
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Data area */}
@@ -487,29 +578,31 @@ function MultiHeaderFilterInner() {
               <p style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 10, margin: 0 }}>Use the dropdown above to select a date section</p>
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               {selectedSections.map((idx) => {
                 const section = loaded.sections[idx];
                 if (!section) return null;
                 const rows = getFilteredRows(section);
                 return (
-                  <div key={idx} style={{ border: "1px solid var(--rule)", borderRadius: 8, overflow: "hidden", background: "var(--paper)" }}>
-                    <div style={{ display: "flex", alignItems: "center", padding: "10px 14px", background: "var(--ink)", color: "var(--cream)", gap: 8 }}>
-                      <span style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 12, fontWeight: 500, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{section.title}</span>
-                      <span style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 9, opacity: 0.7, flexShrink: 0 }}>
+                  <div key={idx} style={{ border: "1px solid var(--rule)", borderRadius: 12, overflow: "hidden", background: "var(--paper)", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+                    {/* Section header — taller, more breathing room */}
+                    <div style={{ display: "flex", alignItems: "center", padding: "14px 16px", background: "var(--ink)", color: "var(--cream)", gap: 10 }}>
+                      <span style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 13, fontWeight: 500, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{section.title}</span>
+                      <span style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 10, opacity: 0.7, flexShrink: 0 }}>
                         {searchQuery ? `${rows.length} matches` : `${section.rows.length} rows`}
                       </span>
                       <button onClick={() => removeSection(idx)}
-                        style={{ background: "none", border: "none", color: "var(--cream)", cursor: "pointer", fontSize: 16, padding: "0 4px", opacity: 0.7, lineHeight: 1 }}
+                        style={{ background: "none", border: "none", color: "var(--cream)", cursor: "pointer", fontSize: 18, padding: "0 4px", opacity: 0.7, lineHeight: 1 }}
                         aria-label="Close section">×</button>
                     </div>
-                    <div style={{ overflowX: "auto", maxHeight: 450, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
-                      <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-plex-mono), monospace", fontSize: 11 }}>
+                    {/* Table area — more generous heights */}
+                    <div style={{ overflowX: "auto", maxHeight: 500, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-plex-mono), monospace", fontSize: 12 }}>
                         <thead>
                           <tr>
-                            <th style={{ padding: "6px 10px", textAlign: "left", fontSize: 9, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--stone)", borderBottom: "1px solid var(--rule)", whiteSpace: "nowrap", position: "sticky", top: 0, background: "var(--paper)", fontWeight: 500 }}>#</th>
-                            {sortedFields.map((field) => (
-                              <th key={field.key} style={{ padding: "6px 10px", textAlign: "left", fontSize: 9, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--stone)", borderBottom: "1px solid var(--rule)", whiteSpace: "nowrap", position: "sticky", top: 0, background: "var(--paper)", fontWeight: 500 }}>
+                            <th style={{ padding: "10px 12px", textAlign: "left", fontSize: 10, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--ink)", borderBottom: "1px solid var(--rule)", whiteSpace: "nowrap", position: "sticky", top: 0, background: "rgba(0,0,0,0.04)", fontWeight: 600 }}>#</th>
+                            {displayFields.map((field) => (
+                              <th key={field.key} style={{ padding: "10px 12px", textAlign: "left", fontSize: 10, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--ink)", borderBottom: "1px solid var(--rule)", whiteSpace: "nowrap", position: "sticky", top: 0, background: "rgba(0,0,0,0.04)", fontWeight: 600 }}>
                                 {field.source_header || field.label || field.key}
                               </th>
                             ))}
@@ -519,22 +612,22 @@ function MultiHeaderFilterInner() {
                           {rows.slice(0, 150).map((row, rIdx) => (
                             <tr key={rIdx}
                               onClick={() => setSelectedRow({ sectionIdx: idx, rowIdx: rIdx, row })}
-                              style={{ borderBottom: "1px solid var(--rule)", background: rIdx % 2 !== 0 ? "rgba(0,0,0,0.015)" : "transparent", cursor: "pointer" }}>
-                              <td style={{ padding: "5px 10px", color: "var(--stone)", fontSize: 9 }}>{row._row_index ?? rIdx + 1}</td>
-                              {sortedFields.map((field) => (
-                                <td key={field.key} style={{ padding: "5px 10px", color: "var(--ink)", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row[field.key] ?? ""}>
+                              style={{ borderBottom: "1px solid var(--rule)", background: rIdx % 2 !== 0 ? "rgba(0,0,0,0.02)" : "transparent", cursor: "pointer" }}>
+                              <td style={{ padding: "10px 12px", color: "var(--stone)", fontSize: 10 }}>{row._row_index ?? rIdx + 1}</td>
+                              {displayFields.map((field) => (
+                                <td key={field.key} style={{ padding: "10px 12px", color: "var(--ink)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row[field.key] ?? ""}>
                                   {row[field.key] ?? ""}
                                 </td>
                               ))}
                             </tr>
                           ))}
                           {rows.length === 0 && (
-                            <tr><td colSpan={sortedFields.length + 1} style={{ padding: 24, textAlign: "center", color: "var(--stone)", fontSize: 11 }}>
+                            <tr><td colSpan={displayFields.length + 1} style={{ padding: 32, textAlign: "center", color: "var(--stone)", fontSize: 12 }}>
                               {searchQuery ? "No matches" : "No data in this section"}
                             </td></tr>
                           )}
                           {rows.length > 150 && (
-                            <tr><td colSpan={sortedFields.length + 1} style={{ padding: 8, textAlign: "center", color: "var(--stone)", fontSize: 9 }}>
+                            <tr><td colSpan={displayFields.length + 1} style={{ padding: 10, textAlign: "center", color: "var(--stone)", fontSize: 10 }}>
                               Showing 150 of {rows.length}
                             </td></tr>
                           )}
