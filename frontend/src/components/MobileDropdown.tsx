@@ -211,6 +211,11 @@ function DesktopDropdown({
   selectedValues: string[];
   onSelect: (val: string) => void;
 }) {
+  const [search, setSearch] = useState("");
+  const filtered = search
+    ? options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase()))
+    : options;
+
   return (
     <div
       style={{
@@ -223,19 +228,48 @@ function DesktopDropdown({
         border: "1px solid var(--rule, #e4e4e7)",
         borderRadius: 8,
         boxShadow: "0 4px 16px rgba(0,0,0,0.10)",
-        maxHeight: 220,
-        overflowY: "auto",
+        maxHeight: 280,
+        display: "flex",
+        flexDirection: "column",
         overscrollBehavior: "contain",
       }}
     >
-      <OptionsList
-        options={options}
-        size={size}
-        isMulti={isMulti}
-        selectedValue={selectedValue}
-        selectedValues={selectedValues}
-        onSelect={onSelect}
-      />
+      {/* Search input */}
+      <div style={{ padding: "8px 10px", borderBottom: "1px solid var(--rule, #e4e4e7)", flexShrink: 0 }}>
+        <input
+          type="text"
+          autoFocus
+          placeholder="Search..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{
+            width: "100%",
+            padding: "7px 10px",
+            fontSize: 13,
+            fontFamily: "inherit",
+            border: "1px solid var(--rule, #e4e4e7)",
+            borderRadius: 6,
+            background: "var(--paper, #f4f4f5)",
+            color: "var(--ink, #18181b)",
+            outline: "none",
+          }}
+        />
+      </div>
+      <div style={{ overflowY: "auto", flex: 1 }}>
+        <OptionsList
+          options={filtered}
+          size={size}
+          isMulti={isMulti}
+          selectedValue={selectedValue}
+          selectedValues={selectedValues}
+          onSelect={onSelect}
+        />
+        {filtered.length === 0 && (
+          <div style={{ padding: 16, textAlign: "center", fontSize: 13, color: "var(--stone, #71717a)" }}>
+            No matches
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -261,7 +295,12 @@ function BottomSheet({
   placeholder: string;
 }) {
   const [animating, setAnimating] = useState(true);
+  const [search, setSearch] = useState("");
   const sheetRef = useRef<HTMLDivElement>(null);
+
+  const filtered = search
+    ? options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase()))
+    : options;
 
   useEffect(() => {
     // Trigger enter animation
@@ -285,7 +324,7 @@ function BottomSheet({
     [handleClose],
   );
 
-  const maxSheetHeight = Math.min(options.length * 52 + 80, window.innerHeight * 0.6);
+  const maxSheetHeight = Math.min(options.length * 52 + 140, window.innerHeight * 0.7);
 
   return createPortal(
     <div
@@ -371,6 +410,27 @@ function BottomSheet({
           </button>
         </div>
 
+        {/* Search input */}
+        <div style={{ padding: "8px 16px", borderBottom: "1px solid var(--rule, #e4e4e7)", flexShrink: 0 }}>
+          <input
+            type="text"
+            placeholder="Search..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              fontSize: 15,
+              fontFamily: "inherit",
+              border: "1px solid var(--rule, #e4e4e7)",
+              borderRadius: 8,
+              background: "var(--paper, #f4f4f5)",
+              color: "var(--ink, #18181b)",
+              outline: "none",
+            }}
+          />
+        </div>
+
         {/* Options */}
         <div
           style={{
@@ -381,7 +441,7 @@ function BottomSheet({
           }}
         >
           <OptionsList
-            options={options}
+            options={filtered}
             size="default"
             isMulti={isMulti}
             selectedValue={selectedValue}
@@ -389,6 +449,11 @@ function BottomSheet({
             onSelect={onSelect}
             isMobileSheet
           />
+          {filtered.length === 0 && (
+            <div style={{ padding: 20, textAlign: "center", fontSize: 14, color: "var(--stone, #71717a)" }}>
+              No matches for &ldquo;{search}&rdquo;
+            </div>
+          )}
         </div>
       </div>
     </div>,
