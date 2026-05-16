@@ -499,6 +499,40 @@ function HistoryPageInner() {
             {/* Change sheet button */}
             <button
               type="button"
+              onClick={() => {
+                if (!loaded) return;
+                const sf = [...loaded.fields].sort((a, b) => a.order - b.order);
+                const header = sf.map((f) => f.label).join("\t");
+                const dataRows = matches.map((row) =>
+                  sf.map((f) => (row[f.key] ?? "").replace(/\t/g, " ").replace(/\n/g, " ")).join("\t")
+                );
+                const tsv = [header, ...dataRows].join("\n");
+                navigator.clipboard.writeText(tsv).then(() => {
+                  alert(`Copied ${matches.length} rows to clipboard!\nPaste in Bulk Edit.`);
+                }).catch(() => {
+                  alert("Copy failed — try again");
+                });
+              }}
+              style={{
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontSize: 10,
+                fontWeight: 500,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                color: "var(--charcoal)",
+                background: "var(--paper)",
+                border: "1px solid var(--rule)",
+                borderRadius: 4,
+                padding: "6px 10px",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              📋 Copy All
+            </button>
+
+            <button
+              type="button"
               onClick={handleReset}
               style={{
                 fontFamily: "var(--font-plex-mono), ui-monospace, monospace",

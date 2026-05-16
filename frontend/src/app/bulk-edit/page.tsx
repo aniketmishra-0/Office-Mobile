@@ -232,12 +232,22 @@ function BulkEditInner() {
       return;
     }
 
+    // Auto-detect and skip header row if first row matches column names
+    let dataRows = parsed;
+    const headerNames = sheetHeaders.map((h) => h.source_header.toLowerCase().trim());
+    const firstRow = parsed[0].map((c) => c.toLowerCase().trim());
+    const matchCount = firstRow.filter((c) => headerNames.includes(c)).length;
+    if (matchCount >= Math.ceil(headerNames.length * 0.5) && parsed.length > 1) {
+      // First row looks like a header — skip it
+      dataRows = parsed.slice(1);
+    }
+
     const headerCount = sheetHeaders.length;
-    const colCount = parsed[0].length;
+    const colCount = dataRows[0]?.length ?? 0;
 
     if (colCount === headerCount) {
       // Auto-map columns in order
-      const mapped = parsed.map((cells) => {
+      const mapped = dataRows.map((cells) => {
         const row: Record<string, string> = {};
         sheetHeaders.forEach((h, i) => {
           row[h.source_header] = cells[i] ?? "";
@@ -247,7 +257,7 @@ function BulkEditInner() {
       setRows(mapped);
     } else {
       // Show column mapping UI
-      setParsedRaw(parsed);
+      setParsedRaw(dataRows);
       const defaultMapping = Array.from({ length: colCount }, (_, i) =>
         i < sheetHeaders.length ? sheetHeaders[i].source_header : null
       );
@@ -458,7 +468,7 @@ function BulkEditInner() {
           </h2>
           <textarea
             className="w-full min-h-[160px] px-4 py-3 text-[13px] font-mono border border-zinc-200 rounded-lg bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-400 resize-y"
-            placeholder={"Paste rows here from Excel, WhatsApp, or any text source.\nTab-separated or comma-separated columns will be auto-detected."}
+            placeholder={"Paste rows here from Excel, WhatsApp, or any text source.\nTab-separated or comma-separated columns will be auto-detected.\n\nTip: Use 'Copy All' button from History page, or copy from Google Sheets directly."}
             value={pasteText}
             onChange={(e) => setPasteText(e.target.value)}
           />
