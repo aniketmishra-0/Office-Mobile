@@ -193,6 +193,13 @@ function MultiHeaderFilterInner() {
     return ALL_DAYS.includes(header);
   }) ?? false;
 
+  // Check if a field is a highlighted (selected) day column
+  const isDayHighlighted = (field: FieldSchema): boolean => {
+    if (visibleDays.length === 0) return false;
+    const header = (field.source_header || field.label || field.key).toUpperCase().trim();
+    return visibleDays.includes(header);
+  };
+
   useEffect(() => {
     if (sheetParam) loadSheetFromUrl(sheetParam);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -601,11 +608,14 @@ function MultiHeaderFilterInner() {
                         <thead>
                           <tr>
                             <th style={{ padding: "10px 12px", textAlign: "left", fontSize: 10, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--ink)", borderBottom: "1px solid var(--rule)", whiteSpace: "nowrap", position: "sticky", top: 0, background: "rgba(0,0,0,0.04)", fontWeight: 600 }}>#</th>
-                            {displayFields.map((field) => (
-                              <th key={field.key} style={{ padding: "10px 12px", textAlign: "left", fontSize: 10, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--ink)", borderBottom: "1px solid var(--rule)", whiteSpace: "nowrap", position: "sticky", top: 0, background: "rgba(0,0,0,0.04)", fontWeight: 600 }}>
-                                {field.source_header || field.label || field.key}
-                              </th>
-                            ))}
+                            {displayFields.map((field) => {
+                              const highlighted = isDayHighlighted(field);
+                              return (
+                                <th key={field.key} style={{ padding: "10px 12px", textAlign: "left", fontSize: 10, letterSpacing: "0.04em", textTransform: "uppercase", color: highlighted ? "#fff" : "var(--ink)", borderBottom: "1px solid var(--rule)", whiteSpace: "nowrap", position: "sticky", top: 0, background: highlighted ? "#e67e22" : "rgba(0,0,0,0.04)", fontWeight: 600 }}>
+                                  {field.source_header || field.label || field.key}
+                                </th>
+                              );
+                            })}
                           </tr>
                         </thead>
                         <tbody>
@@ -614,11 +624,14 @@ function MultiHeaderFilterInner() {
                               onClick={() => setSelectedRow({ sectionIdx: idx, rowIdx: rIdx, row })}
                               style={{ borderBottom: "1px solid var(--rule)", background: rIdx % 2 !== 0 ? "rgba(0,0,0,0.02)" : "transparent", cursor: "pointer" }}>
                               <td style={{ padding: "10px 12px", color: "var(--stone)", fontSize: 10 }}>{row._row_index ?? rIdx + 1}</td>
-                              {displayFields.map((field) => (
-                                <td key={field.key} style={{ padding: "10px 12px", color: "var(--ink)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row[field.key] ?? ""}>
-                                  {row[field.key] ?? ""}
-                                </td>
-                              ))}
+                              {displayFields.map((field) => {
+                                const highlighted = isDayHighlighted(field);
+                                return (
+                                  <td key={field.key} style={{ padding: "10px 12px", color: highlighted ? "#e67e22" : "var(--ink)", background: highlighted ? "rgba(230,126,34,0.08)" : "transparent", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: highlighted ? 600 : 400 }} title={row[field.key] ?? ""}>
+                                    {row[field.key] ?? ""}
+                                  </td>
+                                );
+                              })}
                             </tr>
                           ))}
                           {rows.length === 0 && (
