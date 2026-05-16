@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useEffect, useState, useRef, useCallback } from "react";
+import React, { Suspense, useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import ErrorToast from "@/components/ErrorToast";
@@ -8,7 +8,7 @@ import LoadingOverlay from "@/components/LoadingOverlay";
 import MobileDropdown from "@/components/MobileDropdown";
 import SubmitButton from "@/components/SubmitButton";
 import type { FieldSchema } from "@/types/field";
-import { lookupFormsBySheet, getSheetSections } from "@/lib/api";
+import { lookupFormsBySheet, getSheetSections, batchAppendRows } from "@/lib/api";
 import { safeBack } from "@/lib/navigation";
 import { useStepHistory } from "@/lib/useStepHistory";
 
@@ -163,6 +163,14 @@ function SubSheetFilterInner() {
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
   const [showFilters, setShowFilters] = useState(false);
 
+  // Bulk paste/add rows
+  const [showPastePanel, setShowPastePanel] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const [pasteRows, setPasteRows] = useState<Record<string, string>[]>([]);
+  const [pasteError, setPasteError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
   useEffect(() => {
     if (sheetParam) loadSheetFromUrl(sheetParam);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -260,6 +268,110 @@ function SubSheetFilterInner() {
 
   const totalRows = loaded?.sections.reduce((sum, s) => sum + s.rows.length, 0) ?? 0;
   const closeCalendar = useCallback(() => setShowCalendar(false), []);
+
+  // ─── Paste / Bulk Add logic ─────────────────────────────────────────
+  function parseText(raw: string): string[][] {
+    if (!raw.trim()) return [];
+    const lines = raw.split(/\r?\n/).filter((l) => l.trim() !== "");
+    if (!lines.length) return [];
+    const hasTab = lines.some((l) => l.includes("\t"));
+    const hasComma = !hasTab && lines.some((l) => l.includes(","));
+    const delimiter = hasTab ? "\t" : hasComma ? "," : null;
+    return lines.map((line) => {
+      if (!delimiter) return [line.trim()];
+      if (delimiter === ",") {
+        const cells: string[] = [];
+        let current = "";
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (ch === '"' && (i === 0 || line[i - 1] !== "\\")) { inQuotes = !inQuotes; }
+          else if (ch === "," && !inQuotes) { cells.push(current.trim()); current = ""; }
+          else { current += ch; }
+        }
+        cells.push(current.trim());
+        return cells;
+      }
+      return line.split(delimiter).map((c) => c.trim());
+    });
+  }
+
+  const handlePaste = () => {
+    setPasteError(null);
+    setPasteRows([]);
+    setSuccessMsg(null);
+    if (!pasteText.trim()) { setPasteError("Paste some data first"); return; }
+    if (!loaded || !loaded.fields.length) { setPasteError("No sheet loaded"); return; }
+
+    const parsed = parseText(pasteText);
+    if (!parsed.length) { setPasteError("No rows found"); return; }
+
+    const sortedF = [...loaded.fields].sort((a, b) => a.order - b.order);
+
+    // Auto-skip header row
+    let dataRows = parsed;
+    const headerNames = sortedF.map((h) => h.source_header.toLowerCase().trim());
+    const firstRow = parsed[0].map((c) => c.toLowerCase().trim());
+    const matchCount = firstRow.filter((c) => headerNames.includes(c)).length;
+    if (matchCount >= Math.ceil(headerNames.length * 0.5) && parsed.length > 1) {
+      dataRows = parsed.slice(1);
+    }
+
+    const mapped = dataRows.map((cells) => {
+      const row: Record<string, string> = {};
+      sortedF.forEach((h, i) => {
+        row[h.source_header] = cells[i] ?? "";
+      });
+      return row;
+    });
+    setPasteRows(mapped);
+  };
+
+  const handleBulkSubmit = async () => {
+    if (!pasteRows.length || !sheetUrl || !loaded) return;
+    setSubmitting(true);
+    setSuccessMsg(null);
+    setPasteError(null);
+    try {
+      const result = await batchAppendRows({
+        sheet_url: sheetUrl,
+        worksheet_name: loaded.worksheet_name,
+        rows: pasteRows,
+      });
+      setSuccessMsg(`✓ ${result.appended_count} rows added to sheet!`);
+      setPasteRows([]);
+      setPasteText("");
+    } catch (e: any) {
+      setPasteError(e?.message ?? "Failed to submit");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Bulk apply date/time to pasted rows
+  const [bulkDate, setBulkDate] = useState("");
+  const [bulkTime, setBulkTime] = useState("");
+
+  const dateFields = useMemo(() => loaded?.fields.filter((f) => f.type === "date") ?? [], [loaded]);
+  const timeFields = useMemo(() => loaded?.fields.filter((f) => f.type === "time") ?? [], [loaded]);
+
+  const applyBulkDate = () => {
+    if (!bulkDate || !dateFields.length) return;
+    setPasteRows((prev) => prev.map((row) => {
+      const updated = { ...row };
+      dateFields.forEach((f) => { updated[f.source_header] = bulkDate; });
+      return updated;
+    }));
+  };
+
+  const applyBulkTime = () => {
+    if (!bulkTime || !timeFields.length) return;
+    setPasteRows((prev) => prev.map((row) => {
+      const updated = { ...row };
+      timeFields.forEach((f) => { updated[f.source_header] = bulkTime; });
+      return updated;
+    }));
+  };
 
   // ─── Back-gesture wiring ────────────────────────────────────────────
   type FlowStep = "input" | "tabs" | "loaded" | "detail";
@@ -501,6 +613,24 @@ function SubSheetFilterInner() {
                 Clear
               </button>
             )}
+
+            {/* Batch Add button */}
+            <button
+              type="button"
+              onClick={() => setShowPastePanel((v) => !v)}
+              style={{
+                fontFamily: "var(--font-plex-mono), monospace",
+                fontSize: 10, fontWeight: 500,
+                letterSpacing: "0.04em", textTransform: "uppercase",
+                color: showPastePanel ? "var(--cream)" : "var(--ink)",
+                background: showPastePanel ? "var(--ink)" : "var(--paper)",
+                border: "1px solid var(--rule)",
+                borderRadius: 4, padding: "6px 10px", cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              + Batch Add
+            </button>
           </div>
 
           {/* Chips */}
@@ -592,6 +722,134 @@ function SubSheetFilterInner() {
             </div>
           )}
         </div>
+
+        {/* ─── Batch Add / Paste Panel ─── */}
+        {showPastePanel && loaded && (
+          <div style={{ borderBottom: "1px solid var(--rule)", padding: "12px 16px", background: "var(--paper)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 10, fontWeight: 500, color: "var(--ink)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                Batch Add Rows
+              </span>
+              <button onClick={() => { setShowPastePanel(false); setPasteRows([]); setPasteText(""); setPasteError(null); setSuccessMsg(null); }}
+                style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 10, color: "var(--stone)", background: "none", border: 0, cursor: "pointer" }}>
+                ✕ Close
+              </button>
+            </div>
+
+            {/* Paste textarea */}
+            {pasteRows.length === 0 && (
+              <>
+                <textarea
+                  value={pasteText}
+                  onChange={(e) => setPasteText(e.target.value)}
+                  placeholder={"Paste rows here from Excel, WhatsApp, or any text.\nTab or comma separated columns auto-detected."}
+                  style={{
+                    width: "100%", minHeight: 100, fontFamily: "var(--font-plex-mono), monospace",
+                    fontSize: 11, color: "var(--ink)", background: "var(--cream)",
+                    border: "1px solid var(--rule)", borderRadius: 6, padding: "10px 12px",
+                    resize: "vertical", outline: "none",
+                  }}
+                />
+                <button onClick={handlePaste} disabled={!pasteText.trim()}
+                  style={{
+                    marginTop: 8, fontFamily: "var(--font-plex-mono), monospace",
+                    fontSize: 10, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em",
+                    color: "var(--cream)", background: "var(--ink)",
+                    border: "none", borderRadius: 6, padding: "8px 16px",
+                    cursor: pasteText.trim() ? "pointer" : "not-allowed",
+                    opacity: pasteText.trim() ? 1 : 0.4,
+                  }}>
+                  Parse & Preview
+                </button>
+              </>
+            )}
+
+            {/* Preview table with bulk apply */}
+            {pasteRows.length > 0 && (
+              <div>
+                {/* Bulk apply date/time */}
+                {(dateFields.length > 0 || timeFields.length > 0) && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10, alignItems: "center" }}>
+                    <span style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 9, color: "var(--stone)", textTransform: "uppercase", fontWeight: 500 }}>Bulk Apply:</span>
+                    {dateFields.length > 0 && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <input type="date" value={bulkDate} onChange={(e) => setBulkDate(e.target.value)}
+                          style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 11, border: "1px solid var(--rule)", borderRadius: 4, padding: "4px 8px", background: "var(--cream)" }} />
+                        <button onClick={applyBulkDate} disabled={!bulkDate}
+                          style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 9, fontWeight: 500, color: "var(--cream)", background: bulkDate ? "#2563eb" : "var(--stone)", border: "none", borderRadius: 4, padding: "5px 8px", cursor: bulkDate ? "pointer" : "not-allowed" }}>
+                          Set Date
+                        </button>
+                      </div>
+                    )}
+                    {timeFields.length > 0 && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <input type="time" value={bulkTime} onChange={(e) => setBulkTime(e.target.value)}
+                          style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 11, border: "1px solid var(--rule)", borderRadius: 4, padding: "4px 8px", background: "var(--cream)" }} />
+                        <button onClick={applyBulkTime} disabled={!bulkTime}
+                          style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 9, fontWeight: 500, color: "var(--cream)", background: bulkTime ? "#2563eb" : "var(--stone)", border: "none", borderRadius: 4, padding: "5px 8px", cursor: bulkTime ? "pointer" : "not-allowed" }}>
+                          Set Time
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Preview table */}
+                <div style={{ border: "1px solid var(--rule)", borderRadius: 6, overflow: "hidden", maxHeight: 250, overflowY: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-plex-mono), monospace", fontSize: 10 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ padding: "5px 8px", background: "var(--ink)", color: "var(--cream)", fontSize: 8, textTransform: "uppercase", letterSpacing: "0.04em", position: "sticky", top: 0 }}>#</th>
+                        {[...loaded.fields].sort((a, b) => a.order - b.order).map((f) => (
+                          <th key={f.key} style={{ padding: "5px 8px", background: "var(--ink)", color: "var(--cream)", fontSize: 8, textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap", position: "sticky", top: 0 }}>
+                            {f.label || f.source_header}
+                          </th>
+                        ))}
+                        <th style={{ padding: "5px 8px", background: "var(--ink)", position: "sticky", top: 0 }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pasteRows.map((row, rIdx) => (
+                        <tr key={rIdx} style={{ borderBottom: "1px solid var(--rule)" }}>
+                          <td style={{ padding: "4px 8px", color: "var(--stone)", fontSize: 9 }}>{rIdx + 1}</td>
+                          {[...loaded.fields].sort((a, b) => a.order - b.order).map((f) => (
+                            <td key={f.key} style={{ padding: "4px 8px", color: "var(--ink)", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {row[f.source_header] ?? ""}
+                            </td>
+                          ))}
+                          <td style={{ padding: "4px 4px" }}>
+                            <button onClick={() => setPasteRows((prev) => prev.filter((_, i) => i !== rIdx))}
+                              style={{ background: "none", border: "none", color: "var(--stone)", cursor: "pointer", fontSize: 12 }}>×</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Submit */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
+                  <button onClick={handleBulkSubmit} disabled={submitting || !pasteRows.length}
+                    style={{
+                      fontFamily: "var(--font-plex-mono), monospace", fontSize: 11, fontWeight: 500,
+                      color: "var(--cream)", background: "#166534",
+                      border: "none", borderRadius: 6, padding: "9px 18px",
+                      cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.6 : 1,
+                    }}>
+                    {submitting ? "Submitting..." : `Submit All (${pasteRows.length} rows)`}
+                  </button>
+                  <button onClick={() => { setPasteRows([]); setPasteText(""); }}
+                    style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 10, color: "var(--stone)", background: "none", border: "none", cursor: "pointer" }}>
+                    Clear
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {pasteError && <p style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 11, color: "var(--error)", marginTop: 6 }}>{pasteError}</p>}
+            {successMsg && <p style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 11, color: "#166534", marginTop: 6, fontWeight: 500 }}>{successMsg}</p>}
+          </div>
+        )}
 
         {/* Data area */}
         <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px 24px" }}>
