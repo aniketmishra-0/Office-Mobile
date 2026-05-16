@@ -27,6 +27,7 @@ from app.services.session_context import DEFAULT_OAUTH_KEY, get_current_oauth_se
 from app.services.sheets_client import (
     _has_credentials,
     append_form_row,
+    batch_append_rows,
     get_client,
     get_protected_columns,
     map_sheet_exception,
@@ -929,4 +930,76 @@ async def submit_form(form_id: str, payload: SubmitFormRequest) -> SubmitFormRes
         success=True,
         updated_range=updated_range,
         timestamp=datetime.now(timezone.utc).isoformat(),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Batch Append — Bulk insert multiple rows at once
+# ---------------------------------------------------------------------------
+
+
+from pydantic import BaseModel, Field as PydanticField
+from typing import Optional
+
+
+class BatchAppendRequest(BaseModel):
+    sheet_url: str
+    worksheet_name: Optional[str] = None
+    rows: list[dict[str, str]] = PydanticField(
+        ..., min_length=1, max_length=200
+    )
+
+
+class BatchAppendResponse(BaseModel):
+    success: bool
+    appended_count: int
+    updated_range: Optional[str] = None
+
+
+@router.post("/sheet/batch-append", response_model=BatchAppendResponse)
+async def batch_append(payload: BatchAppendRequest):
+    """
+    Append multiple rows to a Google Sheet in a single batch operation.
+    Each row is a dict mapping column header names to cell values.
+    Maximum 200 rows per request.
+    """
+    # Validate row values
+    for i, row in enumerate(payload.rows):
+        for key, value in row.items():
+            if not isinstance(value, str):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Row {i+1}, key '{key}': value must be a string",
+                )
+            if len(value) > 5000:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Row {i+1}, key '{key}': value exceeds 5000 character limit",
+                )
+
+    # Extract spreadsheet ID from URL
+    try:
+        spreadsheet_id = extract_spreadsheet_id(payload.sheet_url)
+    except InvalidGoogleSheetUrl as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    if not _has_credentials():
+        raise HTTPException(status_code=500, detail="Google credentials not configured")
+
+    try:
+        result = await asyncio.to_thread(
+            partial(
+                batch_append_rows,
+                spreadsheet_id=spreadsheet_id,
+                worksheet_name=payload.worksheet_name,
+                rows=payload.rows,
+            )
+        )
+    except Exception as exc:
+        raise _sheet_error(exc)
+
+    return BatchAppendResponse(
+        success=result["success"],
+        appended_count=result["appended_count"],
+        updated_range=result.get("updated_range"),
     )

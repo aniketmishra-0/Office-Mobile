@@ -713,6 +713,136 @@ def append_form_row(
     return updated_range
 
 
+def batch_append_rows(
+    *,
+    spreadsheet_id: str,
+    worksheet_name: str | None,
+    rows: list[dict[str, str]],
+) -> dict[str, Any]:
+    """
+    Append multiple rows to a Google Sheet in a single batch API call.
+
+    Each row is a dict mapping header names to cell values. The function reads
+    the live headers, maps each dict to the correct column positions, sanitizes
+    values, and appends all rows at once using worksheet.append_rows().
+
+    Returns a dict with: success, appended_count, updated_range.
+    """
+    if not _has_credentials():
+        raise RuntimeError("No Google credentials configured")
+
+    if not rows:
+        raise ValueError("rows must be a non-empty list")
+
+    client = get_client()
+    spreadsheet = client.open_by_key(spreadsheet_id)
+    worksheet = _select_worksheet(spreadsheet, worksheet_name)
+
+    live_headers = _read_live_headers(worksheet, spreadsheet_id, worksheet_name)
+
+    if not live_headers:
+        raise ValueError("Sheet has no header row")
+
+    # Build a header-to-column-index map (case-insensitive)
+    header_to_col: dict[str, int] = {}
+    for idx, header in enumerate(live_headers):
+        normalized = header.strip()
+        if normalized and normalized not in header_to_col:
+            header_to_col[normalized] = idx
+
+    # Also build a lowercase lookup for fuzzy matching
+    header_lower_to_col: dict[str, int] = {}
+    for h, idx in header_to_col.items():
+        lower = h.lower()
+        if lower not in header_lower_to_col:
+            header_lower_to_col[lower] = idx
+
+    max_col = len(live_headers) - 1
+
+    # Convert each row dict into a list of cell values
+    all_row_values: list[list[Any]] = []
+    for row_dict in rows:
+        row_values: list[Any] = [""] * (max_col + 1)
+        for key, value in row_dict.items():
+            key_stripped = key.strip()
+            col_idx = header_to_col.get(key_stripped)
+            if col_idx is None:
+                col_idx = header_lower_to_col.get(key_stripped.lower())
+            if col_idx is None:
+                # Skip keys that don't match any header
+                continue
+            cell_value = str(value) if value not in (None, "") else ""
+            row_values[col_idx] = _sanitize_cell(cell_value)
+        all_row_values.append(row_values)
+
+    # Trim trailing empty cells from each row
+    for rv in all_row_values:
+        while rv and rv[-1] == "":
+            rv.pop()
+
+    # Filter out completely empty rows
+    all_row_values = [rv for rv in all_row_values if rv]
+
+    if not all_row_values:
+        return {"success": True, "appended_count": 0, "updated_range": None}
+
+    # Determine the widest row for the table_range
+    widest = max(len(rv) for rv in all_row_values)
+    end_col = _col_index_to_letter(widest - 1)
+
+    # Pad shorter rows so all rows have the same width (required by append_rows)
+    for rv in all_row_values:
+        while len(rv) < widest:
+            rv.append("")
+
+    try:
+        result = worksheet.append_rows(
+            all_row_values,
+            value_input_option="USER_ENTERED",
+            insert_data_option="INSERT_ROWS",
+            table_range=f"A1:{end_col}",
+            include_values_in_response=False,
+        )
+    except APIError as exc:
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+        if status == 429:
+            time.sleep(2)
+            result = worksheet.append_rows(
+                all_row_values,
+                value_input_option="USER_ENTERED",
+                insert_data_option="INSERT_ROWS",
+                table_range=f"A1:{end_col}",
+                include_values_in_response=False,
+            )
+        else:
+            if status == 400:
+                _invalidate_headers_cache(spreadsheet_id, worksheet_name)
+            raise
+
+    # Extract updated range
+    updated_range: str | None = None
+    try:
+        updates = (result or {}).get("updates") or {}
+        updated_range = updates.get("updatedRange")
+    except Exception:
+        updated_range = None
+
+    if not updated_range:
+        updated_range = f"{worksheet.title}!A:{end_col}"
+
+    logger.info("sheets.batch_append ok rows=%d range=%s", len(all_row_values), updated_range)
+
+    # Invalidate caches
+    _invalidate_rows_cache(spreadsheet_id, worksheet_name)
+    _invalidate_headers_cache(spreadsheet_id, worksheet_name)
+
+    return {
+        "success": True,
+        "appended_count": len(all_row_values),
+        "updated_range": updated_range,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Mid-sheet header / title row detection
 # ---------------------------------------------------------------------------
