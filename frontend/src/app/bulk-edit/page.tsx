@@ -4,6 +4,7 @@ import React, { Suspense, useCallback, useEffect, useMemo, useState } from "reac
 import { useRouter } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import LoadingOverlay from "@/components/LoadingOverlay";
+import SubmitButton from "@/components/SubmitButton";
 import { safeBack } from "@/lib/navigation";
 import {
   batchAppendRows,
@@ -615,31 +616,25 @@ function BulkEditInner() {
   }, [rows, sheetUrl, worksheetName]);
 
   // ─── Render ─────────────────────────────────────────────────────────
-  return (
-    <div className="flex flex-col min-h-screen bg-zinc-100">
-      <AppHeader
-        title="Bulk Edit"
-        showBack
-        onBack={() => safeBack(router, "/dashboard")}
-      />
-      {(sheetLoading || submitting) && (
-        <LoadingOverlay
-          message={submitting ? "Submitting rows..." : "Loading sheet..."}
-        />
-      )}
 
-      <div className="flex-1 w-full max-w-[700px] mx-auto px-5 pt-6 pb-10">
-        {/* ─── Step 1: Sheet Selection ─── */}
-        <section className="mb-6">
-          <h2 className="text-[13px] font-semibold text-zinc-500 uppercase tracking-wide mb-3">
-            1. Select Target Sheet
-          </h2>
+  // Screen 1: URL Input (centered, like multi-header-filter)
+  if (!sheetReady && !availableTabs) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", backgroundColor: "var(--cream)" }}>
+        <AppHeader title="Bulk Edit" showBack onBack={() => safeBack(router, "/dashboard")} />
+        {sheetLoading && <LoadingOverlay message="Loading sheet..." />}
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ width: "100%", maxWidth: 400 }}>
+            <h2 style={{ fontFamily: "var(--font-newsreader), Georgia, serif", fontWeight: 400, fontSize: 22, color: "var(--ink)", marginBottom: 6, textAlign: "center" }}>
+              Bulk Edit
+            </h2>
+            <p style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 11, color: "var(--stone)", textAlign: "center", marginBottom: 20, lineHeight: 1.5 }}>
+              Paste a Google Sheet URL to load columns and add rows in bulk.
+            </p>
 
-          {/* Saved sheets dropdown */}
-          {savedSheets.length > 0 && (
-            <div className="mb-3">
+            {savedSheets.length > 0 && (
               <select
-                className="w-full px-3 py-2.5 text-[14px] border border-zinc-200 rounded-lg bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                style={{ width: "100%", fontFamily: "var(--font-plex-mono), monospace", fontSize: 13, color: "var(--ink)", background: "var(--paper)", border: "1px solid var(--rule)", borderRadius: 6, padding: "11px 14px", outline: "none", marginBottom: 10 }}
                 value=""
                 onChange={(e) => {
                   const sheet = savedSheets.find((s) => s.id === e.target.value);
@@ -651,144 +646,130 @@ function BulkEditInner() {
               >
                 <option value="">Choose from saved sheets...</option>
                 {savedSheets.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.title}
-                  </option>
+                  <option key={s.id} value={s.id}>{s.title}</option>
                 ))}
               </select>
-            </div>
-          )}
+            )}
 
-          {/* URL input */}
-          <div className="flex gap-2">
             <input
               type="url"
-              placeholder="https://docs.google.com/spreadsheets/..."
-              className="flex-1 px-3 py-2.5 text-[14px] border border-zinc-200 rounded-lg bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-400"
               value={sheetUrl}
               onChange={(e) => setSheetUrl(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && isValidSheetUrl && loadSheet(sheetUrl)}
+              placeholder="Paste Google Sheet URL..."
+              style={{ width: "100%", fontFamily: "var(--font-plex-mono), monospace", fontSize: 13, color: "var(--ink)", background: "var(--paper)", border: `1px solid ${sheetError ? "var(--error)" : "var(--rule)"}`, borderRadius: 6, padding: "11px 14px", outline: "none", marginBottom: 8 }}
             />
+            {sheetError && <p style={{ color: "var(--error)", fontSize: 11, margin: "0 0 8px", fontFamily: "var(--font-plex-mono), monospace" }}>{sheetError}</p>}
+            <SubmitButton
+              label="Load Sheet"
+              submitting={sheetLoading}
+              onClick={() => loadSheet(sheetUrl)}
+              disabled={!isValidSheetUrl}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Screen 2: Tab Selection (full-width list like multi-header-filter)
+  if (availableTabs && !sheetReady) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", backgroundColor: "var(--cream)" }}>
+        <AppHeader title="Bulk Edit" showBack onBack={() => { setAvailableTabs(null); setSheetError(null); }} />
+        {sheetLoading && <LoadingOverlay message="Loading..." />}
+        <div style={{ flex: 1, padding: 24 }}>
+          <h3 style={{ fontFamily: "var(--font-newsreader), Georgia, serif", fontWeight: 400, fontSize: 18, color: "var(--ink)", marginBottom: 16, textAlign: "center" }}>
+            Select a tab
+          </h3>
+          <div style={{ maxWidth: 400, margin: "0 auto", display: "flex", flexDirection: "column", gap: 8 }}>
+            {availableTabs.map((tab, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => selectTab(tab)}
+                style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 13, color: "var(--ink)", background: "var(--paper)", border: "1px solid var(--rule)", borderRadius: 6, padding: "12px 16px", cursor: "pointer", textAlign: "left" }}
+              >
+                {tab.worksheet_name || tab.form_title || `Sheet ${i + 1}`}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Screen 3: Main bulk edit interface (sheet is ready)
+  return (
+    <div className="flex flex-col min-h-screen bg-zinc-100">
+      <AppHeader
+        title="Bulk Edit"
+        showBack
+        onBack={() => {
+          if (allTabNames.length > 1) {
+            setSheetReady(false);
+            setSheetHeaders([]);
+            setRows([]);
+            setSheetData(null);
+            loadSheet(sheetUrl);
+          } else {
+            safeBack(router, "/dashboard");
+          }
+        }}
+      />
+      {(sheetLoading || submitting) && (
+        <LoadingOverlay message={submitting ? "Submitting rows..." : "Loading sheet..."} />
+      )}
+
+      <div className="flex-1 w-full max-w-[700px] mx-auto px-5 pt-6 pb-10">
+        {/* Sheet info + tab switcher */}
+        <section className="mb-5">
+          <div className="flex items-center gap-3 mb-2">
+            <p className="text-[13px] text-emerald-600 font-medium">
+              ✓ Sheet loaded — {sheetHeaders.length} columns
+            </p>
             <button
               type="button"
-              disabled={!isValidSheetUrl || sheetLoading}
+              disabled={sheetLoading}
               onClick={() => loadSheet(sheetUrl)}
-              className="px-4 py-2.5 text-[12px] font-semibold uppercase tracking-wider bg-zinc-900 text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-800 transition-colors"
+              className="px-3 py-1 text-[11px] font-semibold uppercase tracking-wider border border-zinc-300 text-zinc-600 rounded-md hover:bg-zinc-200 hover:text-zinc-900 transition-colors disabled:opacity-40"
             >
-              Load
+              ↻ Refresh
             </button>
           </div>
-
-          {sheetError && (
-            <p className="mt-2 text-[13px] text-red-600">{sheetError}</p>
-          )}
-
-          {/* Tab selection */}
-          {availableTabs && (
-            <div className="mt-3 space-y-1">
-              <p className="text-[12px] text-zinc-500 mb-2">
-                Select a worksheet tab:
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {availableTabs.map((tab, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => selectTab(tab)}
-                    className="px-4 py-2.5 border border-zinc-200 rounded-lg bg-white hover:bg-zinc-50 hover:border-zinc-400 active:bg-zinc-100 transition-all shadow-sm"
-                  >
-                    <span className="text-[13px] font-medium text-zinc-900">
-                      {tab.form_title || tab.worksheet_name || `Sheet ${i + 1}`}
-                    </span>
-                    {tab.fields.length > 0 && (
-                      <span className="ml-2 text-[11px] text-zinc-400">
-                        ({tab.fields.length} cols)
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {sheetReady && (
-            <div className="mt-3 space-y-2">
-              <div className="flex items-center gap-3">
-                <p className="text-[13px] text-emerald-600 font-medium">
-                  ✓ Sheet loaded — {sheetHeaders.length} columns detected
-                </p>
+          {allTabNames.length > 1 && (
+            <div className="flex flex-wrap gap-1.5">
+              {allTabNames.map((name) => (
                 <button
+                  key={name}
                   type="button"
-                  disabled={sheetLoading}
-                  onClick={() => loadSheet(sheetUrl)}
-                  className="px-3 py-1 text-[11px] font-semibold uppercase tracking-wider border border-zinc-300 text-zinc-600 rounded-md hover:bg-zinc-200 hover:text-zinc-900 transition-colors disabled:opacity-40"
-                  title="Refresh columns from sheet"
+                  onClick={() => { if (name !== worksheetName) selectTab({ worksheet_name: name, fields: [] }); }}
+                  className={`px-3 py-1.5 text-[11px] font-medium rounded-md border transition-all ${
+                    name === worksheetName
+                      ? "bg-zinc-900 text-white border-zinc-900"
+                      : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50 hover:border-zinc-400"
+                  }`}
                 >
-                  ↻ Refresh
+                  {name}
                 </button>
-              </div>
-              {/* Tab switcher when multiple tabs available */}
-              {allTabNames.length > 1 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {allTabNames.map((name) => (
-                    <button
-                      key={name}
-                      type="button"
-                      onClick={() => {
-                        if (name !== worksheetName) {
-                          selectTab({ worksheet_name: name, fields: [] });
-                        }
-                      }}
-                      className={`px-3 py-1.5 text-[11px] font-medium rounded-md border transition-all ${
-                        name === worksheetName
-                          ? "bg-zinc-900 text-white border-zinc-900"
-                          : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50 hover:border-zinc-400"
-                      }`}
-                    >
-                      {name}
-                    </button>
-                  ))}
-                </div>
-              )}
+              ))}
             </div>
           )}
         </section>
 
-        {/* ─── Step 2: Data Source ─── */}
+        {/* Data Source */}
         <section className="mb-6">
-          <h2 className="text-[13px] font-semibold text-zinc-500 uppercase tracking-wide mb-3">
-            2. Choose Data Source
-          </h2>
-
-          {/* Mode toggle */}
-          {sheetReady && (
-            <div className="flex gap-2 mb-3">
-              <button
-                type="button"
-                onClick={() => setDataMode("paste")}
-                className={`px-3 py-2 text-[11px] font-semibold uppercase tracking-wider rounded-md border transition-colors ${
-                  dataMode === "paste"
-                    ? "bg-zinc-900 text-white border-zinc-900"
-                    : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50"
-                }`}
-              >
-                Paste Data
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setDataMode("filter");
-                  if (!sheetData) loadSheetData();
-                }}
-                className={`px-3 py-2 text-[11px] font-semibold uppercase tracking-wider rounded-md border transition-colors ${
-                  dataMode === "filter"
-                    ? "bg-zinc-900 text-white border-zinc-900"
-                    : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50"
-                }`}
-              >
-                Filter from Sheet
-              </button>
-            </div>
-          )}
+          <h2 className="text-[13px] font-semibold text-zinc-500 uppercase tracking-wide mb-3">Choose Data Source</h2>
+          <div className="flex gap-2 mb-3">
+            <button type="button" onClick={() => setDataMode("paste")}
+              className={`px-3 py-2 text-[11px] font-semibold uppercase tracking-wider rounded-md border transition-colors ${dataMode === "paste" ? "bg-zinc-900 text-white border-zinc-900" : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50"}`}>
+              Paste Data
+            </button>
+            <button type="button" onClick={() => { setDataMode("filter"); if (!sheetData) loadSheetData(); }}
+              className={`px-3 py-2 text-[11px] font-semibold uppercase tracking-wider rounded-md border transition-colors ${dataMode === "filter" ? "bg-zinc-900 text-white border-zinc-900" : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50"}`}>
+              Filter from Sheet
+            </button>
+          </div>
 
           {/* Paste mode */}
           {dataMode === "paste" && (
@@ -800,19 +781,10 @@ function BulkEditInner() {
                 onChange={(e) => setPasteText(e.target.value)}
               />
               <div className="mt-2 flex items-center gap-3">
-                <button
-                  type="button"
-                  disabled={!pasteText.trim() || !sheetReady}
-                  onClick={handleParse}
-                  className="px-4 py-2 text-[12px] font-semibold uppercase tracking-wider bg-zinc-900 text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-800 transition-colors"
-                >
+                <button type="button" disabled={!pasteText.trim() || !sheetReady} onClick={handleParse}
+                  className="px-4 py-2 text-[12px] font-semibold uppercase tracking-wider bg-zinc-900 text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-800 transition-colors">
                   Parse & Preview
                 </button>
-                {!sheetReady && pasteText.trim() && (
-                  <span className="text-[12px] text-amber-600">
-                    Select a sheet first
-                  </span>
-                )}
               </div>
             </>
           )}
