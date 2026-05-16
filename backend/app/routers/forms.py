@@ -644,7 +644,13 @@ async def lookup_forms_by_sheet(sheet_url: str) -> dict:
     try:
         from app.services.sheets_client import list_worksheet_names
 
-        tab_names = await asyncio.to_thread(list_worksheet_names, spreadsheet_id)
+        _lookup_session_key = get_current_oauth_session_key()
+
+        def _list_tabs():
+            with oauth_session_context(_lookup_session_key):
+                return list_worksheet_names(spreadsheet_id)
+
+        tab_names = await asyncio.to_thread(_list_tabs)
     except Exception as exc:
         logger.warning(f"Could not list worksheet tabs: {exc}")
         tab_names = []
