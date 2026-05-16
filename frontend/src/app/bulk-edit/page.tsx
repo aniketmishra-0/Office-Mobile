@@ -402,9 +402,20 @@ function BulkEditInner() {
           )}
 
           {sheetReady && (
-            <p className="mt-2 text-[13px] text-emerald-600 font-medium">
-              ✓ Sheet loaded — {sheetHeaders.length} columns detected
-            </p>
+            <div className="mt-2 flex items-center gap-3">
+              <p className="text-[13px] text-emerald-600 font-medium">
+                ✓ Sheet loaded — {sheetHeaders.length} columns detected
+              </p>
+              <button
+                type="button"
+                disabled={sheetLoading}
+                onClick={() => loadSheet(sheetUrl)}
+                className="px-3 py-1 text-[11px] font-semibold uppercase tracking-wider border border-zinc-300 text-zinc-600 rounded-md hover:bg-zinc-200 hover:text-zinc-900 transition-colors disabled:opacity-40"
+                title="Refresh columns from sheet"
+              >
+                ↻ Refresh
+              </button>
+            </div>
           )}
         </section>
 

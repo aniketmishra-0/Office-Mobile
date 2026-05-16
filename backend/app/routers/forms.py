@@ -670,6 +670,9 @@ async def lookup_forms_by_sheet(sheet_url: str) -> dict:
 
     items = []
 
+    # Capture session key for thread usage
+    _session_key = get_current_oauth_session_key()
+
     if tab_names:
         for tab in tab_names:
             tab_key = tab.strip().lower()
@@ -684,11 +687,32 @@ async def lookup_forms_by_sheet(sheet_url: str) -> dict:
                     "has_form": True,
                 })
             else:
+                # Read live headers for tabs without a saved form
+                live_fields = []
+                try:
+                    from app.services.sheets_client import read_headers_authenticated, read_headers_public
+
+                    def _make_reader(tab_name: str):
+                        def _read_tab_headers():
+                            with oauth_session_context(_session_key):
+                                if _has_credentials():
+                                    _, _, hdrs = read_headers_authenticated(spreadsheet_id, tab_name)
+                                else:
+                                    _, _, hdrs = read_headers_public(spreadsheet_id, tab_name)
+                                return hdrs
+                        return _read_tab_headers
+
+                    hdrs = await asyncio.to_thread(_make_reader(tab))
+                    live_fields_parsed, _ = headers_to_fields(hdrs, custom_keywords=[])
+                    live_fields = [f.model_dump() for f in live_fields_parsed]
+                except Exception as exc:
+                    logger.debug(f"Could not read headers for tab '{tab}': {exc}")
+
                 items.append({
                     "id": None,
                     "form_title": tab,
                     "worksheet_name": tab,
-                    "fields": [],
+                    "fields": live_fields,
                     "autofill_columns": [],
                     "has_form": False,
                 })
