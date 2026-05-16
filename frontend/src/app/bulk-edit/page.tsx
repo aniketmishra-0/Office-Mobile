@@ -66,8 +66,131 @@ function parseText(raw: string): string[][] {
 }
 
 // ---------------------------------------------------------------------------
-// Custom filter select component — editorial style
+// Date format detection & conversion
 // ---------------------------------------------------------------------------
+
+const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MONTH_FULL = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+/** Detect date format from existing sheet data samples */
+function detectDateFormat(samples: string[]): string {
+  // Try to find a pattern from the first few non-empty samples
+  for (const sample of samples.slice(0, 20)) {
+    const s = sample.trim();
+    if (!s) continue;
+    // DD-MMM-YYYY (e.g. 16-May-2026)
+    if (/^\d{1,2}[-/]\w{3}[-/]\d{4}$/.test(s)) return "DD-MMM-YYYY";
+    // DD-MMM-YY (e.g. 16-May-26)
+    if (/^\d{1,2}[-/]\w{3}[-/]\d{2}$/.test(s)) return "DD-MMM-YY";
+    // DD/MM/YYYY (e.g. 16/05/2026)
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) return "DD/MM/YYYY";
+    // MM/DD/YYYY (e.g. 05/16/2026) — assume if first num > 12 it's DD/MM
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+      const parts = s.split("/");
+      return parseInt(parts[0]) > 12 ? "DD/MM/YYYY" : "MM/DD/YYYY";
+    }
+    // YYYY-MM-DD (e.g. 2026-05-16)
+    if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(s)) return "YYYY-MM-DD";
+    // DD-MM-YYYY (e.g. 16-05-2026)
+    if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(s)) return "DD-MM-YYYY";
+    // D Month YYYY (e.g. 16 May 2026)
+    if (/^\d{1,2}\s+\w+\s+\d{4}$/.test(s)) return "DD MMMM YYYY";
+  }
+  return "DD-MMM-YYYY"; // default
+}
+
+/** Parse any date input into a Date object */
+function parseAnyDate(input: string): Date | null {
+  const s = input.trim();
+  if (!s) return null;
+
+  // Try native Date parse first (handles ISO, common formats)
+  // But first try specific patterns
+
+  // DD-MMM-YYYY or DD/MMM/YYYY
+  const dmy3 = s.match(/^(\d{1,2})[-/\s](\w{3,})[-/\s](\d{2,4})$/);
+  if (dmy3) {
+    const day = parseInt(dmy3[1]);
+    const monStr = dmy3[2].toLowerCase();
+    let year = parseInt(dmy3[3]);
+    if (year < 100) year += 2000;
+    const monIdx = MONTH_NAMES.findIndex((m) => m.toLowerCase() === monStr.slice(0, 3));
+    if (monIdx >= 0) return new Date(year, monIdx, day);
+  }
+
+  // DD/MM/YYYY or DD-MM-YYYY
+  const dmy = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (dmy) {
+    const a = parseInt(dmy[1]);
+    const b = parseInt(dmy[2]);
+    const year = parseInt(dmy[3]);
+    // If first > 12, it must be day
+    if (a > 12) return new Date(year, b - 1, a);
+    // If second > 12, it must be day
+    if (b > 12) return new Date(year, a - 1, b);
+    // Ambiguous — assume DD/MM/YYYY (Indian format)
+    return new Date(year, b - 1, a);
+  }
+
+  // YYYY-MM-DD
+  const ymd = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (ymd) {
+    return new Date(parseInt(ymd[1]), parseInt(ymd[2]) - 1, parseInt(ymd[3]));
+  }
+
+  // MM/DD/YYYY (US format — only if clearly month first)
+  const mdy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (mdy) {
+    const m = parseInt(mdy[1]);
+    const d = parseInt(mdy[2]);
+    if (m <= 12 && d > 12) return new Date(parseInt(mdy[3]), m - 1, d);
+  }
+
+  // Try "today", "yesterday", "tomorrow"
+  const lower = s.toLowerCase();
+  const now = new Date();
+  if (lower === "today" || lower === "aaj") return now;
+  if (lower === "yesterday" || lower === "kal" || lower === "kl") {
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  }
+  if (lower === "tomorrow") {
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  }
+
+  // Fallback: native Date parse
+  const native = new Date(s);
+  if (!isNaN(native.getTime())) return native;
+
+  return null;
+}
+
+/** Format a Date object to the detected sheet format */
+function formatDateToSheet(date: Date, format: string): string {
+  const day = date.getDate();
+  const month = date.getMonth(); // 0-indexed
+  const year = date.getFullYear();
+  const dd = String(day).padStart(2, "0");
+  const mm = String(month + 1).padStart(2, "0");
+
+  switch (format) {
+    case "DD-MMM-YYYY":
+      return `${day}-${MONTH_NAMES[month]}-${year}`;
+    case "DD-MMM-YY":
+      return `${day}-${MONTH_NAMES[month]}-${String(year).slice(-2)}`;
+    case "DD/MM/YYYY":
+      return `${dd}/${mm}/${year}`;
+    case "DD-MM-YYYY":
+      return `${dd}-${mm}-${year}`;
+    case "MM/DD/YYYY":
+      return `${mm}/${dd}/${year}`;
+    case "YYYY-MM-DD":
+      return `${year}-${mm}-${dd}`;
+    case "DD MMMM YYYY":
+      return `${day} ${MONTH_FULL[month]} ${year}`;
+    default:
+      return `${day}-${MONTH_NAMES[month]}-${year}`;
+  }
+}
 
 function FilterSelect({
   label,
@@ -276,6 +399,15 @@ function BulkEditInner() {
   // Manual entry form state
   const [manualRow, setManualRow] = useState<Record<string, string>>({});
   const [manualBatches, setManualBatches] = useState<string[]>([]);
+
+  // Detected date format from sheet data
+  const detectedDateFormat = useMemo(() => {
+    if (!sheetData || !sheetHeaders.length) return "DD-MMM-YYYY";
+    const dateField = sheetHeaders.find((f) => f.type === "date" || f.label.toLowerCase().includes("date"));
+    if (!dateField) return "DD-MMM-YYYY";
+    const samples = sheetData.slice(0, 30).map((row) => row[dateField.key] ?? "").filter((v) => v.trim());
+    return detectDateFormat(samples);
+  }, [sheetData, sheetHeaders]);
 
   // Parsed rows
   const [rows, setRows] = useState<Record<string, string>[]>([]);
@@ -1125,26 +1257,36 @@ function BulkEditInner() {
                           placeholder="Search & select batches..."
                         />
                       ) : isDateField ? (
-                        /* Date field — plain text input, no dropdown */
-                        <input
-                          type="text"
-                          value={manualRow[field.source_header] ?? ""}
-                          onChange={(e) => setManualRow((prev) => ({ ...prev, [field.source_header]: e.target.value }))}
-                          placeholder="e.g. 16/05/2026"
-                          style={{
-                            width: "100%",
+                        /* Date field — native date picker, auto-formats to sheet format */
+                        <div>
+                          <input
+                            type="date"
+                            value={manualRow[field.source_header] ?? ""}
+                            onChange={(e) => setManualRow((prev) => ({ ...prev, [field.source_header]: e.target.value }))}
+                            style={{
+                              width: "100%",
+                              fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                              fontWeight: 400,
+                              fontSize: 14,
+                              color: "var(--ink)",
+                              background: "transparent",
+                              border: 0,
+                              borderBottom: "2px solid var(--ink)",
+                              borderRadius: 0,
+                              padding: "8px 0",
+                              outline: "none",
+                            }}
+                          />
+                          <p style={{
                             fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                            fontWeight: 400,
-                            fontSize: 14,
-                            color: "var(--ink)",
-                            background: "transparent",
-                            border: 0,
-                            borderBottom: "2px solid var(--ink)",
-                            borderRadius: 0,
-                            padding: "8px 0",
-                            outline: "none",
-                          }}
-                        />
+                            fontSize: 9,
+                            color: "var(--stone)",
+                            margin: "4px 0 0 0",
+                            letterSpacing: "0.04em",
+                          }}>
+                            will be saved as: {detectedDateFormat.toLowerCase()}
+                          </p>
+                        </div>
                       ) : hasDropdown ? (
                         <MobileDropdown
                           value={manualRow[field.source_header] ?? ""}
@@ -1226,6 +1368,18 @@ function BulkEditInner() {
                       const hasAnyValue = Object.values(manualRow).some((v) => v.trim());
                       if (!hasAnyValue && manualBatches.length === 0) return;
 
+                      // Convert date fields to sheet format
+                      const processedRow = { ...manualRow };
+                      sheetHeaders.forEach((f) => {
+                        const isDate = f.type === "date" || f.label.toLowerCase().includes("date");
+                        if (isDate && processedRow[f.source_header]) {
+                          const parsed = parseAnyDate(processedRow[f.source_header]);
+                          if (parsed) {
+                            processedRow[f.source_header] = formatDateToSheet(parsed, detectedDateFormat);
+                          }
+                        }
+                      });
+
                       // Find the batch field's source_header
                       const batchField = sheetHeaders.find((f) => f.label.toLowerCase().includes("batch"));
                       const batchHeader = batchField?.source_header;
@@ -1233,13 +1387,13 @@ function BulkEditInner() {
                       if (manualBatches.length > 0 && batchHeader) {
                         // Create one row per batch, all other data stays same
                         const newRows = manualBatches.map((batchVal) => ({
-                          ...manualRow,
+                          ...processedRow,
                           [batchHeader]: batchVal,
                         }));
                         setRows((prev) => [...prev, ...newRows]);
                       } else {
                         // Single row (no batch multi-select)
-                        setRows((prev) => [...prev, { ...manualRow }]);
+                        setRows((prev) => [...prev, { ...processedRow }]);
                       }
                       setManualRow({});
                       setManualBatches([]);
