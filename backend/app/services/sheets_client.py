@@ -793,23 +793,63 @@ def batch_append_rows(
     widest = max(len(rv) for rv in all_row_values)
     end_col = _col_index_to_letter(widest - 1)
 
-    # Pad shorter rows so all rows have the same width (required by append_rows)
+    # Pad shorter rows so all rows have the same width (required by update/append)
     for rv in all_row_values:
         while len(rv) < widest:
             rv.append("")
 
+    # Find the actual last row with data (not the sheet's total row count).
+    # This ensures we insert right after the last entry, not at the very
+    # bottom of the sheet where Google's append might place it.
     try:
-        result = worksheet.append_rows(
-            all_row_values,
-            value_input_option="USER_ENTERED",
-            insert_data_option="INSERT_ROWS",
-            table_range=f"A1:{end_col}",
-            include_values_in_response=False,
-        )
-    except APIError as exc:
-        status = getattr(getattr(exc, "response", None), "status_code", None)
-        if status == 429:
-            time.sleep(2)
+        # col_values(1) returns all values in column A — the length tells us
+        # the last row that has any data in column A.
+        col_a_values = worksheet.col_values(1)
+        last_data_row = len(col_a_values)
+        # If column A is unreliable (e.g. sparse), also check a few more columns
+        if last_data_row <= 1:
+            # Fallback: use row_count from worksheet properties
+            all_values = worksheet.get_all_values()
+            # Find last non-empty row
+            last_data_row = 1  # at minimum, header row
+            for i in range(len(all_values) - 1, 0, -1):
+                if any(cell.strip() for cell in all_values[i]):
+                    last_data_row = i + 1  # 1-indexed
+                    break
+    except Exception:
+        # If detection fails, fall back to append_rows behavior
+        last_data_row = None
+
+    if last_data_row is not None and last_data_row >= 1:
+        # Write at the row immediately after the last data row
+        start_row = last_data_row + 1
+        end_row = start_row + len(all_row_values) - 1
+        cell_range = f"A{start_row}:{end_col}{end_row}"
+
+        try:
+            worksheet.update(
+                cell_range,
+                all_row_values,
+                value_input_option="USER_ENTERED",
+            )
+            updated_range = f"{worksheet.title}!{cell_range}"
+        except APIError as exc:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            if status == 429:
+                time.sleep(2)
+                worksheet.update(
+                    cell_range,
+                    all_row_values,
+                    value_input_option="USER_ENTERED",
+                )
+                updated_range = f"{worksheet.title}!{cell_range}"
+            else:
+                if status == 400:
+                    _invalidate_headers_cache(spreadsheet_id, worksheet_name)
+                raise
+    else:
+        # Fallback to append_rows if we couldn't detect last row
+        try:
             result = worksheet.append_rows(
                 all_row_values,
                 value_input_option="USER_ENTERED",
@@ -817,21 +857,30 @@ def batch_append_rows(
                 table_range=f"A1:{end_col}",
                 include_values_in_response=False,
             )
-        else:
-            if status == 400:
-                _invalidate_headers_cache(spreadsheet_id, worksheet_name)
-            raise
+        except APIError as exc:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            if status == 429:
+                time.sleep(2)
+                result = worksheet.append_rows(
+                    all_row_values,
+                    value_input_option="USER_ENTERED",
+                    insert_data_option="INSERT_ROWS",
+                    table_range=f"A1:{end_col}",
+                    include_values_in_response=False,
+                )
+            else:
+                if status == 400:
+                    _invalidate_headers_cache(spreadsheet_id, worksheet_name)
+                raise
 
-    # Extract updated range
-    updated_range: str | None = None
-    try:
-        updates = (result or {}).get("updates") or {}
-        updated_range = updates.get("updatedRange")
-    except Exception:
         updated_range = None
-
-    if not updated_range:
-        updated_range = f"{worksheet.title}!A:{end_col}"
+        try:
+            updates = (result or {}).get("updates") or {}
+            updated_range = updates.get("updatedRange")
+        except Exception:
+            pass
+        if not updated_range:
+            updated_range = f"{worksheet.title}!A:{end_col}"
 
     logger.info("sheets.batch_append ok rows=%d range=%s", len(all_row_values), updated_range)
 
