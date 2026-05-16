@@ -611,7 +611,7 @@ function MultiHeaderFilterInner() {
                             {displayFields.map((field) => {
                               const highlighted = isDayHighlighted(field);
                               return (
-                                <th key={field.key} style={{ padding: "10px 12px", textAlign: "left", fontSize: 10, letterSpacing: "0.04em", textTransform: "uppercase", color: highlighted ? "#fff" : "var(--ink)", borderBottom: "1px solid var(--rule)", whiteSpace: "nowrap", position: "sticky", top: 0, background: highlighted ? "#e67e22" : "rgba(0,0,0,0.04)", fontWeight: 600 }}>
+                                <th key={field.key} style={{ padding: "10px 12px", textAlign: "left", fontSize: 10, letterSpacing: "0.04em", textTransform: "uppercase", color: highlighted ? "#fff" : "var(--ink)", borderBottom: highlighted ? "2px solid #e67e22" : "1px solid var(--rule)", whiteSpace: "nowrap", position: "sticky", top: 0, background: highlighted ? "#e67e22" : "rgba(0,0,0,0.04)", fontWeight: 600 }}>
                                   {field.source_header || field.label || field.key}
                                 </th>
                               );
@@ -627,7 +627,7 @@ function MultiHeaderFilterInner() {
                               {displayFields.map((field) => {
                                 const highlighted = isDayHighlighted(field);
                                 return (
-                                  <td key={field.key} style={{ padding: "10px 12px", color: highlighted ? "#e67e22" : "var(--ink)", background: highlighted ? "rgba(230,126,34,0.08)" : "transparent", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: highlighted ? 600 : 400 }} title={row[field.key] ?? ""}>
+                                  <td key={field.key} style={{ padding: "10px 12px", color: highlighted ? "#e67e22" : "var(--ink)", background: highlighted ? "rgba(230,126,34,0.15)" : "transparent", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: highlighted ? 600 : 400, borderLeft: highlighted ? "2px solid #e67e22" : "none", borderRight: highlighted ? "2px solid #e67e22" : "none" }} title={row[field.key] ?? ""}>
                                     {row[field.key] ?? ""}
                                   </td>
                                 );
