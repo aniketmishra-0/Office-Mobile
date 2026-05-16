@@ -625,8 +625,16 @@ function BulkEditInner() {
         worksheet_name: worksheetName,
         rows,
       });
+      // Extract row numbers from updated_range (e.g. "Sheet1!A31743:I31750")
+      let rangeInfo = "";
+      if (result.updated_range) {
+        const rangeMatch = result.updated_range.match(/!?[A-Z]+(\d+):[A-Z]+(\d+)/);
+        if (rangeMatch) {
+          rangeInfo = ` (Rows ${rangeMatch[1]}–${rangeMatch[2]})`;
+        }
+      }
       setSuccessMsg(
-        `Successfully added ${result.appended_count} rows to the sheet!`
+        `✓ ${result.appended_count} rows added to "${worksheetName || "Sheet"}"${rangeInfo}`
       );
       setRows([]);
       setPasteText("");
