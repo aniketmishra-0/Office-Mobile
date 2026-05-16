@@ -346,7 +346,7 @@ function MultiHeaderFilterInner() {
 
     return (
       <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", backgroundColor: "var(--cream)" }}>
-        <AppHeader title="Data Correction" showBack onBack={() => setSelectedRow(null)} />
+        <AppHeader title="Multi View" showBack onBack={() => setSelectedRow(null)} />
         <div style={{ flex: 1, width: "100%", maxWidth: 560, margin: "0 auto", padding: "32px 20px 40px" }}>
           {/* Nav: Prev / Info / Next */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
