@@ -275,6 +275,7 @@ function BulkEditInner() {
 
   // Manual entry form state
   const [manualRow, setManualRow] = useState<Record<string, string>>({});
+  const [manualBatches, setManualBatches] = useState<string[]>([]);
 
   // Parsed rows
   const [rows, setRows] = useState<Record<string, string>[]>([]);
@@ -1085,12 +1086,15 @@ function BulkEditInner() {
                 color: "var(--stone)",
                 margin: "0 0 16px 0",
               }}>
-                Fill each field below and add rows one by one.
+                Fill each field below. Batch Name supports multiple selection — each batch will create a separate row.
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
                 {sheetHeaders.map((field) => {
                   const uniqueVals = columnUniqueValues[field.key];
                   const hasDropdown = uniqueVals && uniqueVals.length > 0 && uniqueVals.length < 200;
+                  const isBatchField = field.label.toLowerCase().includes("batch");
+                  const isDateField = field.type === "date" || field.label.toLowerCase().includes("date");
+
                   return (
                     <div key={field.key} style={{ padding: "14px 0", borderBottom: "1px solid var(--rule)" }}>
                       <label style={{
@@ -1104,8 +1108,44 @@ function BulkEditInner() {
                         marginBottom: 8,
                       }}>
                         {field.label}
+                        {isBatchField && (
+                          <span style={{ color: "var(--stone)", fontWeight: 400, letterSpacing: "0.04em", textTransform: "none", marginLeft: 6 }}>
+                            (multi-select)
+                          </span>
+                        )}
                       </label>
-                      {hasDropdown ? (
+
+                      {/* Batch field — multi-select with search */}
+                      {isBatchField && hasDropdown ? (
+                        <MobileDropdown
+                          multiple
+                          selectedValues={manualBatches}
+                          options={uniqueVals.map((v) => ({ value: v, label: v }))}
+                          onMultiChange={(vals) => setManualBatches(vals)}
+                          placeholder="Search & select batches..."
+                        />
+                      ) : isDateField ? (
+                        /* Date field — plain text input, no dropdown */
+                        <input
+                          type="text"
+                          value={manualRow[field.source_header] ?? ""}
+                          onChange={(e) => setManualRow((prev) => ({ ...prev, [field.source_header]: e.target.value }))}
+                          placeholder="e.g. 16/05/2026"
+                          style={{
+                            width: "100%",
+                            fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                            fontWeight: 400,
+                            fontSize: 14,
+                            color: "var(--ink)",
+                            background: "transparent",
+                            border: 0,
+                            borderBottom: "2px solid var(--ink)",
+                            borderRadius: 0,
+                            padding: "8px 0",
+                            outline: "none",
+                          }}
+                        />
+                      ) : hasDropdown ? (
                         <MobileDropdown
                           value={manualRow[field.source_header] ?? ""}
                           options={uniqueVals.map((v) => ({ value: v, label: v }))}
@@ -1114,7 +1154,7 @@ function BulkEditInner() {
                         />
                       ) : (
                         <input
-                          type={field.type === "date" ? "date" : field.type === "time" ? "time" : field.type === "number" ? "number" : "text"}
+                          type={field.type === "time" ? "time" : field.type === "number" ? "number" : "text"}
                           value={manualRow[field.source_header] ?? ""}
                           onChange={(e) => setManualRow((prev) => ({ ...prev, [field.source_header]: e.target.value }))}
                           placeholder={`Enter ${field.label.toLowerCase()}`}
@@ -1137,25 +1177,80 @@ function BulkEditInner() {
                   );
                 })}
               </div>
+
+              {/* Selected batches preview */}
+              {manualBatches.length > 0 && (
+                <div style={{ marginTop: 12, padding: "10px 0", borderBottom: "1px solid var(--rule)" }}>
+                  <p style={{
+                    fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                    fontSize: 10,
+                    fontWeight: 500,
+                    letterSpacing: "0.1em",
+                    textTransform: "uppercase",
+                    color: "var(--stone)",
+                    margin: "0 0 6px 0",
+                  }}>
+                    {manualBatches.length} batch{manualBatches.length > 1 ? "es" : ""} selected → {manualBatches.length} row{manualBatches.length > 1 ? "s" : ""} will be created
+                  </p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {manualBatches.map((b) => (
+                      <span key={b} style={{
+                        fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                        fontSize: 11,
+                        color: "var(--ink)",
+                        background: "var(--paper)",
+                        border: "1px solid var(--rule)",
+                        padding: "4px 8px",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                      }}>
+                        {b}
+                        <button
+                          type="button"
+                          onClick={() => setManualBatches((prev) => prev.filter((x) => x !== b))}
+                          style={{ background: "none", border: 0, color: "var(--stone)", cursor: "pointer", fontSize: 13, lineHeight: 1, padding: 0 }}
+                        >×</button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div style={{ marginTop: 20, display: "flex", gap: 12 }}>
                 <div style={{ flex: 1 }}>
                   <SubmitButton
-                    label={`Add Row (${rows.length} added)`}
+                    label={manualBatches.length > 1 ? `Add ${manualBatches.length} Rows (${rows.length} queued)` : `Add Row (${rows.length} queued)`}
                     submitting={false}
                     onClick={() => {
-                      // Add current manual row to rows list
                       const hasAnyValue = Object.values(manualRow).some((v) => v.trim());
-                      if (!hasAnyValue) return;
-                      setRows((prev) => [...prev, { ...manualRow }]);
+                      if (!hasAnyValue && manualBatches.length === 0) return;
+
+                      // Find the batch field's source_header
+                      const batchField = sheetHeaders.find((f) => f.label.toLowerCase().includes("batch"));
+                      const batchHeader = batchField?.source_header;
+
+                      if (manualBatches.length > 0 && batchHeader) {
+                        // Create one row per batch, all other data stays same
+                        const newRows = manualBatches.map((batchVal) => ({
+                          ...manualRow,
+                          [batchHeader]: batchVal,
+                        }));
+                        setRows((prev) => [...prev, ...newRows]);
+                      } else {
+                        // Single row (no batch multi-select)
+                        setRows((prev) => [...prev, { ...manualRow }]);
+                      }
                       setManualRow({});
+                      setManualBatches([]);
                     }}
-                    disabled={!Object.values(manualRow).some((v) => v.trim())}
+                    disabled={!Object.values(manualRow).some((v) => v.trim()) && manualBatches.length === 0}
                   />
                 </div>
-                {Object.values(manualRow).some((v) => v) && (
+                {(Object.values(manualRow).some((v) => v) || manualBatches.length > 0) && (
                   <button
                     type="button"
-                    onClick={() => setManualRow({})}
+                    onClick={() => { setManualRow({}); setManualBatches([]); }}
                     style={{
                       padding: "10px 16px",
                       fontSize: 10,
