@@ -330,8 +330,6 @@ function MultiHeaderFilterInner() {
     const totalInSection = sectionRows.length;
     const hasPrev = rowIdx > 0;
     const hasNext = rowIdx < totalInSection - 1;
-    const filledCount = sortedFields.filter((f) => !!(row[f.key] ?? "").trim()).length;
-    const missingCount = sortedFields.length - filledCount;
 
     function goToPrev() {
       if (!hasPrev) return;
@@ -346,61 +344,41 @@ function MultiHeaderFilterInner() {
 
     return (
       <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", backgroundColor: "var(--cream)" }}>
-        <AppHeader title="Multi View" showBack onBack={() => setSelectedRow(null)} />
-        <div style={{ flex: 1, width: "100%", maxWidth: 560, margin: "0 auto", padding: "32px 20px 40px" }}>
-          {/* Nav: Prev / Info / Next */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <AppHeader title="Row Details" showBack onBack={() => setSelectedRow(null)} />
+        <div style={{ flex: 1, width: "100%", maxWidth: 700, margin: "0 auto", padding: "20px 16px 40px" }}>
+          {/* Nav row */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
             <button onClick={goToPrev} disabled={!hasPrev}
-              style={{ width: 36, height: 36, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--rule)", background: "var(--paper)", cursor: hasPrev ? "pointer" : "not-allowed", opacity: hasPrev ? 1 : 0.3 }}
+              style={{ width: 32, height: 32, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--rule)", background: "var(--paper)", cursor: hasPrev ? "pointer" : "not-allowed", opacity: hasPrev ? 1 : 0.3 }}
               aria-label="Previous row">
-              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
               </svg>
             </button>
-            <div style={{ textAlign: "center" }}>
-              <p style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 13, fontWeight: 700, color: "var(--ink)", margin: 0 }}>{rowIdx + 1} / {totalInSection}</p>
-              <p style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 11, color: "var(--stone)", margin: "2px 0 0" }}>Row {row._row_index ?? rowIdx + 1} in sheet</p>
-            </div>
+            <p style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 12, color: "var(--ink)", margin: 0 }}>
+              <strong>{rowIdx + 1}</strong> of <strong>{totalInSection}</strong>
+              <span style={{ color: "var(--stone)", marginLeft: 8 }}>· Row {row._row_index ?? rowIdx + 1}</span>
+            </p>
             <button onClick={goToNext} disabled={!hasNext}
-              style={{ width: 36, height: 36, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--rule)", background: "var(--paper)", cursor: hasNext ? "pointer" : "not-allowed", opacity: hasNext ? 1 : 0.3 }}
+              style={{ width: 32, height: 32, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--rule)", background: "var(--paper)", cursor: hasNext ? "pointer" : "not-allowed", opacity: hasNext ? 1 : 0.3 }}
               aria-label="Next row">
-              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
               </svg>
             </button>
           </div>
 
-          {/* Badges */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, background: "#d1fae5", color: "#047857" }}>
-              <svg width="12" height="12" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-              {filledCount} Filled
-            </span>
-            {missingCount > 0 && (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, background: "#fee2e2", color: "#b91c1c" }}>
-                <svg width="12" height="12" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
-                {missingCount} Missing
-              </span>
-            )}
-          </div>
-
-          {/* Fields grid */}
-          <div style={{ borderRadius: 8, border: "1px solid var(--rule)", background: "var(--paper)", overflow: "hidden" }}>
-            {sortedFields.map((field, fIdx) => {
+          {/* 2-column fields grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, background: "var(--rule)", border: "1px solid var(--rule)", borderRadius: 10, overflow: "hidden" }}>
+            {sortedFields.map((field) => {
               const val = (row[field.key] ?? "").trim();
               const isFilled = !!val;
               return (
-                <div key={field.key} style={{ padding: "12px 16px", borderBottom: fIdx < sortedFields.length - 1 ? "1px solid var(--rule)" : "none", background: !isFilled ? "rgba(239,68,68,0.03)" : "transparent", display: "flex", flexDirection: "column", gap: 4 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    {isFilled ? (
-                      <svg width="14" height="14" fill="#10b981" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-                    ) : (
-                      <svg width="14" height="14" fill="#ef4444" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
-                    )}
-                    <span style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 10, fontWeight: 500, color: "var(--stone)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{field.label || field.source_header || field.key}</span>
-                    {!isFilled && <span style={{ marginLeft: "auto", fontFamily: "var(--font-plex-mono), monospace", fontSize: 10, fontWeight: 500, color: "#ef4444" }}>MISSING</span>}
-                  </div>
-                  <p style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 15, color: val ? "var(--ink)" : "var(--stone)", fontWeight: val ? 500 : 400, margin: 0, paddingLeft: 20, fontStyle: val ? "normal" : "italic" }}>
+                <div key={field.key} style={{ padding: "14px 16px", background: "var(--paper)", display: "flex", flexDirection: "column", gap: 4 }}>
+                  <span style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 9, fontWeight: 500, color: "var(--stone)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    {field.label || field.source_header || field.key}
+                  </span>
+                  <p style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 14, color: val ? "var(--ink)" : "var(--clay)", fontWeight: val ? 500 : 400, margin: 0, fontStyle: val ? "normal" : "italic", wordBreak: "break-word" }}>
                     {val || "—"}
                   </p>
                 </div>
