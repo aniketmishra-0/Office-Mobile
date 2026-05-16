@@ -629,60 +629,66 @@ function MultiHeaderFilterInner() {
           </div>
 
           {/* Dropdown + Search row */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <div style={{ flex: 1, minWidth: 0, maxWidth: 300 }}>
-              <MobileDropdown
-                multiple
-                size="sm"
-                selectedValues={selectedSections.map(String)}
-                options={loaded.sections.map((section, idx) => ({
-                  value: String(idx),
-                  label: section.title,
-                  subtitle: `${section.rows.length} rows`,
-                }))}
-                onMultiChange={(values) => setSelectedSections(values.map(Number))}
-                maxSelect={MAX_OPEN}
-                placeholder={`Select date section (max ${MAX_OPEN})...`}
-              />
+          <div className="mhf-controls-row">
+            {/* Row 1: Dropdowns side by side */}
+            <div className="mhf-dropdowns-row">
+              <div className="mhf-dropdown-item">
+                <MobileDropdown
+                  multiple
+                  size="sm"
+                  selectedValues={selectedSections.map(String)}
+                  options={loaded.sections.map((section, idx) => ({
+                    value: String(idx),
+                    label: section.title,
+                    subtitle: `${section.rows.length} rows`,
+                  }))}
+                  onMultiChange={(values) => setSelectedSections(values.map(Number))}
+                  maxSelect={MAX_OPEN}
+                  placeholder={`Select section (max ${MAX_OPEN})...`}
+                />
+              </div>
+              <div className="mhf-dropdown-item">
+                <MobileDropdown
+                  multiple
+                  size="sm"
+                  selectedValues={hiddenColumns}
+                  options={sortedFields.map((f) => ({
+                    value: f.key,
+                    label: f.source_header || f.label || f.key,
+                  }))}
+                  onMultiChange={(values) => setHiddenColumns(values)}
+                  placeholder="Hide columns..."
+                />
+              </div>
             </div>
-            <div style={{ flex: 1, minWidth: 0, maxWidth: 250 }}>
-              <MobileDropdown
-                multiple
-                size="sm"
-                selectedValues={hiddenColumns}
-                options={sortedFields.map((f) => ({
-                  value: f.key,
-                  label: f.source_header || f.label || f.key,
-                }))}
-                onMultiChange={(values) => setHiddenColumns(values)}
-                placeholder="Hide columns..."
-              />
+            {/* Row 2: Search */}
+            <div className="mhf-search-row">
+              <div style={{ position: "relative", flex: 1 }}>
+                <svg style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: "var(--stone)", pointerEvents: "none" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                </svg>
+                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search..."
+                  style={{ width: "100%", fontFamily: "var(--font-plex-mono), monospace", fontSize: 12, color: "var(--ink)", background: "var(--paper)", border: "1px solid var(--rule)", borderRadius: 6, padding: "9px 12px 9px 28px", outline: "none" }}
+                />
+              </div>
+              {searchQuery && (
+                <button onClick={() => setSearchQuery("")}
+                  style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 10, color: "var(--clay)", background: "none", border: "1px solid var(--clay)", borderRadius: 4, padding: "6px 10px", cursor: "pointer", whiteSpace: "nowrap" }}>
+                  Clear
+                </button>
+              )}
             </div>
-            <div style={{ position: "relative", flex: 1, minWidth: 120, maxWidth: 220 }}>
-              <svg style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: "var(--stone)", pointerEvents: "none" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-              </svg>
-              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search..."
-                style={{ width: "100%", fontFamily: "var(--font-plex-mono), monospace", fontSize: 12, color: "var(--ink)", background: "var(--paper)", border: "1px solid var(--rule)", borderRadius: 6, padding: "9px 12px 9px 28px", outline: "none" }}
-              />
-            </div>
-            {searchQuery && (
-              <button onClick={() => setSearchQuery("")}
-                style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 10, color: "var(--clay)", background: "none", border: "1px solid var(--clay)", borderRadius: 4, padding: "4px 8px", cursor: "pointer" }}>
-                Clear
-              </button>
-            )}
           </div>
 
           {/* Chips */}
           {selectedSections.length > 0 && (
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 }}>
               {selectedSections.map((idx) => (
-                <span key={idx} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontFamily: "var(--font-plex-mono), monospace", fontSize: 10, background: "var(--ink)", color: "var(--cream)", borderRadius: 14, padding: "4px 10px 4px 12px" }}>
+                <span key={idx} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontFamily: "var(--font-plex-mono), monospace", fontSize: 11, background: "var(--ink)", color: "var(--cream)", borderRadius: 14, padding: "5px 12px 5px 14px" }}>
                   {loaded.sections[idx]?.title ?? `Section ${idx}`}
                   <button onClick={() => removeSection(idx)}
-                    style={{ background: "none", border: "none", color: "var(--cream)", cursor: "pointer", fontSize: 13, padding: 0, lineHeight: 1, opacity: 0.7 }}
+                    style={{ background: "none", border: "none", color: "var(--cream)", cursor: "pointer", fontSize: 14, padding: 0, lineHeight: 1, opacity: 0.7 }}
                     aria-label="Remove">×</button>
                 </span>
               ))}
@@ -691,35 +697,37 @@ function MultiHeaderFilterInner() {
 
           {/* Day-of-week filter */}
           {hasDayColumns && (
-            <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <div className="mhf-days-row">
               <span style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 9, color: "var(--stone)", textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 500, marginRight: 2 }}>Days:</span>
-              {ALL_DAYS.map((day) => {
-                const isActive = visibleDays.includes(day);
-                return (
-                  <button
-                    key={day}
-                    onClick={() => toggleDay(day)}
-                    style={{
-                      fontFamily: "var(--font-plex-mono), monospace",
-                      fontSize: 10,
-                      fontWeight: 500,
-                      padding: "4px 10px",
-                      borderRadius: 14,
-                      border: isActive ? "1.5px solid var(--ink)" : "1px solid var(--rule)",
-                      background: isActive ? "var(--ink)" : "var(--paper)",
-                      color: isActive ? "var(--cream)" : "var(--stone)",
-                      cursor: "pointer",
-                      transition: "all 0.15s ease",
-                    }}
-                  >
-                    {day.slice(0, 3)}
-                  </button>
-                );
-              })}
+              <div className="mhf-days-buttons">
+                {ALL_DAYS.map((day) => {
+                  const isActive = visibleDays.includes(day);
+                  return (
+                    <button
+                      key={day}
+                      onClick={() => toggleDay(day)}
+                      style={{
+                        fontFamily: "var(--font-plex-mono), monospace",
+                        fontSize: 10,
+                        fontWeight: 500,
+                        padding: "5px 12px",
+                        borderRadius: 14,
+                        border: isActive ? "1.5px solid var(--ink)" : "1px solid var(--rule)",
+                        background: isActive ? "var(--ink)" : "var(--paper)",
+                        color: isActive ? "var(--cream)" : "var(--stone)",
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      {day.slice(0, 3)}
+                    </button>
+                  );
+                })}
+              </div>
               {visibleDays.length > 0 && (
                 <button
                   onClick={() => setVisibleDays([])}
-                  style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 9, color: "var(--clay)", background: "none", border: "1px solid var(--clay)", borderRadius: 4, padding: "3px 7px", cursor: "pointer" }}
+                  style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 9, color: "var(--clay)", background: "none", border: "1px solid var(--clay)", borderRadius: 4, padding: "4px 8px", cursor: "pointer" }}
                 >
                   All
                 </button>
