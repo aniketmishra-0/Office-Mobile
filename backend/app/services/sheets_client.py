@@ -387,22 +387,25 @@ def list_worksheet_names(spreadsheet_id: str) -> list[str]:
     """List worksheet/tab names for a spreadsheet."""
     try:
         return _read_public_sheet_names(spreadsheet_id)
-    except PublicSheetError:
-        pass
+    except Exception as exc:
+        logger.debug("list_worksheet_names public xlsx failed: %s", exc)
 
-    if _has_credentials():
-        try:
-            client = get_client()
-            spreadsheet = client.open_by_key(spreadsheet_id)
-            return [ws.title for ws in spreadsheet.worksheets()]
-        except Exception as exc:
-            logger.warning("list_worksheet_names authenticated fallback failed: %s", exc)
+    try:
+        if _has_credentials():
+            try:
+                client = get_client()
+                spreadsheet = client.open_by_key(spreadsheet_id)
+                return [ws.title for ws in spreadsheet.worksheets()]
+            except Exception as exc:
+                logger.warning("list_worksheet_names authenticated fallback failed: %s", exc)
+    except Exception as exc:
+        logger.warning("list_worksheet_names credentials check failed: %s", exc)
 
     # Last resort: if the gviz endpoint works, we know at least one sheet exists
     try:
         _fetch_gviz_json(spreadsheet_id, None)
         return ["Sheet1"]
-    except PublicSheetError:
+    except Exception:
         pass
 
     raise PublicSheetError(

@@ -266,6 +266,26 @@ async def list_worksheets(sheet_url: str) -> dict:
 
         names = await asyncio.to_thread(_list)
     except Exception as exc:
+        # If list_worksheet_names failed entirely, try a direct authenticated
+        # fallback that fetches all worksheet titles via gspread. This handles
+        # cases where the public export is blocked but OAuth access works.
+        try:
+            from app.services.sheets_client import get_client as _get_client, _has_credentials as _has_creds
+
+            def _auth_fallback():
+                with oauth_session_context(_session_key):
+                    if _has_creds():
+                        client = _get_client()
+                        spreadsheet = client.open_by_key(spreadsheet_id)
+                        return [ws.title for ws in spreadsheet.worksheets()]
+                return None
+
+            fallback_names = await asyncio.to_thread(_auth_fallback)
+            if fallback_names:
+                return {"items": fallback_names}
+        except Exception:
+            pass
+
         raise _sheet_error(exc) from exc
 
     return {"items": names}
@@ -671,6 +691,25 @@ async def lookup_forms_by_sheet(sheet_url: str) -> dict:
             await asyncio.to_thread(read_headers_public, spreadsheet_id, None)
             # If we got here, the sheet IS publicly readable — use default tab
             tab_names = ["Sheet1"]
+        except Exception:
+            pass
+
+    # If public access failed, try authenticated access to get at least the
+    # first worksheet name (proves the sheet is accessible via OAuth).
+    if not tab_names and not records:
+        try:
+            from app.services.sheets_client import read_headers_authenticated, _has_credentials as has_creds
+
+            _fallback_session_key = get_current_oauth_session_key()
+
+            def _try_authenticated():
+                with oauth_session_context(_fallback_session_key):
+                    if has_creds():
+                        _, ws_name, _ = read_headers_authenticated(spreadsheet_id, None)
+                        return [ws_name]
+                return []
+
+            tab_names = await asyncio.to_thread(_try_authenticated)
         except Exception:
             pass
 

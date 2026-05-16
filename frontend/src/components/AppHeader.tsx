@@ -262,18 +262,6 @@ export default function AppHeader({
                   role="menuitem"
                   className="om-header__menu-item"
                   onClick={() => {
-                    router.push("/bulk-edit");
-                    setOpenMenu(false);
-                  }}
-                >
-                  <span className="om-header__menu-icon" aria-hidden>⧉</span>
-                  <span>Bulk Edit</span>
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="om-header__menu-item"
-                  onClick={() => {
                     router.push("/history");
                     setOpenMenu(false);
                   }}
@@ -292,6 +280,18 @@ export default function AppHeader({
                 >
                   <span className="om-header__menu-icon" aria-hidden>⊟</span>
                   <span>Multi-Header Filtering</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="om-header__menu-item"
+                  onClick={() => {
+                    router.push("/sub-sheet-filter");
+                    setOpenMenu(false);
+                  }}
+                >
+                  <span className="om-header__menu-icon" aria-hidden>⧉</span>
+                  <span>Sub-Sheet Filter</span>
                 </button>
                 <hr className="om-header__menu-rule" />
 
