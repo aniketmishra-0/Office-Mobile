@@ -58,6 +58,10 @@ function HistoryPageInner() {
   const [accessStatus, setAccessStatus] = useState<"checking" | "edit" | "read" | "none" | null>(null);
   const [serviceAccountEmail, setServiceAccountEmail] = useState<string | null>(null);
 
+  // Column-level filters: key = field.key, value = selected filter value
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+
   // Auto-load sheet from URL param on mount
   useEffect(() => {
     if (sheetParam) {
@@ -142,6 +146,7 @@ function HistoryPageInner() {
     setAvailableTabs(null);
     setLoaded(null);
     setSearchQuery("");
+    setColumnFilters({});
     setSelectedRow(null);
 
     try {
@@ -210,15 +215,50 @@ function HistoryPageInner() {
     }
   }
 
-  // Search across ALL columns
+  // Search across ALL columns + column-specific filters
   const matches = useMemo(() => {
     if (!loaded || !loaded.rows.length) return [];
+    let filtered = loaded.rows;
+
+    // Apply column-specific filters
+    const activeFilters = Object.entries(columnFilters).filter(([, v]) => v);
+    if (activeFilters.length > 0) {
+      filtered = filtered.filter((row) =>
+        activeFilters.every(([key, val]) => {
+          const cellValue = (row[key] ?? "").toLowerCase().trim();
+          return cellValue === val.toLowerCase().trim();
+        })
+      );
+    }
+
+    // Apply search query
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return loaded.rows;
-    return loaded.rows.filter((row) =>
-      loaded.fields.some((f) => (row[f.key] ?? "").toLowerCase().includes(query)),
-    );
-  }, [loaded, searchQuery]);
+    if (query) {
+      filtered = filtered.filter((row) =>
+        loaded.fields.some((f) => (row[f.key] ?? "").toLowerCase().includes(query)),
+      );
+    }
+
+    return filtered;
+  }, [loaded, searchQuery, columnFilters]);
+
+  // Get unique values per column for filter dropdowns
+  const columnUniqueValues = useMemo(() => {
+    if (!loaded || !loaded.rows.length) return {};
+    const result: Record<string, string[]> = {};
+    for (const field of loaded.fields) {
+      const valSet = new Set<string>();
+      for (const row of loaded.rows) {
+        const v = (row[field.key] ?? "").trim();
+        if (v) valSet.add(v);
+      }
+      // Only show filter if column has reasonable number of unique values (< 500)
+      if (valSet.size > 0 && valSet.size < 500) {
+        result[field.key] = [...valSet].sort((a, b) => a.localeCompare(b));
+      }
+    }
+    return result;
+  }, [loaded]);
 
   // Virtualized view: only render a page at a time so 10k+ rows don't choke the DOM
   const ROWS_PER_PAGE = 200;
@@ -227,7 +267,7 @@ function HistoryPageInner() {
   // Reset visible count when query or dataset changes
   React.useEffect(() => {
     setVisibleCount(ROWS_PER_PAGE);
-  }, [searchQuery, loaded]);
+  }, [searchQuery, loaded, columnFilters]);
 
   const visibleMatches = useMemo(
     () => matches.slice(0, visibleCount),
@@ -496,6 +536,28 @@ function HistoryPageInner() {
               </span>
             )}
 
+            {/* Filter button */}
+            <button
+              type="button"
+              onClick={() => setShowFilterPanel((v) => !v)}
+              style={{
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontSize: 10,
+                fontWeight: 500,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                color: Object.values(columnFilters).some((v) => v) ? "var(--ink)" : "var(--charcoal)",
+                background: Object.values(columnFilters).some((v) => v) ? "rgba(200, 98, 58, 0.1)" : "var(--paper)",
+                border: Object.values(columnFilters).some((v) => v) ? "1px solid rgba(200, 98, 58, 0.4)" : "1px solid var(--rule)",
+                borderRadius: 4,
+                padding: "6px 10px",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              ⚙ Filter{Object.values(columnFilters).filter((v) => v).length > 0 ? ` (${Object.values(columnFilters).filter((v) => v).length})` : ""}
+            </button>
+
             {/* Change sheet button */}
             <button
               type="button"
@@ -528,7 +590,7 @@ function HistoryPageInner() {
                 whiteSpace: "nowrap",
               }}
             >
-              📋 Copy All
+              📋 Copy {Object.values(columnFilters).some((v) => v) || searchQuery ? `Filtered (${matches.length})` : "All"}
             </button>
 
             <button
@@ -553,6 +615,91 @@ function HistoryPageInner() {
             </button>
           </div>
         </div>
+
+        {/* Filter Panel */}
+        {showFilterPanel && (
+          <div style={{ borderBottom: "1px solid var(--rule)", padding: "12px 16px", background: "var(--paper)" }}>
+            <div style={{ maxWidth: 1400, margin: "0 auto" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <p style={{
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  fontWeight: 500,
+                  fontSize: 10,
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                  color: "var(--charcoal)",
+                  margin: 0,
+                }}>
+                  Column Filters
+                </p>
+                {Object.values(columnFilters).some((v) => v) && (
+                  <button
+                    type="button"
+                    onClick={() => setColumnFilters({})}
+                    style={{
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontSize: 10,
+                      color: "var(--stone)",
+                      background: "none",
+                      border: 0,
+                      cursor: "pointer",
+                      textDecoration: "underline",
+                    }}
+                  >
+                    Clear all filters
+                  </button>
+                )}
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {sortedFields.map((field) => {
+                  const uniqueVals = columnUniqueValues[field.key];
+                  if (!uniqueVals) return null;
+                  return (
+                    <div key={field.key} style={{ minWidth: 140 }}>
+                      <select
+                        value={columnFilters[field.key] ?? ""}
+                        onChange={(e) => {
+                          setColumnFilters((prev) => ({
+                            ...prev,
+                            [field.key]: e.target.value,
+                          }));
+                        }}
+                        style={{
+                          width: "100%",
+                          fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                          fontSize: 11,
+                          color: columnFilters[field.key] ? "var(--ink)" : "var(--stone)",
+                          background: "var(--cream)",
+                          border: columnFilters[field.key] ? "1px solid rgba(200, 98, 58, 0.4)" : "1px solid var(--rule)",
+                          borderRadius: 4,
+                          padding: "6px 8px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <option value="">{field.label}</option>
+                        {uniqueVals.map((val) => (
+                          <option key={val} value={val}>
+                            {val.length > 30 ? val.slice(0, 30) + "…" : val}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })}
+              </div>
+              {Object.values(columnFilters).some((v) => v) && (
+                <p style={{
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  fontSize: 10,
+                  color: "var(--stone)",
+                  margin: "8px 0 0 0",
+                }}>
+                  Showing {matches.length.toLocaleString()} of {loaded.rows.length.toLocaleString()} rows
+                </p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Spreadsheet table */}
         <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
