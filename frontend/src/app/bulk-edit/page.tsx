@@ -724,19 +724,6 @@ function BulkEditInner() {
       <div className="flex-1 w-full max-w-[700px] mx-auto px-5 pt-6 pb-10">
         {/* Sheet info + tab switcher */}
         <section className="mb-5">
-          <div className="flex items-center gap-3 mb-2">
-            <p className="text-[13px] text-emerald-600 font-medium">
-              ✓ Sheet loaded — {sheetHeaders.length} columns
-            </p>
-            <button
-              type="button"
-              disabled={sheetLoading}
-              onClick={() => loadSheet(sheetUrl)}
-              className="px-3 py-1 text-[11px] font-semibold uppercase tracking-wider border border-zinc-300 text-zinc-600 rounded-md hover:bg-zinc-200 hover:text-zinc-900 transition-colors disabled:opacity-40"
-            >
-              ↻ Refresh
-            </button>
-          </div>
           {allTabNames.length > 1 && (
             <div className="flex flex-wrap gap-1.5">
               {allTabNames.map((name) => (

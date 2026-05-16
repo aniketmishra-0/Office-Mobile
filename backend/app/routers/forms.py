@@ -255,10 +255,16 @@ async def list_worksheets(sheet_url: str) -> dict:
     except InvalidGoogleSheetUrl as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    _session_key = get_current_oauth_session_key()
+
     try:
         from app.services.sheets_client import list_worksheet_names
 
-        names = await asyncio.to_thread(list_worksheet_names, spreadsheet_id)
+        def _list():
+            with oauth_session_context(_session_key):
+                return list_worksheet_names(spreadsheet_id)
+
+        names = await asyncio.to_thread(_list)
     except Exception as exc:
         raise _sheet_error(exc) from exc
 
