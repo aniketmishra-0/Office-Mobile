@@ -180,6 +180,7 @@ export default function FillFormPage() {
             suggestionsRequested.current = false;
             void loadSuggestions();
           }}
+          folderName={formData!.worksheet_name || formData!.form_title}
         />
       </div>
       <SubmitButton submitting={submitting} form="dynamic-form" />

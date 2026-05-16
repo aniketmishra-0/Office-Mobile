@@ -273,6 +273,7 @@ const DynamicForm = forwardRef<DynamicFormHandle, Props>(function DynamicForm({
             onFocus={handleFocus}
             error={errors[field.key]}
             touched={touched.has(field.key)}
+            folderName={folderName}
           />
           {activeFieldKey === field.key && activeFilters.includes(field.key) && (
             <div className="mt-3">
