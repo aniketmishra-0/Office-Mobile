@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import SubmitButton from "@/components/SubmitButton";
+import MobileDropdown from "@/components/MobileDropdown";
 import { safeBack } from "@/lib/navigation";
 import {
   batchAppendRows,
@@ -65,7 +66,7 @@ function parseText(raw: string): string[][] {
 }
 
 // ---------------------------------------------------------------------------
-// Custom filter select component (replaces ugly native datalist)
+// Custom filter select component — editorial style
 // ---------------------------------------------------------------------------
 
 function FilterSelect({
@@ -101,54 +102,103 @@ function FilterSelect({
     : options;
 
   return (
-    <div ref={ref} className="relative min-w-0">
-      <label className="block text-[9px] font-medium text-zinc-400 uppercase tracking-wider mb-0.5 pl-1">
+    <div ref={ref} style={{ position: "relative", minWidth: 0 }}>
+      <label style={{
+        display: "block",
+        fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+        fontSize: 9,
+        fontWeight: 500,
+        letterSpacing: "0.08em",
+        textTransform: "uppercase",
+        color: "var(--stone)",
+        marginBottom: 2,
+        paddingLeft: 2,
+      }}>
         {label}
       </label>
       <button
         type="button"
         onClick={() => { setOpen(!open); setSearch(""); }}
-        className={`w-full px-2 py-1.5 text-[11px] text-left border rounded flex items-center justify-between gap-1 ${
-          value
-            ? "border-emerald-400 bg-emerald-50 text-zinc-900"
-            : "border-zinc-200 bg-white text-zinc-500"
-        } focus:outline-none focus:ring-1 focus:ring-zinc-400`}
+        style={{
+          width: "100%",
+          padding: "7px 8px",
+          fontSize: 11,
+          fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+          textAlign: "left",
+          border: value ? "1px solid rgba(200, 98, 58, 0.4)" : "1px solid var(--rule)",
+          borderRadius: 0,
+          background: value ? "rgba(200, 98, 58, 0.06)" : "var(--cream)",
+          color: value ? "var(--ink)" : "var(--stone)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 4,
+          cursor: "pointer",
+        }}
       >
-        <span className="truncate">{value || "All"}</span>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value || "All"}</span>
         {value ? (
           <span
             onClick={(e) => { e.stopPropagation(); onChange(""); setOpen(false); }}
-            className="text-zinc-400 hover:text-red-500 shrink-0 text-[13px] leading-none"
+            style={{ color: "var(--stone)", fontSize: 13, lineHeight: 1, flexShrink: 0, cursor: "pointer" }}
           >
             ×
           </span>
         ) : (
-          <svg className="w-3 h-3 shrink-0 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg style={{ width: 12, height: 12, flexShrink: 0, color: "var(--stone)" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         )}
       </button>
       {open && (
-        <div className="absolute z-50 mt-1 left-0 right-0 bg-white border border-zinc-200 rounded-lg shadow-lg overflow-hidden">
+        <div style={{
+          position: "absolute",
+          zIndex: 50,
+          marginTop: 4,
+          left: 0,
+          right: 0,
+          background: "var(--cream)",
+          border: "1px solid var(--rule)",
+          overflow: "hidden",
+        }}>
           {options.length > 6 && (
-            <div className="p-1.5 border-b border-zinc-100">
+            <div style={{ padding: 6, borderBottom: "1px solid var(--rule)" }}>
               <input
                 type="text"
                 autoFocus
                 placeholder="Search..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full px-2 py-1 text-[11px] border border-zinc-200 rounded bg-zinc-50 focus:outline-none focus:ring-1 focus:ring-zinc-300"
+                style={{
+                  width: "100%",
+                  padding: "5px 8px",
+                  fontSize: 11,
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  border: "1px solid var(--rule)",
+                  borderRadius: 0,
+                  background: "var(--paper)",
+                  color: "var(--ink)",
+                  outline: "none",
+                }}
               />
             </div>
           )}
-          <div className="max-h-[180px] overflow-y-auto">
+          <div style={{ maxHeight: 180, overflowY: "auto" }}>
             <button
               type="button"
               onClick={() => { onChange(""); setOpen(false); setSearch(""); }}
-              className={`w-full text-left px-3 py-1.5 text-[11px] hover:bg-zinc-50 transition-colors ${
-                !value ? "text-emerald-600 font-medium" : "text-zinc-500"
-              }`}
+              style={{
+                width: "100%",
+                textAlign: "left",
+                padding: "7px 12px",
+                fontSize: 11,
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                background: "transparent",
+                border: 0,
+                color: !value ? "var(--clay)" : "var(--stone)",
+                fontWeight: !value ? 500 : 400,
+                cursor: "pointer",
+              }}
             >
               All
             </button>
@@ -157,15 +207,31 @@ function FilterSelect({
                 key={opt}
                 type="button"
                 onClick={() => { onChange(opt); setOpen(false); setSearch(""); }}
-                className={`w-full text-left px-3 py-1.5 text-[11px] hover:bg-zinc-50 transition-colors ${
-                  opt === value ? "text-emerald-600 font-medium bg-emerald-50" : "text-zinc-700"
-                }`}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "7px 12px",
+                  fontSize: 11,
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  background: opt === value ? "rgba(200, 98, 58, 0.06)" : "transparent",
+                  border: 0,
+                  color: opt === value ? "var(--clay)" : "var(--ink)",
+                  fontWeight: opt === value ? 500 : 400,
+                  cursor: "pointer",
+                }}
               >
                 {opt}
               </button>
             ))}
             {filtered.length === 0 && (
-              <p className="px-3 py-2 text-[11px] text-zinc-400 italic">No matches</p>
+              <p style={{
+                padding: "8px 12px",
+                fontSize: 11,
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                color: "var(--stone)",
+                fontStyle: "italic",
+                margin: 0,
+              }}>No matches</p>
             )}
           </div>
         </div>
@@ -205,7 +271,10 @@ function BulkEditInner() {
   const [sheetDataLoading, setSheetDataLoading] = useState(false);
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
   const [showFilterPanel, setShowFilterPanel] = useState(false);
-  const [dataMode, setDataMode] = useState<"paste" | "filter">("paste");
+  const [dataMode, setDataMode] = useState<"paste" | "filter" | "manual">("paste");
+
+  // Manual entry form state
+  const [manualRow, setManualRow] = useState<Record<string, string>>({});
 
   // Parsed rows
   const [rows, setRows] = useState<Record<string, string>[]>([]);
@@ -733,7 +802,7 @@ function BulkEditInner() {
 
   // Screen 3: Main bulk edit interface (sheet is ready)
   return (
-    <div className="flex flex-col min-h-screen bg-zinc-100">
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", backgroundColor: "var(--cream)" }}>
       <AppHeader
         title="Bulk Edit"
         showBack
@@ -753,19 +822,119 @@ function BulkEditInner() {
         <LoadingOverlay message={submitting ? "Submitting rows..." : "Loading sheet..."} />
       )}
 
-      <div className="flex-1 w-full max-w-[700px] mx-auto px-3 pt-4 pb-6 sm:px-5">
+      <div className="flex-1 w-full max-w-[560px] mx-auto" style={{ padding: "20px 16px 40px" }}>
+
+        {/* Sheet info bar */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, paddingBottom: 14, borderBottom: "1px solid var(--rule)" }}>
+          <div>
+            <h2 style={{
+              fontFamily: "var(--font-newsreader), Georgia, serif",
+              fontWeight: 400,
+              fontSize: 18,
+              color: "var(--ink)",
+              margin: 0,
+            }}>
+              {worksheetName || "Sheet"}
+            </h2>
+            <p style={{
+              fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+              fontWeight: 300,
+              fontSize: 10,
+              letterSpacing: "0.04em",
+              color: "var(--stone)",
+              margin: "2px 0 0 0",
+            }}>
+              {sheetHeaders.length} columns{rows.length > 0 ? ` · ${rows.length} rows queued` : ""}
+            </p>
+          </div>
+          {allTabNames.length > 1 && (
+            <button
+              type="button"
+              onClick={() => {
+                setSheetReady(false);
+                setSheetHeaders([]);
+                setRows([]);
+                setSheetData(null);
+                loadSheet(sheetUrl);
+              }}
+              style={{
+                fontSize: 10,
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontWeight: 500,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                color: "var(--stone)",
+                background: "none",
+                border: "1px solid var(--rule)",
+                padding: "6px 10px",
+                cursor: "pointer",
+              }}
+            >
+              Change Tab
+            </button>
+          )}
+        </div>
 
         {/* Data Source */}
-        <section className="mb-4">
-          <h2 className="text-[13px] font-semibold text-zinc-500 uppercase tracking-wide mb-2">Choose Data Source</h2>
-          <div className="flex gap-2 mb-2">
+        <section style={{ marginBottom: 24 }}>
+          <p style={{
+            fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+            fontWeight: 500,
+            fontSize: 10,
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+            color: "var(--stone)",
+            margin: "0 0 12px 0",
+          }}>
+            Choose Data Source
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 0, border: "1px solid var(--rule)", marginBottom: 16 }}>
             <button type="button" onClick={() => setDataMode("paste")}
-              className={`px-3 py-2 text-[11px] font-semibold uppercase tracking-wider rounded-md border transition-colors ${dataMode === "paste" ? "bg-zinc-900 text-white border-zinc-900" : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50"}`}>
+              style={{
+                padding: "12px 10px",
+                background: dataMode === "paste" ? "var(--ink)" : "transparent",
+                color: dataMode === "paste" ? "var(--on-ink)" : "var(--ink)",
+                border: 0,
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontWeight: 500,
+                fontSize: 10,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                cursor: "pointer",
+              }}>
               Paste Data
             </button>
             <button type="button" onClick={() => { setDataMode("filter"); if (!sheetData) loadSheetData(); }}
-              className={`px-3 py-2 text-[11px] font-semibold uppercase tracking-wider rounded-md border transition-colors ${dataMode === "filter" ? "bg-zinc-900 text-white border-zinc-900" : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50"}`}>
-              Filter from Sheet
+              style={{
+                padding: "12px 10px",
+                background: dataMode === "filter" ? "var(--ink)" : "transparent",
+                color: dataMode === "filter" ? "var(--on-ink)" : "var(--ink)",
+                border: 0,
+                borderLeft: "1px solid var(--rule)",
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontWeight: 500,
+                fontSize: 10,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                cursor: "pointer",
+              }}>
+              Filter Sheet
+            </button>
+            <button type="button" onClick={() => { setDataMode("manual"); if (!sheetData) loadSheetData(); }}
+              style={{
+                padding: "12px 10px",
+                background: dataMode === "manual" ? "var(--ink)" : "transparent",
+                color: dataMode === "manual" ? "var(--on-ink)" : "var(--ink)",
+                border: 0,
+                borderLeft: "1px solid var(--rule)",
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontWeight: 500,
+                fontSize: 10,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                cursor: "pointer",
+              }}>
+              Add Manually
             </button>
           </div>
 
@@ -773,16 +942,30 @@ function BulkEditInner() {
           {dataMode === "paste" && (
             <>
               <textarea
-                className="w-full min-h-[160px] px-4 py-3 text-[13px] font-mono border border-zinc-200 rounded-lg bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-400 resize-y"
+                style={{
+                  width: "100%",
+                  minHeight: 160,
+                  padding: "12px 14px",
+                  fontSize: 13,
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  color: "var(--ink)",
+                  background: "var(--paper)",
+                  border: "1px solid var(--rule)",
+                  borderRadius: 0,
+                  outline: "none",
+                  resize: "vertical",
+                }}
                 placeholder={"Paste rows here from Excel, WhatsApp, or any text source.\nTab-separated or comma-separated columns will be auto-detected.\n\nTip: Copy from Google Sheets directly."}
                 value={pasteText}
                 onChange={(e) => setPasteText(e.target.value)}
               />
-              <div className="mt-2 flex items-center gap-3">
-                <button type="button" disabled={!pasteText.trim() || !sheetReady} onClick={handleParse}
-                  className="px-4 py-2 text-[12px] font-semibold uppercase tracking-wider bg-zinc-900 text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-800 transition-colors">
-                  Parse & Preview
-                </button>
+              <div style={{ marginTop: 12 }}>
+                <SubmitButton
+                  label="Parse & Preview"
+                  submitting={false}
+                  onClick={handleParse}
+                  disabled={!pasteText.trim() || !sheetReady}
+                />
               </div>
             </>
           )}
@@ -791,32 +974,52 @@ function BulkEditInner() {
           {dataMode === "filter" && (
             <>
               {sheetDataLoading && (
-                <p className="text-[12px] text-zinc-500">Loading sheet data...</p>
+                <p style={{ fontSize: 12, fontFamily: "var(--font-plex-mono), ui-monospace, monospace", color: "var(--stone)" }}>Loading sheet data...</p>
               )}
 
               {sheetData && (
-                <div className="space-y-2">
-                  <p className="text-[11px] text-zinc-500">
+                <div>
+                  <p style={{
+                    fontSize: 11,
+                    fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                    color: "var(--stone)",
+                    margin: "0 0 12px 0",
+                  }}>
                     {sheetData.length.toLocaleString()} total rows loaded. Use filters to select rows:
                   </p>
 
-                  {/* Filter dropdowns — scrollable on mobile */}
-                  <div className="p-3 border border-zinc-200 rounded-lg bg-white max-h-[55vh] overflow-y-auto">
-                    <div className="flex items-center justify-between mb-2 sticky top-0 bg-white pb-1 z-10">
-                      <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wide">
+                  {/* Filter dropdowns */}
+                  <div style={{ border: "1px solid var(--rule)", padding: 16, maxHeight: "55vh", overflowY: "auto" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, position: "sticky", top: 0, background: "var(--cream)", paddingBottom: 4, zIndex: 10 }}>
+                      <span style={{
+                        fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                        fontSize: 10,
+                        fontWeight: 500,
+                        letterSpacing: "0.1em",
+                        textTransform: "uppercase",
+                        color: "var(--charcoal)",
+                      }}>
                         Column Filters
                       </span>
                       {Object.values(columnFilters).some((v) => v) && (
                         <button
                           type="button"
                           onClick={() => setColumnFilters({})}
-                          className="text-[11px] text-zinc-400 underline hover:text-zinc-600"
+                          style={{
+                            fontSize: 10,
+                            fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                            color: "var(--stone)",
+                            background: "none",
+                            border: 0,
+                            textDecoration: "underline",
+                            cursor: "pointer",
+                          }}
                         >
                           Clear all
                         </button>
                       )}
                     </div>
-                    <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 12px" }}>
                       {sheetHeaders.map((field) => {
                         const uniqueVals = columnUniqueValues[field.key];
                         if (!uniqueVals) return null;
@@ -838,67 +1041,200 @@ function BulkEditInner() {
                     </div>
                   </div>
 
-                  {/* Match count + Use rows button — always visible */}
-                  <div className="flex items-center justify-between gap-3 sticky bottom-0 bg-zinc-100 py-2 -mx-3 px-3">
+                  {/* Match count + Use rows button */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 16 }}>
                     {Object.values(columnFilters).some((v) => v) && (
-                      <p className="text-[12px] text-emerald-600 font-medium m-0">
+                      <p style={{
+                        fontSize: 11,
+                        fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                        fontWeight: 500,
+                        color: "var(--clay)",
+                        margin: 0,
+                      }}>
                         {filteredSheetRows.length.toLocaleString()} rows match
                       </p>
                     )}
-                    <button
-                      type="button"
-                      disabled={!filteredSheetRows.length}
-                      onClick={() => {
-                        // Convert filtered rows to use source_header keys for submission
-                        const mapped = filteredSheetRows.map((row) => {
-                          const newRow: Record<string, string> = {};
-                          sheetHeaders.forEach((h) => {
-                            newRow[h.source_header] = row[h.key] ?? "";
+                    <div style={{ marginLeft: "auto" }}>
+                      <SubmitButton
+                        label={Object.values(columnFilters).some((v) => v) ? `Use Filtered (${filteredSheetRows.length})` : `Use All (${sheetData.length}) Rows`}
+                        submitting={false}
+                        onClick={() => {
+                          const mapped = filteredSheetRows.map((row) => {
+                            const newRow: Record<string, string> = {};
+                            sheetHeaders.forEach((h) => {
+                              newRow[h.source_header] = row[h.key] ?? "";
+                            });
+                            return newRow;
                           });
-                          return newRow;
-                        });
-                        setRows(mapped);
-                      }}
-                      className="px-4 py-2 text-[12px] font-semibold uppercase tracking-wider bg-zinc-900 text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-800 transition-colors ml-auto"
-                    >
-                      Use {Object.values(columnFilters).some((v) => v) ? `Filtered (${filteredSheetRows.length})` : `All (${sheetData.length})`} Rows
-                    </button>
+                          setRows(mapped);
+                        }}
+                        disabled={!filteredSheetRows.length}
+                      />
+                    </div>
                   </div>
                 </div>
               )}
             </>
           )}
 
+          {/* Manual entry mode — form-fill style */}
+          {dataMode === "manual" && (
+            <div>
+              <p style={{
+                fontSize: 11,
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                color: "var(--stone)",
+                margin: "0 0 16px 0",
+              }}>
+                Fill each field below and add rows one by one.
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                {sheetHeaders.map((field) => {
+                  const uniqueVals = columnUniqueValues[field.key];
+                  const hasDropdown = uniqueVals && uniqueVals.length > 0 && uniqueVals.length < 200;
+                  return (
+                    <div key={field.key} style={{ padding: "14px 0", borderBottom: "1px solid var(--rule)" }}>
+                      <label style={{
+                        display: "block",
+                        fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                        fontWeight: 500,
+                        fontSize: 10,
+                        letterSpacing: "0.14em",
+                        textTransform: "uppercase",
+                        color: "var(--charcoal)",
+                        marginBottom: 8,
+                      }}>
+                        {field.label}
+                      </label>
+                      {hasDropdown ? (
+                        <MobileDropdown
+                          value={manualRow[field.source_header] ?? ""}
+                          options={uniqueVals.map((v) => ({ value: v, label: v }))}
+                          onChange={(val) => setManualRow((prev) => ({ ...prev, [field.source_header]: val }))}
+                          placeholder={`Select ${field.label.toLowerCase()}`}
+                        />
+                      ) : (
+                        <input
+                          type={field.type === "date" ? "date" : field.type === "time" ? "time" : field.type === "number" ? "number" : "text"}
+                          value={manualRow[field.source_header] ?? ""}
+                          onChange={(e) => setManualRow((prev) => ({ ...prev, [field.source_header]: e.target.value }))}
+                          placeholder={`Enter ${field.label.toLowerCase()}`}
+                          style={{
+                            width: "100%",
+                            fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                            fontWeight: 400,
+                            fontSize: 14,
+                            color: "var(--ink)",
+                            background: "transparent",
+                            border: 0,
+                            borderBottom: "2px solid var(--ink)",
+                            borderRadius: 0,
+                            padding: "8px 0",
+                            outline: "none",
+                          }}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ marginTop: 20, display: "flex", gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <SubmitButton
+                    label={`Add Row (${rows.length} added)`}
+                    submitting={false}
+                    onClick={() => {
+                      // Add current manual row to rows list
+                      const hasAnyValue = Object.values(manualRow).some((v) => v.trim());
+                      if (!hasAnyValue) return;
+                      setRows((prev) => [...prev, { ...manualRow }]);
+                      setManualRow({});
+                    }}
+                    disabled={!Object.values(manualRow).some((v) => v.trim())}
+                  />
+                </div>
+                {Object.values(manualRow).some((v) => v) && (
+                  <button
+                    type="button"
+                    onClick={() => setManualRow({})}
+                    style={{
+                      padding: "10px 16px",
+                      fontSize: 10,
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontWeight: 500,
+                      letterSpacing: "0.1em",
+                      textTransform: "uppercase",
+                      color: "var(--stone)",
+                      background: "none",
+                      border: "1px solid var(--rule)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {parseError && (
-            <p className="mt-2 text-[13px] text-red-600">{parseError}</p>
+            <p style={{ marginTop: 10, fontSize: 12, fontFamily: "var(--font-plex-mono), ui-monospace, monospace", color: "var(--error)" }}>{parseError}</p>
           )}
         </section>
 
         {/* ─── Column Mapping UI ─── */}
         {showMapping && (
-          <section className="mb-4 p-3 border border-amber-200 rounded-lg bg-amber-50">
-            <h3 className="text-[13px] font-semibold text-amber-800 mb-3">
+          <section style={{ marginBottom: 24, padding: 16, border: "1px solid var(--rule)", background: "var(--paper)" }}>
+            <h3 style={{
+              fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+              fontSize: 11,
+              fontWeight: 500,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              color: "var(--ink)",
+              marginBottom: 10,
+            }}>
               Column count mismatch — Map your columns
             </h3>
-            <p className="text-[12px] text-amber-700 mb-3">
+            <p style={{
+              fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+              fontSize: 11,
+              color: "var(--stone)",
+              marginBottom: 12,
+            }}>
               Your data has {parsedRaw[0]?.length ?? 0} columns but the sheet
               has {sheetHeaders.length}. Assign each parsed column to a sheet
               header:
             </p>
-            <div className="space-y-2">
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {columnMapping.map((mapped, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <span className="text-[12px] text-zinc-600 w-20 shrink-0">
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{
+                    fontSize: 11,
+                    fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                    color: "var(--charcoal)",
+                    width: 80,
+                    flexShrink: 0,
+                  }}>
                     Col {i + 1}
                     {parsedRaw[0]?.[i] && (
-                      <span className="text-zinc-400 ml-1">
+                      <span style={{ color: "var(--stone)", marginLeft: 4 }}>
                         ({parsedRaw[0][i].slice(0, 15)}
                         {(parsedRaw[0][i].length > 15) ? "…" : ""})
                       </span>
                     )}
                   </span>
                   <select
-                    className="flex-1 px-2 py-1.5 text-[13px] border border-zinc-200 rounded bg-white"
+                    style={{
+                      flex: 1,
+                      padding: "7px 10px",
+                      fontSize: 12,
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      border: "1px solid var(--rule)",
+                      borderRadius: 0,
+                      background: "var(--cream)",
+                      color: "var(--ink)",
+                    }}
                     value={mapped ?? ""}
                     onChange={(e) => {
                       const newMapping = [...columnMapping];
@@ -916,34 +1252,49 @@ function BulkEditInner() {
                 </div>
               ))}
             </div>
-            <button
-              type="button"
-              onClick={applyMapping}
-              className="mt-3 px-4 py-2 text-[12px] font-semibold uppercase tracking-wider bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 transition-colors"
-            >
-              Apply Mapping
-            </button>
+            <div style={{ marginTop: 14 }}>
+              <SubmitButton
+                label="Apply Mapping"
+                submitting={false}
+                onClick={applyMapping}
+              />
+            </div>
           </section>
         )}
 
         {/* ─── Step 3: Preview Grid + Bulk Apply ─── */}
         {rows.length > 0 && (
-          <section className="mb-4">
-            <h2 className="text-[13px] font-semibold text-zinc-500 uppercase tracking-wide mb-3">
-              3. Preview & Edit ({rows.length} rows)
-            </h2>
+          <section style={{ marginBottom: 24 }}>
+            <p style={{
+              fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+              fontWeight: 500,
+              fontSize: 10,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              color: "var(--stone)",
+              margin: "0 0 14px 0",
+            }}>
+              Preview & Edit ({rows.length} rows)
+            </p>
 
             {/* Bulk Apply Controls */}
             {(dateColumns.length > 0 || timeColumns.length > 0) && (
-              <div className="mb-4 p-3 border border-zinc-200 rounded-lg bg-white flex flex-wrap items-end gap-3">
-                <span className="text-[12px] font-medium text-zinc-600 uppercase tracking-wide">
+              <div style={{ marginBottom: 16, padding: 14, border: "1px solid var(--rule)", display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 12 }}>
+                <span style={{
+                  fontSize: 10,
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  fontWeight: 500,
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                  color: "var(--charcoal)",
+                }}>
                   Bulk Apply:
                 </span>
                 {dateColumns.length > 0 && (
-                  <div className="flex items-center gap-2">
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <input
                       type="date"
-                      className="px-2 py-1.5 text-[13px] border border-zinc-200 rounded bg-white"
+                      style={{ padding: "6px 8px", fontSize: 13, fontFamily: "var(--font-plex-mono), ui-monospace, monospace", border: "1px solid var(--rule)", borderRadius: 0, background: "var(--cream)", color: "var(--ink)" }}
                       value={bulkDate}
                       onChange={(e) => setBulkDate(e.target.value)}
                     />
@@ -951,17 +1302,29 @@ function BulkEditInner() {
                       type="button"
                       disabled={!bulkDate}
                       onClick={applyBulkDate}
-                      className="px-3 py-1.5 text-[11px] font-semibold uppercase bg-blue-600 text-white rounded disabled:opacity-40 hover:bg-blue-700 transition-colors"
+                      style={{
+                        padding: "6px 12px",
+                        fontSize: 10,
+                        fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                        fontWeight: 500,
+                        letterSpacing: "0.1em",
+                        textTransform: "uppercase",
+                        background: "var(--ink)",
+                        color: "var(--on-ink)",
+                        border: 0,
+                        cursor: "pointer",
+                        opacity: bulkDate ? 1 : 0.4,
+                      }}
                     >
                       Set Date
                     </button>
                   </div>
                 )}
                 {timeColumns.length > 0 && (
-                  <div className="flex items-center gap-2">
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <input
                       type="time"
-                      className="px-2 py-1.5 text-[13px] border border-zinc-200 rounded bg-white"
+                      style={{ padding: "6px 8px", fontSize: 13, fontFamily: "var(--font-plex-mono), ui-monospace, monospace", border: "1px solid var(--rule)", borderRadius: 0, background: "var(--cream)", color: "var(--ink)" }}
                       value={bulkTime}
                       onChange={(e) => setBulkTime(e.target.value)}
                     />
@@ -969,7 +1332,19 @@ function BulkEditInner() {
                       type="button"
                       disabled={!bulkTime}
                       onClick={applyBulkTime}
-                      className="px-3 py-1.5 text-[11px] font-semibold uppercase bg-blue-600 text-white rounded disabled:opacity-40 hover:bg-blue-700 transition-colors"
+                      style={{
+                        padding: "6px 12px",
+                        fontSize: 10,
+                        fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                        fontWeight: 500,
+                        letterSpacing: "0.1em",
+                        textTransform: "uppercase",
+                        background: "var(--ink)",
+                        color: "var(--on-ink)",
+                        border: 0,
+                        cursor: "pointer",
+                        opacity: bulkTime ? 1 : 0.4,
+                      }}
                     >
                       Set Time
                     </button>
@@ -979,29 +1354,71 @@ function BulkEditInner() {
             )}
 
             {/* Preview Table */}
-            <div className="border border-zinc-200 rounded-lg overflow-hidden bg-white">
-              <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
-                <table className="w-full text-[12px]">
-                  <thead className="sticky top-0 bg-zinc-50 border-b border-zinc-200 z-10">
+            <div style={{ border: "1px solid var(--rule)", overflow: "hidden" }}>
+              <div style={{ overflowX: "auto", maxHeight: 400, overflowY: "auto" }}>
+                <table style={{
+                  width: "100%",
+                  minWidth: sheetHeaders.length * 140,
+                  borderCollapse: "collapse",
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  fontSize: 12,
+                }}>
+                  <thead>
                     <tr>
-                      <th className="px-2 py-2 text-left text-zinc-500 font-medium w-10">
+                      <th style={{
+                        position: "sticky",
+                        top: 0,
+                        zIndex: 10,
+                        background: "var(--ink)",
+                        color: "var(--on-ink)",
+                        fontWeight: 500,
+                        fontSize: 10,
+                        letterSpacing: "0.06em",
+                        textTransform: "uppercase",
+                        padding: "10px 8px",
+                        textAlign: "center",
+                        borderRight: "1px solid rgba(255,255,255,0.1)",
+                        width: 40,
+                      }}>
                         #
                       </th>
-                      {sheetHeaders.map((h) => (
+                      {sheetHeaders.map((h, colIdx) => (
                         <th
                           key={h.key}
-                          className="px-2 py-2 text-left text-zinc-500 font-medium whitespace-nowrap"
+                          style={{
+                            position: "sticky",
+                            top: 0,
+                            zIndex: 10,
+                            background: "var(--ink)",
+                            color: "var(--on-ink)",
+                            fontWeight: 500,
+                            fontSize: 10,
+                            letterSpacing: "0.06em",
+                            textTransform: "uppercase",
+                            padding: "10px 12px",
+                            textAlign: "left",
+                            whiteSpace: "nowrap",
+                            borderRight: colIdx < sheetHeaders.length - 1 ? "1px solid rgba(255,255,255,0.1)" : "none",
+                            minWidth: 100,
+                          }}
                         >
                           {h.label}
                         </th>
                       ))}
-                      <th className="px-2 py-2 w-8"></th>
+                      <th style={{
+                        position: "sticky",
+                        top: 0,
+                        zIndex: 10,
+                        background: "var(--ink)",
+                        width: 32,
+                        padding: "10px 4px",
+                      }}></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-zinc-100">
+                  <tbody>
                     {rows.map((row, rowIdx) => (
-                      <tr key={rowIdx} className="hover:bg-zinc-50">
-                        <td className="px-2 py-1.5 text-zinc-400 font-mono">
+                      <tr key={rowIdx} style={{ borderBottom: "1px solid var(--rule)" }}>
+                        <td style={{ padding: "8px", textAlign: "center", color: "var(--stone)", fontSize: 11 }}>
                           {rowIdx + 1}
                         </td>
                         {sheetHeaders.map((h) => {
@@ -1012,11 +1429,11 @@ function BulkEditInner() {
                           return (
                             <td
                               key={h.key}
-                              className={`px-2 py-1.5 ${
-                                !cellValue
-                                  ? "bg-zinc-50"
-                                  : ""
-                              }`}
+                              style={{
+                                padding: "6px 10px",
+                                background: !cellValue ? "var(--paper)" : "transparent",
+                                cursor: "pointer",
+                              }}
                               onClick={() =>
                                 setEditingCell({
                                   row: rowIdx,
@@ -1028,7 +1445,17 @@ function BulkEditInner() {
                                 <input
                                   type="text"
                                   autoFocus
-                                  className="w-full px-1 py-0.5 text-[12px] border border-blue-400 rounded bg-white outline-none"
+                                  style={{
+                                    width: "100%",
+                                    padding: "3px 6px",
+                                    fontSize: 12,
+                                    fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                                    border: "1px solid var(--clay)",
+                                    borderRadius: 0,
+                                    background: "var(--cream)",
+                                    color: "var(--ink)",
+                                    outline: "none",
+                                  }}
                                   value={cellValue}
                                   onChange={(e) =>
                                     updateCell(
@@ -1044,24 +1471,32 @@ function BulkEditInner() {
                                   }}
                                 />
                               ) : (
-                                <span
-                                  className={`cursor-pointer ${
-                                    cellValue
-                                      ? "text-zinc-900"
-                                      : "text-zinc-300 italic"
-                                  }`}
-                                >
+                                <span style={{
+                                  color: cellValue ? "var(--ink)" : "var(--stone)",
+                                  fontStyle: cellValue ? "normal" : "italic",
+                                }}>
                                   {cellValue || "—"}
                                 </span>
                               )}
                             </td>
                           );
                         })}
-                        <td className="px-1 py-1.5">
+                        <td style={{ padding: "4px" }}>
                           <button
                             type="button"
                             onClick={() => deleteRow(rowIdx)}
-                            className="w-6 h-6 flex items-center justify-center text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                            style={{
+                              width: 24,
+                              height: 24,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              color: "var(--stone)",
+                              background: "none",
+                              border: 0,
+                              cursor: "pointer",
+                              fontSize: 14,
+                            }}
                             aria-label={`Delete row ${rowIdx + 1}`}
                           >
                             ×
@@ -1075,19 +1510,30 @@ function BulkEditInner() {
             </div>
 
             {/* Submit button */}
-            <div className="mt-4 flex items-center gap-3">
-              <button
-                type="button"
-                disabled={!rows.length || submitting}
-                onClick={handleSubmit}
-                className="px-6 py-2.5 text-[13px] font-semibold uppercase tracking-wider bg-emerald-700 text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-emerald-800 transition-colors"
-              >
-                Submit All ({rows.length} rows)
-              </button>
+            <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <SubmitButton
+                  label={`Submit All (${rows.length} rows)`}
+                  submitting={submitting}
+                  onClick={handleSubmit}
+                  disabled={!rows.length}
+                />
+              </div>
               <button
                 type="button"
                 onClick={() => setRows([])}
-                className="px-4 py-2.5 text-[13px] font-medium text-zinc-600 hover:text-zinc-900 transition-colors"
+                style={{
+                  padding: "10px 16px",
+                  fontSize: 11,
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  fontWeight: 500,
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                  color: "var(--stone)",
+                  background: "none",
+                  border: "1px solid var(--rule)",
+                  cursor: "pointer",
+                }}
               >
                 Clear
               </button>
@@ -1097,12 +1543,29 @@ function BulkEditInner() {
 
         {/* Success / Error messages */}
         {successMsg && (
-          <div className="mb-4 px-4 py-3 rounded-lg bg-emerald-50 border border-emerald-200 text-[13px] text-emerald-700 font-medium">
+          <div style={{
+            marginBottom: 20,
+            padding: "14px 16px",
+            border: "1px solid var(--rule)",
+            background: "var(--paper)",
+            fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+            fontSize: 12,
+            fontWeight: 500,
+            color: "var(--ink)",
+          }}>
             {successMsg}
           </div>
         )}
         {submitError && (
-          <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-[13px] text-red-700 font-medium">
+          <div style={{
+            marginBottom: 20,
+            padding: "14px 16px",
+            border: "1px solid var(--error)",
+            fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+            fontSize: 12,
+            fontWeight: 500,
+            color: "var(--error)",
+          }}>
             {submitError}
           </div>
         )}
