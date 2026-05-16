@@ -755,3 +755,18 @@ button:active:not(:disabled) {
    possible stage. The component already uses position:fixed; inset:0
    which is correct — nothing extra needed here. */
 
+/* ============================================================
+   Prevent iOS Safari Auto-Zoom
+   iOS Safari automatically zooms in when an input has a font-size
+   less than 16px. We force 16px on mobile for all inputs.
+   ============================================================ */
+@media (max-width: 768px) {
+  input, textarea, select,
+  [data-display="custom"] body input,
+  [data-display="custom"] body textarea,
+  [data-display="custom"] body select {
+    font-size: 16px !important;
+  }
+}
+
+
