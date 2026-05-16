@@ -158,10 +158,20 @@ function BulkEditInner() {
           setWorksheetName(tabs[0].worksheet_name);
           try {
             const { getSheetHistory } = await import("@/lib/api");
-            const hist = await getSheetHistory(url, tabs[0].worksheet_name);
+            let hist;
+            try {
+              hist = await getSheetHistory(url, tabs[0].worksheet_name);
+            } catch {
+              // Retry with null (let backend pick first tab)
+              hist = await getSheetHistory(url, null);
+            }
             setSheetHeaders(hist.fields);
-          } catch {
+            if (hist.worksheet_name) {
+              setWorksheetName(hist.worksheet_name);
+            }
+          } catch (histErr: any) {
             setSheetHeaders([]);
+            setSheetError(histErr?.message ?? "Could not read sheet headers");
           }
           setSheetReady(true);
         }
@@ -190,7 +200,12 @@ function BulkEditInner() {
         setSheetLoading(true);
         try {
           const { getSheetHistory } = await import("@/lib/api");
-          const result = await getSheetHistory(sheetUrl, tab.worksheet_name);
+          let result;
+          try {
+            result = await getSheetHistory(sheetUrl, tab.worksheet_name);
+          } catch {
+            result = await getSheetHistory(sheetUrl, null);
+          }
           setSheetHeaders(result.fields);
           setSheetReady(true);
         } catch {
@@ -220,10 +235,21 @@ function BulkEditInner() {
   const loadSheetData = useCallback(async () => {
     if (!sheetUrl || !sheetReady) return;
     setSheetDataLoading(true);
+    setSheetError(null);
     try {
       const { getSheetHistory } = await import("@/lib/api");
-      const result = await getSheetHistory(sheetUrl, worksheetName);
+      let result;
+      try {
+        result = await getSheetHistory(sheetUrl, worksheetName);
+      } catch {
+        // Retry with null worksheet (let backend pick first tab)
+        result = await getSheetHistory(sheetUrl, null);
+      }
       setSheetData(result.rows);
+      // Also update headers if we got them and current ones are empty
+      if (result.fields.length > 0 && sheetHeaders.length === 0) {
+        setSheetHeaders(result.fields);
+      }
       setDataMode("filter");
       setColumnFilters({});
     } catch (e: any) {
@@ -231,7 +257,7 @@ function BulkEditInner() {
     } finally {
       setSheetDataLoading(false);
     }
-  }, [sheetUrl, sheetReady, worksheetName]);
+  }, [sheetUrl, sheetReady, worksheetName, sheetHeaders.length]);
 
   // Unique values per column for filter dropdowns
   const columnUniqueValues = useMemo(() => {

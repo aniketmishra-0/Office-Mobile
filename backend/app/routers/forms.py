@@ -697,7 +697,7 @@ async def lookup_forms_by_sheet(sheet_url: str) -> dict:
                     try:
                         from app.services.sheets_client import read_headers_authenticated, read_headers_public
 
-                        def _make_reader(tab_name: str):
+                        def _make_reader(tab_name: str | None):
                             def _read_tab_headers():
                                 with oauth_session_context(_session_key):
                                     if _has_credentials():
@@ -707,7 +707,12 @@ async def lookup_forms_by_sheet(sheet_url: str) -> dict:
                                     return hdrs
                             return _read_tab_headers
 
-                        hdrs = await asyncio.to_thread(_make_reader(tab))
+                        try:
+                            hdrs = await asyncio.to_thread(_make_reader(tab))
+                        except Exception:
+                            # Tab name mismatch — retry with None (first worksheet)
+                            hdrs = await asyncio.to_thread(_make_reader(None))
+
                         live_fields_parsed, _ = headers_to_fields(hdrs, custom_keywords=[])
                         live_fields = [f.model_dump() for f in live_fields_parsed]
                         first_unsaved_read = True
