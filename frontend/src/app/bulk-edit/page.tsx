@@ -1212,6 +1212,12 @@ function BulkEditInner() {
           {/* Manual entry mode — form-fill style */}
           {dataMode === "manual" && (
             <div>
+              {(sheetDataLoading || !sheetData) && (
+                <p style={{ fontSize: 12, fontFamily: "var(--font-plex-mono), ui-monospace, monospace", color: "var(--stone)", margin: "0 0 16px 0" }}>
+                  Loading field options...
+                </p>
+              )}
+              {sheetData && (<>
               <p style={{
                 fontSize: 11,
                 fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
@@ -1422,6 +1428,7 @@ function BulkEditInner() {
                   </button>
                 )}
               </div>
+              </>)}
             </div>
           )}
 
