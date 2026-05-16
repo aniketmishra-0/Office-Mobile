@@ -8,6 +8,7 @@ import { safeBack } from "@/lib/navigation";
 import {
   batchAppendRows,
   listSavedSheets,
+  listWorksheets,
   lookupFormsBySheet,
 } from "@/lib/api";
 import type { FieldSchema } from "@/types/field";
@@ -63,6 +64,116 @@ function parseText(raw: string): string[][] {
 }
 
 // ---------------------------------------------------------------------------
+// Custom filter select component (replaces ugly native datalist)
+// ---------------------------------------------------------------------------
+
+function FilterSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (val: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  React.useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setSearch("");
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  const filtered = search
+    ? options.filter((o) => o.toLowerCase().includes(search.toLowerCase()))
+    : options;
+
+  return (
+    <div ref={ref} className="relative min-w-0">
+      <label className="block text-[9px] font-medium text-zinc-400 uppercase tracking-wider mb-0.5 pl-1">
+        {label}
+      </label>
+      <button
+        type="button"
+        onClick={() => { setOpen(!open); setSearch(""); }}
+        className={`w-full px-2 py-1.5 text-[11px] text-left border rounded flex items-center justify-between gap-1 ${
+          value
+            ? "border-emerald-400 bg-emerald-50 text-zinc-900"
+            : "border-zinc-200 bg-white text-zinc-500"
+        } focus:outline-none focus:ring-1 focus:ring-zinc-400`}
+      >
+        <span className="truncate">{value || "All"}</span>
+        {value ? (
+          <span
+            onClick={(e) => { e.stopPropagation(); onChange(""); setOpen(false); }}
+            className="text-zinc-400 hover:text-red-500 shrink-0 text-[13px] leading-none"
+          >
+            ×
+          </span>
+        ) : (
+          <svg className="w-3 h-3 shrink-0 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        )}
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 left-0 right-0 bg-white border border-zinc-200 rounded-lg shadow-lg overflow-hidden">
+          {options.length > 6 && (
+            <div className="p-1.5 border-b border-zinc-100">
+              <input
+                type="text"
+                autoFocus
+                placeholder="Search..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full px-2 py-1 text-[11px] border border-zinc-200 rounded bg-zinc-50 focus:outline-none focus:ring-1 focus:ring-zinc-300"
+              />
+            </div>
+          )}
+          <div className="max-h-[180px] overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => { onChange(""); setOpen(false); setSearch(""); }}
+              className={`w-full text-left px-3 py-1.5 text-[11px] hover:bg-zinc-50 transition-colors ${
+                !value ? "text-emerald-600 font-medium" : "text-zinc-500"
+              }`}
+            >
+              All
+            </button>
+            {filtered.map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => { onChange(opt); setOpen(false); setSearch(""); }}
+                className={`w-full text-left px-3 py-1.5 text-[11px] hover:bg-zinc-50 transition-colors ${
+                  opt === value ? "text-emerald-600 font-medium bg-emerald-50" : "text-zinc-700"
+                }`}
+              >
+                {opt}
+              </button>
+            ))}
+            {filtered.length === 0 && (
+              <p className="px-3 py-2 text-[11px] text-zinc-400 italic">No matches</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
@@ -82,6 +193,8 @@ function BulkEditInner() {
   const [availableTabs, setAvailableTabs] = useState<
     { worksheet_name: string | null; form_title: string; fields: FieldSchema[] }[] | null
   >(null);
+  // All worksheet tab names (for tab switcher)
+  const [allTabNames, setAllTabNames] = useState<string[]>([]);
 
   // Paste area
   const [pasteText, setPasteText] = useState("");
@@ -137,18 +250,41 @@ function BulkEditInner() {
     setSheetHeaders([]);
     setAvailableTabs(null);
     setWorksheetName(null);
+    setAllTabNames([]);
     try {
+      // Fetch all worksheet tab names
+      let tabNames: string[] = [];
+      try {
+        const wsResult = await listWorksheets(url);
+        tabNames = wsResult.items;
+        setAllTabNames(tabNames);
+      } catch {
+        // If listing fails, continue with lookupFormsBySheet
+      }
+
       const result = await lookupFormsBySheet(url);
       const tabs = result.items.map((item) => ({
         worksheet_name: item.worksheet_name,
         form_title: item.form_title,
         fields: item.fields,
       }));
-      if (!tabs.length) {
+
+      // If we have multiple actual tabs from listWorksheets, always show tab selection
+      if (tabNames.length > 1) {
+        // Build tab list from actual worksheet names, merging with form data
+        const mergedTabs = tabNames.map((name) => {
+          const existing = tabs.find((t) => t.worksheet_name === name);
+          return existing ?? { worksheet_name: name, form_title: name, fields: [] as FieldSchema[] };
+        });
+        setAvailableTabs(mergedTabs);
+        return;
+      }
+
+      if (!tabs.length && !tabNames.length) {
         setSheetError("No worksheets found in this sheet");
         return;
       }
-      if (tabs.length === 1) {
+      if (tabs.length === 1 && tabNames.length <= 1) {
         if (tabs[0].fields.length > 0) {
           setSheetHeaders(tabs[0].fields);
           setWorksheetName(tabs[0].worksheet_name);
@@ -191,6 +327,10 @@ function BulkEditInner() {
     async (tab: { worksheet_name: string | null; fields: FieldSchema[] }) => {
       setWorksheetName(tab.worksheet_name);
       setAvailableTabs(null);
+      setSheetData(null);
+      setColumnFilters({});
+      setRows([]);
+      setDataMode("paste");
 
       if (tab.fields.length > 0) {
         setSheetHeaders(tab.fields);
@@ -503,42 +643,71 @@ function BulkEditInner() {
 
           {/* Tab selection */}
           {availableTabs && (
-            <div className="mt-3 space-y-2">
-              <p className="text-[13px] text-zinc-600">
-                Multiple worksheets found. Select one:
+            <div className="mt-3 space-y-1">
+              <p className="text-[12px] text-zinc-500 mb-2">
+                Select a worksheet tab:
               </p>
-              {availableTabs.map((tab, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => selectTab(tab)}
-                  className="block w-full text-left px-4 py-3 border border-zinc-200 rounded-lg bg-white hover:bg-zinc-50 transition-colors"
-                >
-                  <span className="text-[14px] font-medium text-zinc-900">
-                    {tab.form_title || tab.worksheet_name || `Sheet ${i + 1}`}
-                  </span>
-                  <span className="ml-2 text-[12px] text-zinc-400">
-                    {tab.fields.length} columns
-                  </span>
-                </button>
-              ))}
+              <div className="flex flex-wrap gap-2">
+                {availableTabs.map((tab, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => selectTab(tab)}
+                    className="px-4 py-2.5 border border-zinc-200 rounded-lg bg-white hover:bg-zinc-50 hover:border-zinc-400 active:bg-zinc-100 transition-all shadow-sm"
+                  >
+                    <span className="text-[13px] font-medium text-zinc-900">
+                      {tab.form_title || tab.worksheet_name || `Sheet ${i + 1}`}
+                    </span>
+                    {tab.fields.length > 0 && (
+                      <span className="ml-2 text-[11px] text-zinc-400">
+                        ({tab.fields.length} cols)
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
           {sheetReady && (
-            <div className="mt-2 flex items-center gap-3">
-              <p className="text-[13px] text-emerald-600 font-medium">
-                ✓ Sheet loaded — {sheetHeaders.length} columns detected
-              </p>
-              <button
-                type="button"
-                disabled={sheetLoading}
-                onClick={() => loadSheet(sheetUrl)}
-                className="px-3 py-1 text-[11px] font-semibold uppercase tracking-wider border border-zinc-300 text-zinc-600 rounded-md hover:bg-zinc-200 hover:text-zinc-900 transition-colors disabled:opacity-40"
-                title="Refresh columns from sheet"
-              >
-                ↻ Refresh
-              </button>
+            <div className="mt-3 space-y-2">
+              <div className="flex items-center gap-3">
+                <p className="text-[13px] text-emerald-600 font-medium">
+                  ✓ Sheet loaded — {sheetHeaders.length} columns detected
+                </p>
+                <button
+                  type="button"
+                  disabled={sheetLoading}
+                  onClick={() => loadSheet(sheetUrl)}
+                  className="px-3 py-1 text-[11px] font-semibold uppercase tracking-wider border border-zinc-300 text-zinc-600 rounded-md hover:bg-zinc-200 hover:text-zinc-900 transition-colors disabled:opacity-40"
+                  title="Refresh columns from sheet"
+                >
+                  ↻ Refresh
+                </button>
+              </div>
+              {/* Tab switcher when multiple tabs available */}
+              {allTabNames.length > 1 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {allTabNames.map((name) => (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => {
+                        if (name !== worksheetName) {
+                          selectTab({ worksheet_name: name, fields: [] });
+                        }
+                      }}
+                      className={`px-3 py-1.5 text-[11px] font-medium rounded-md border transition-all ${
+                        name === worksheetName
+                          ? "bg-zinc-900 text-white border-zinc-900"
+                          : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50 hover:border-zinc-400"
+                      }`}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </section>
@@ -636,39 +805,23 @@ function BulkEditInner() {
                         </button>
                       )}
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2">
                       {sheetHeaders.map((field) => {
                         const uniqueVals = columnUniqueValues[field.key];
                         if (!uniqueVals) return null;
-                        const listId = `filter-list-${field.key}`;
                         return (
-                          <div key={field.key} className="min-w-[140px]">
-                            <label className="block text-[9px] font-medium text-zinc-400 uppercase tracking-wider mb-0.5 pl-1">
-                              {field.label}
-                            </label>
-                            <input
-                              type="text"
-                              list={listId}
-                              placeholder={`All`}
-                              value={columnFilters[field.key] ?? ""}
-                              onChange={(e) =>
-                                setColumnFilters((prev) => ({
-                                  ...prev,
-                                  [field.key]: e.target.value,
-                                }))
-                              }
-                              className={`w-full px-2 py-1.5 text-[11px] border rounded ${
-                                columnFilters[field.key]
-                                  ? "border-emerald-400 bg-emerald-50 text-zinc-900"
-                                  : "border-zinc-200 bg-white text-zinc-600"
-                              } focus:outline-none focus:ring-1 focus:ring-zinc-400`}
-                            />
-                            <datalist id={listId}>
-                              {uniqueVals.map((val) => (
-                                <option key={val} value={val} />
-                              ))}
-                            </datalist>
-                          </div>
+                          <FilterSelect
+                            key={field.key}
+                            label={field.label}
+                            value={columnFilters[field.key] ?? ""}
+                            options={uniqueVals}
+                            onChange={(val) =>
+                              setColumnFilters((prev) => ({
+                                ...prev,
+                                [field.key]: val,
+                              }))
+                            }
+                          />
                         );
                       })}
                     </div>
