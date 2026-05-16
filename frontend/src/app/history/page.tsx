@@ -571,7 +571,7 @@ function HistoryPageInner() {
                 );
                 const tsv = [header, ...dataRows].join("\n");
                 navigator.clipboard.writeText(tsv).then(() => {
-                  alert(`Copied ${matches.length} rows to clipboard!`);
+                  alert(`Copied ${matches.length} rows to clipboard!\nPaste in Bulk Edit.`);
                 }).catch(() => {
                   alert("Copy failed — try again");
                 });
