@@ -746,27 +746,6 @@ function BulkEditInner() {
       )}
 
       <div className="flex-1 w-full max-w-[700px] mx-auto px-5 pt-6 pb-10">
-        {/* Sheet info + tab switcher */}
-        <section className="mb-5">
-          {allTabNames.length > 1 && (
-            <div className="flex flex-wrap gap-1.5">
-              {allTabNames.map((name) => (
-                <button
-                  key={name}
-                  type="button"
-                  onClick={() => { if (name !== worksheetName) selectTab({ worksheet_name: name, fields: [] }); }}
-                  className={`px-3 py-1.5 text-[11px] font-medium rounded-md border transition-all ${
-                    name === worksheetName
-                      ? "bg-zinc-900 text-white border-zinc-900"
-                      : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50 hover:border-zinc-400"
-                  }`}
-                >
-                  {name}
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
 
         {/* Data Source */}
         <section className="mb-6">
