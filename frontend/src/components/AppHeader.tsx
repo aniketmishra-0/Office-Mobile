@@ -39,6 +39,7 @@ export default function AppHeader({
     name?: string | null;
     picture?: string | null;
   } | null>(null);
+  const [userLoading, setUserLoading] = useState(true);
   const [openMenu, setOpenMenu] = useState(false);
   // `menuVisible` keeps the menu in the DOM while the close animation
   // plays — mirroring the open animation so the card appears to retract
@@ -88,6 +89,7 @@ export default function AppHeader({
         if (!mounted) return;
         setUser(data.user ?? null);
       } catch {}
+      if (mounted) setUserLoading(false);
     }
     load();
     return () => {
@@ -158,9 +160,11 @@ export default function AppHeader({
               aria-label="Open account menu"
               aria-expanded={openMenu}
               onClick={(e) => { e.stopPropagation(); setOpenMenu((s) => !s); }}
-              className={`om-header__avatar ${openMenu ? "is-open" : ""}`}
+              className={`om-header__avatar ${openMenu ? "is-open" : ""} ${userLoading ? "is-loading" : ""}`}
             >
-              {user && user.picture ? (
+              {userLoading ? (
+                <span className="om-header__avatar-skeleton" aria-hidden />
+              ) : user && user.picture ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={user.picture} alt={displayName} />
               ) : (
@@ -416,6 +420,24 @@ export default function AppHeader({
         }
         .om-header__avatar-initials {
           display: inline-block;
+        }
+
+        /* Skeleton pulse while auth status loads */
+        .om-header__avatar.is-loading {
+          pointer-events: none;
+        }
+        .om-header__avatar-skeleton {
+          display: block;
+          width: 100%;
+          height: 100%;
+          border-radius: 50%;
+          background: linear-gradient(90deg, var(--rule) 25%, transparent 50%, var(--rule) 75%);
+          background-size: 200% 100%;
+          animation: omAvatarPulse 1.2s ease-in-out infinite;
+        }
+        @keyframes omAvatarPulse {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
         }
 
         /* Menu — opens to a compact editorial account card */

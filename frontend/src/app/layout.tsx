@@ -26,11 +26,12 @@ export const metadata: Metadata = {
   manifest: '/manifest.json',
   icons: {
     icon: [
-      { url: '/favicon.png', type: 'image/png', sizes: '32x32' },
+      { url: '/icon.svg', type: 'image/svg+xml' },
       { url: '/icons/icon-192.png', type: 'image/png', sizes: '192x192' },
       { url: '/icons/icon-512.png', type: 'image/png', sizes: '512x512' },
     ],
     apple: [
+      { url: '/apple-icon.svg', type: 'image/svg+xml' },
       { url: '/icons/icon-192.png', sizes: '192x192' },
       { url: '/icons/icon-512.png', sizes: '512x512' },
     ],

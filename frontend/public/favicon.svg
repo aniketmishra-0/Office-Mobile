@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 64 64">
+  <!-- Rounded ink tile -->
+  <rect x="0" y="0" width="64" height="64" rx="14" ry="14" fill="#1B1B1B"/>
+  <!-- Document body with fold -->
+  <g stroke="#EDEAE5" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" fill="none">
+    <path d="M18,19.5 L18,44.5 Q18,48 21.5,48 L42.5,48 Q46,48 46,44.5 L46,24 L40,16 L21.5,16 Q18,16 18,19.5 Z"/>
+    <line x1="40" y1="16" x2="46" y2="24"/>
+    <polyline points="40,16 40,24 46,24"/>
+  </g>
+  <!-- Text lines -->
+  <g stroke="#A8A29E" stroke-width="3" stroke-linecap="round">
+    <line x1="24" y1="34" x2="42" y2="34"/>
+    <line x1="24" y1="40" x2="38" y2="40"/>
+  </g>
+</svg>
