@@ -4,7 +4,7 @@ import asyncio
 import logging
 import uuid
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
@@ -89,9 +89,55 @@ def _safe_filename(original: str | None) -> str:
     return safe or "upload"
 
 
+def _safe_folder_name(name: str | None) -> str:
+    """Sanitize a folder name for Google Drive."""
+    if not name:
+        return "OfficeMobile Uploads"
+    safe = "".join(c for c in name if c.isalnum() or c in (" ", "-", "_", "."))
+    safe = safe.strip()[:100]
+    return safe or "OfficeMobile Uploads"
+
+
+def _get_or_create_folder(service, folder_name: str) -> str:
+    """Find an existing folder by name or create a new one. Returns folder ID."""
+    safe_name = _safe_folder_name(folder_name)
+
+    # Search for existing folder with this name
+    query = (
+        f"name = '{safe_name}' and "
+        "mimeType = 'application/vnd.google-apps.folder' and "
+        "trashed = false"
+    )
+    results = (
+        service.files()
+        .list(q=query, spaces="drive", fields="files(id, name)", pageSize=1)
+        .execute()
+    )
+    files = results.get("files", [])
+    if files:
+        return files[0]["id"]
+
+    # Create the folder
+    folder_metadata = {
+        "name": safe_name,
+        "mimeType": "application/vnd.google-apps.folder",
+    }
+    folder = (
+        service.files()
+        .create(body=folder_metadata, fields="id")
+        .execute()
+    )
+    return folder["id"]
+
+
 @router.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(
+    file: UploadFile = File(...),
+    folder_name: str | None = Form(default=None),
+):
     """Upload a file to Google Drive and return a shareable link.
+
+    Files are organized into a folder named after the sheet/form title.
 
     Enforces:
       - strict MIME allowlist
@@ -134,11 +180,17 @@ async def upload_file(file: UploadFile = File(...)):
     safe_name = _safe_filename(file.filename)
     unique_filename = f"officemobile_{uuid.uuid4().hex[:12]}_{safe_name}"
 
-    file_metadata = {"name": unique_filename}
-    media = MediaIoBaseUpload(file.file, mimetype=content_type, resumable=True)
+    # Create or find the folder for this sheet
+    file_metadata: dict = {"name": unique_filename}
 
     try:
         def _do_upload():
+            # Get or create folder named after the sheet
+            if folder_name:
+                folder_id = _get_or_create_folder(service, folder_name)
+                file_metadata["parents"] = [folder_id]
+
+            media = MediaIoBaseUpload(file.file, mimetype=content_type, resumable=True)
             uploaded_file = (
                 service.files()
                 .create(body=file_metadata, media_body=media, fields="id, webViewLink")

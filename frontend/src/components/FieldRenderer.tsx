@@ -771,7 +771,11 @@ function FileControl({
       formData.append("folder_name", folderName);
     }
     try {
-      const res = await fetch(`${API_BASE}/api/upload`, { method: "POST", body: formData, credentials: "include" });
+      const headers: Record<string, string> = {};
+      const sessionKey = typeof window !== "undefined" ? window.localStorage.getItem("om_session") : null;
+      if (sessionKey) headers["X-Session-Key"] = sessionKey;
+
+      const res = await fetch(`${API_BASE}/api/upload`, { method: "POST", body: formData, credentials: "include", headers });
       if (!res.ok) throw new Error("upload failed");
       const data = await res.json();
       if (!data.url) throw new Error("no url returned");
