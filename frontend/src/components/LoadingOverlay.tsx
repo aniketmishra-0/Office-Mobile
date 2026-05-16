@@ -19,7 +19,10 @@ export default function LoadingOverlay({ message }: Props) {
       aria-live="polite"
       style={{
         position: "fixed",
-        inset: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         zIndex: 50,
         display: "flex",
         flexDirection: "column",
@@ -27,6 +30,8 @@ export default function LoadingOverlay({ message }: Props) {
         justifyContent: "center",
         gap: 18,
         background: "var(--cream, #EDEAE5)",
+        width: "100vw",
+        height: "100dvh",
       }}
     >
       <svg
@@ -36,7 +41,7 @@ export default function LoadingOverlay({ message }: Props) {
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         aria-hidden="true"
-        style={{ display: "block" }}
+        style={{ display: "block", margin: "0 auto" }}
       >
         <defs>
           <linearGradient id="lo-beam" x1="0" y1="0" x2="1" y2="0">

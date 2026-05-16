@@ -16,6 +16,7 @@ interface Props {
   autofillColumns?: string[];
   onAutofillOpen?: () => void;
   onRetrySuggestions?: () => void;
+  folderName?: string;
 }
 
 export interface DynamicFormHandle {
@@ -33,6 +34,7 @@ const DynamicForm = forwardRef<DynamicFormHandle, Props>(function DynamicForm({
   autofillColumns = [],
   onAutofillOpen,
   onRetrySuggestions,
+  folderName,
 }, ref) {
   const sortedFields = useMemo(
     () => [...fields].sort((a, b) => a.order - b.order),

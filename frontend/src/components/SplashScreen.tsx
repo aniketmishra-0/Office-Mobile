@@ -13,7 +13,10 @@ export default function SplashScreen() {
     <div
       style={{
         position: "fixed",
-        inset: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         zIndex: 99999,
         display: "flex",
         flexDirection: "column",
@@ -21,6 +24,8 @@ export default function SplashScreen() {
         justifyContent: "center",
         gap: 24,
         background: "#EDEAE5",
+        width: "100vw",
+        height: "100dvh",
       }}
     >
       <svg
@@ -31,7 +36,7 @@ export default function SplashScreen() {
         xmlns="http://www.w3.org/2000/svg"
         aria-label="Loading Office Mobile"
         role="img"
-        style={{ display: "block" }}
+        style={{ display: "block", margin: "0 auto" }}
       >
         <defs>
           <linearGradient id="sp-beam" x1="0" y1="0" x2="1" y2="0">

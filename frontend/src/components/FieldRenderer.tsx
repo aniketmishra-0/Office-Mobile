@@ -3,6 +3,8 @@
 import React, { useId, useRef, useState } from "react";
 import type { FieldSchema } from "@/types/field";
 
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+
 interface Props {
   field: FieldSchema;
   value: string;
@@ -11,6 +13,7 @@ interface Props {
   onFocus?: (key: string) => void;
   error?: string;
   touched?: boolean;
+  folderName?: string;
 }
 
 /**
@@ -33,6 +36,7 @@ export default function FieldRenderer({
   onFocus,
   error,
   touched,
+  folderName,
 }: Props) {
   const id = useId();
   const [focused, setFocused] = useState(false);
@@ -65,6 +69,7 @@ export default function FieldRenderer({
           onFocus={handleFocus}
           onBlur={handleBlur}
           showError={showError}
+          folderName={folderName}
         />
       </div>
 
@@ -121,6 +126,7 @@ function FieldControl({
   onFocus,
   onBlur,
   showError,
+  folderName,
 }: {
   id: string;
   field: FieldSchema;
@@ -129,6 +135,7 @@ function FieldControl({
   onFocus: () => void;
   onBlur: () => void;
   showError: boolean;
+  folderName?: string;
 }) {
   const set = (v: string) => onChange(field.key, v);
 
@@ -196,6 +203,7 @@ function FieldControl({
           onChange={set}
           onFocus={onFocus}
           required={field.required}
+          folderName={folderName}
         />
       );
     default:
@@ -740,12 +748,14 @@ function FileControl({
   onChange,
   onFocus,
   required,
+  folderName,
 }: {
   id: string;
   value: string;
   onChange: (v: string) => void;
   onFocus: () => void;
   required?: boolean;
+  folderName?: string;
 }) {
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -757,8 +767,11 @@ function FileControl({
     setErr(null);
     const formData = new FormData();
     formData.append("file", file);
+    if (folderName) {
+      formData.append("folder_name", folderName);
+    }
     try {
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const res = await fetch(`${API_BASE}/api/upload`, { method: "POST", body: formData, credentials: "include" });
       if (!res.ok) throw new Error("upload failed");
       const data = await res.json();
       if (!data.url) throw new Error("no url returned");
