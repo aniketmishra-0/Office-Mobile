@@ -429,6 +429,22 @@ export async function updateSheetRow(payload: {
 }
 
 /**
+ * POST /api/sheet/batch-append
+ * Append multiple rows to a Google Sheet in a single batch operation.
+ */
+export async function batchAppendRows(payload: {
+  sheet_url: string;
+  worksheet_name?: string | null;
+  rows: Record<string, string>[];
+}): Promise<{ success: boolean; appended_count: number; updated_range: string | null }> {
+  return jsonRequest<{ success: boolean; appended_count: number; updated_range: string | null }>(
+    "POST",
+    "/sheet/batch-append",
+    payload,
+  );
+}
+
+/**
  * DELETE /api/forms/:id
  * Remove a form (requires edit token in body when applicable).
  */
