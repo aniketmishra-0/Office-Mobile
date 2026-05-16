@@ -1232,6 +1232,7 @@ function BulkEditInner() {
                   const hasDropdown = uniqueVals && uniqueVals.length > 0 && uniqueVals.length < 200;
                   const isBatchField = field.label.toLowerCase().includes("batch");
                   const isDateField = field.type === "date" || field.label.toLowerCase().includes("date");
+                  const isTimeField = field.type === "time" || field.label.toLowerCase().includes("time");
 
                   return (
                     <div key={field.key} style={{ padding: "14px 0", borderBottom: "1px solid var(--rule)" }}>
@@ -1293,6 +1294,27 @@ function BulkEditInner() {
                             will be saved as: {detectedDateFormat.toLowerCase()}
                           </p>
                         </div>
+                      ) : isTimeField ? (
+                        /* Time field — manual text input with AM/PM, no dropdown */
+                        <input
+                          type="text"
+                          value={manualRow[field.source_header] ?? ""}
+                          onChange={(e) => setManualRow((prev) => ({ ...prev, [field.source_header]: e.target.value }))}
+                          placeholder="e.g. Morning, Evening, 9:00 AM"
+                          style={{
+                            width: "100%",
+                            fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                            fontWeight: 400,
+                            fontSize: 14,
+                            color: "var(--ink)",
+                            background: "transparent",
+                            border: 0,
+                            borderBottom: "2px solid var(--ink)",
+                            borderRadius: 0,
+                            padding: "8px 0",
+                            outline: "none",
+                          }}
+                        />
                       ) : hasDropdown ? (
                         <MobileDropdown
                           value={manualRow[field.source_header] ?? ""}
