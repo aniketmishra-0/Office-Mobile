@@ -226,7 +226,8 @@ function HistoryPageInner() {
       filtered = filtered.filter((row) =>
         activeFilters.every(([key, val]) => {
           const cellValue = (row[key] ?? "").toLowerCase().trim();
-          return cellValue === val.toLowerCase().trim();
+          const filterVal = val.toLowerCase().trim();
+          return cellValue === filterVal || cellValue.includes(filterVal);
         })
       );
     }
@@ -654,9 +655,26 @@ function HistoryPageInner() {
                 {sortedFields.map((field) => {
                   const uniqueVals = columnUniqueValues[field.key];
                   if (!uniqueVals) return null;
+                  const listId = `hist-filter-${field.key}`;
                   return (
                     <div key={field.key} style={{ minWidth: 140 }}>
-                      <select
+                      <label style={{
+                        display: "block",
+                        fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                        fontSize: 9,
+                        fontWeight: 500,
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                        color: "var(--stone)",
+                        marginBottom: 2,
+                        paddingLeft: 2,
+                      }}>
+                        {field.label}
+                      </label>
+                      <input
+                        type="text"
+                        list={listId}
+                        placeholder="All"
                         value={columnFilters[field.key] ?? ""}
                         onChange={(e) => {
                           setColumnFilters((prev) => ({
@@ -673,16 +691,13 @@ function HistoryPageInner() {
                           border: columnFilters[field.key] ? "1px solid rgba(200, 98, 58, 0.4)" : "1px solid var(--rule)",
                           borderRadius: 4,
                           padding: "6px 8px",
-                          cursor: "pointer",
                         }}
-                      >
-                        <option value="">{field.label}</option>
+                      />
+                      <datalist id={listId}>
                         {uniqueVals.map((val) => (
-                          <option key={val} value={val}>
-                            {val.length > 30 ? val.slice(0, 30) + "…" : val}
-                          </option>
+                          <option key={val} value={val} />
                         ))}
-                      </select>
+                      </datalist>
                     </div>
                   );
                 })}

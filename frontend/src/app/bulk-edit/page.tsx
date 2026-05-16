@@ -258,7 +258,9 @@ function BulkEditInner() {
     return sheetData.filter((row) =>
       activeFilters.every(([key, val]) => {
         const cellValue = (row[key] ?? "").toLowerCase().trim();
-        return cellValue === val.toLowerCase().trim();
+        const filterVal = val.toLowerCase().trim();
+        // Support both exact match and contains match
+        return cellValue === filterVal || cellValue.includes(filterVal);
       })
     );
   }, [sheetData, columnFilters]);
@@ -612,29 +614,35 @@ function BulkEditInner() {
                       {sheetHeaders.map((field) => {
                         const uniqueVals = columnUniqueValues[field.key];
                         if (!uniqueVals) return null;
+                        const listId = `filter-list-${field.key}`;
                         return (
-                          <select
-                            key={field.key}
-                            value={columnFilters[field.key] ?? ""}
-                            onChange={(e) =>
-                              setColumnFilters((prev) => ({
-                                ...prev,
-                                [field.key]: e.target.value,
-                              }))
-                            }
-                            className={`px-2 py-1.5 text-[11px] border rounded min-w-[120px] ${
-                              columnFilters[field.key]
-                                ? "border-emerald-400 bg-emerald-50 text-zinc-900"
-                                : "border-zinc-200 bg-white text-zinc-500"
-                            }`}
-                          >
-                            <option value="">{field.label}</option>
-                            {uniqueVals.map((val) => (
-                              <option key={val} value={val}>
-                                {val.length > 35 ? val.slice(0, 35) + "…" : val}
-                              </option>
-                            ))}
-                          </select>
+                          <div key={field.key} className="min-w-[140px]">
+                            <label className="block text-[9px] font-medium text-zinc-400 uppercase tracking-wider mb-0.5 pl-1">
+                              {field.label}
+                            </label>
+                            <input
+                              type="text"
+                              list={listId}
+                              placeholder={`All`}
+                              value={columnFilters[field.key] ?? ""}
+                              onChange={(e) =>
+                                setColumnFilters((prev) => ({
+                                  ...prev,
+                                  [field.key]: e.target.value,
+                                }))
+                              }
+                              className={`w-full px-2 py-1.5 text-[11px] border rounded ${
+                                columnFilters[field.key]
+                                  ? "border-emerald-400 bg-emerald-50 text-zinc-900"
+                                  : "border-zinc-200 bg-white text-zinc-600"
+                              } focus:outline-none focus:ring-1 focus:ring-zinc-400`}
+                            />
+                            <datalist id={listId}>
+                              {uniqueVals.map((val) => (
+                                <option key={val} value={val} />
+                              ))}
+                            </datalist>
+                          </div>
                         );
                       })}
                     </div>
