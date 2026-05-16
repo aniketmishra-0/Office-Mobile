@@ -46,6 +46,7 @@ export default function Logo({
       <DocMark size={mark} />
       {showText && (
         <span
+          className="hidden sm:inline-block"
           style={{
             fontFamily: "var(--font-newsreader), Georgia, serif",
             fontWeight: 400,
