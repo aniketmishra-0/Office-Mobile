@@ -745,12 +745,12 @@ function BulkEditInner() {
         <LoadingOverlay message={submitting ? "Submitting rows..." : "Loading sheet..."} />
       )}
 
-      <div className="flex-1 w-full max-w-[700px] mx-auto px-5 pt-6 pb-10">
+      <div className="flex-1 w-full max-w-[700px] mx-auto px-3 pt-4 pb-6 sm:px-5">
 
         {/* Data Source */}
-        <section className="mb-6">
-          <h2 className="text-[13px] font-semibold text-zinc-500 uppercase tracking-wide mb-3">Choose Data Source</h2>
-          <div className="flex gap-2 mb-3">
+        <section className="mb-4">
+          <h2 className="text-[13px] font-semibold text-zinc-500 uppercase tracking-wide mb-2">Choose Data Source</h2>
+          <div className="flex gap-2 mb-2">
             <button type="button" onClick={() => setDataMode("paste")}
               className={`px-3 py-2 text-[11px] font-semibold uppercase tracking-wider rounded-md border transition-colors ${dataMode === "paste" ? "bg-zinc-900 text-white border-zinc-900" : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50"}`}>
               Paste Data
@@ -787,14 +787,14 @@ function BulkEditInner() {
               )}
 
               {sheetData && (
-                <div className="space-y-3">
-                  <p className="text-[12px] text-zinc-500">
+                <div className="space-y-2">
+                  <p className="text-[11px] text-zinc-500">
                     {sheetData.length.toLocaleString()} total rows loaded. Use filters to select rows:
                   </p>
 
-                  {/* Filter dropdowns */}
-                  <div className="p-3 border border-zinc-200 rounded-lg bg-white">
-                    <div className="flex items-center justify-between mb-2">
+                  {/* Filter dropdowns — scrollable on mobile */}
+                  <div className="p-3 border border-zinc-200 rounded-lg bg-white max-h-[55vh] overflow-y-auto">
+                    <div className="flex items-center justify-between mb-2 sticky top-0 bg-white pb-1 z-10">
                       <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wide">
                         Column Filters
                       </span>
@@ -828,33 +828,34 @@ function BulkEditInner() {
                         );
                       })}
                     </div>
-
-                    {Object.values(columnFilters).some((v) => v) && (
-                      <p className="mt-2 text-[12px] text-emerald-600 font-medium">
-                        {filteredSheetRows.length.toLocaleString()} rows match filters
-                      </p>
-                    )}
                   </div>
 
-                  {/* Use filtered rows button */}
-                  <button
-                    type="button"
-                    disabled={!filteredSheetRows.length}
-                    onClick={() => {
-                      // Convert filtered rows to use source_header keys for submission
-                      const mapped = filteredSheetRows.map((row) => {
-                        const newRow: Record<string, string> = {};
-                        sheetHeaders.forEach((h) => {
-                          newRow[h.source_header] = row[h.key] ?? "";
+                  {/* Match count + Use rows button — always visible */}
+                  <div className="flex items-center justify-between gap-3 sticky bottom-0 bg-zinc-100 py-2 -mx-3 px-3">
+                    {Object.values(columnFilters).some((v) => v) && (
+                      <p className="text-[12px] text-emerald-600 font-medium m-0">
+                        {filteredSheetRows.length.toLocaleString()} rows match
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      disabled={!filteredSheetRows.length}
+                      onClick={() => {
+                        // Convert filtered rows to use source_header keys for submission
+                        const mapped = filteredSheetRows.map((row) => {
+                          const newRow: Record<string, string> = {};
+                          sheetHeaders.forEach((h) => {
+                            newRow[h.source_header] = row[h.key] ?? "";
+                          });
+                          return newRow;
                         });
-                        return newRow;
-                      });
-                      setRows(mapped);
-                    }}
-                    className="px-4 py-2 text-[12px] font-semibold uppercase tracking-wider bg-zinc-900 text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-800 transition-colors"
-                  >
-                    Use {Object.values(columnFilters).some((v) => v) ? `Filtered (${filteredSheetRows.length})` : `All (${sheetData.length})`} Rows
-                  </button>
+                        setRows(mapped);
+                      }}
+                      className="px-4 py-2 text-[12px] font-semibold uppercase tracking-wider bg-zinc-900 text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-800 transition-colors ml-auto"
+                    >
+                      Use {Object.values(columnFilters).some((v) => v) ? `Filtered (${filteredSheetRows.length})` : `All (${sheetData.length})`} Rows
+                    </button>
+                  </div>
                 </div>
               )}
             </>
@@ -867,7 +868,7 @@ function BulkEditInner() {
 
         {/* ─── Column Mapping UI ─── */}
         {showMapping && (
-          <section className="mb-6 p-4 border border-amber-200 rounded-lg bg-amber-50">
+          <section className="mb-4 p-3 border border-amber-200 rounded-lg bg-amber-50">
             <h3 className="text-[13px] font-semibold text-amber-800 mb-3">
               Column count mismatch — Map your columns
             </h3>
@@ -919,7 +920,7 @@ function BulkEditInner() {
 
         {/* ─── Step 3: Preview Grid + Bulk Apply ─── */}
         {rows.length > 0 && (
-          <section className="mb-6">
+          <section className="mb-4">
             <h2 className="text-[13px] font-semibold text-zinc-500 uppercase tracking-wide mb-3">
               3. Preview & Edit ({rows.length} rows)
             </h2>
