@@ -133,6 +133,20 @@ def status(request: Request, response: Response) -> dict:
                         "name": claims.get("name"),
                         "picture": claims.get("picture"),
                     }
+
+                    # If the current session key is not the stable email-derived
+                    # key, migrate data and switch to the stable key so cross-device
+                    # sync works even for users who logged in before this change.
+                    email = claims.get("email")
+                    if email:
+                        import hashlib
+                        stable_key = "goog_" + hashlib.sha256(email.lower().encode()).hexdigest()[:32]
+                        if session_key != stable_key:
+                            form_store.migrate_session_key(session_key, stable_key)
+                            # Also copy the token to the stable key
+                            form_store.set_oauth_token(token, key=stable_key)
+                            session_key = stable_key
+                            _set_session_cookie(response, request, session_key)
             except Exception:
                 user = None
 
@@ -155,6 +169,16 @@ def status(request: Request, response: Response) -> dict:
                             "name": claims.get("name"),
                             "picture": claims.get("picture"),
                         }
+                        # Derive stable key from userinfo email too
+                        email = claims.get("email")
+                        if email:
+                            import hashlib
+                            stable_key = "goog_" + hashlib.sha256(email.lower().encode()).hexdigest()[:32]
+                            if session_key != stable_key:
+                                form_store.migrate_session_key(session_key, stable_key)
+                                form_store.set_oauth_token(token, key=stable_key)
+                                session_key = stable_key
+                                _set_session_cookie(response, request, session_key)
                 except Exception:
                     user = None
 
@@ -311,7 +335,36 @@ def google_callback(
             status_code=400,
         )
 
-    session_key = request.cookies.get(OAUTH_SESSION_COOKIE) or secrets.token_urlsafe(32)
+    # Derive a stable session key from the user's Google email so that the
+    # same account on different devices shares the same data (forms, saved
+    # sheets, etc.). Fall back to a random key if email extraction fails.
+    stable_key: str | None = None
+    idt = token.get("id_token")
+    if idt:
+        try:
+            parts = idt.split(".")
+            if len(parts) >= 2:
+                payload_b64 = parts[1]
+                rem = len(payload_b64) % 4
+                if rem:
+                    payload_b64 += "=" * (4 - rem)
+                decoded = base64.urlsafe_b64decode(payload_b64.encode())
+                claims = json.loads(decoded.decode())
+                email = claims.get("email")
+                if email:
+                    import hashlib
+                    stable_key = "goog_" + hashlib.sha256(email.lower().encode()).hexdigest()[:32]
+        except Exception:
+            pass
+
+    session_key = stable_key or request.cookies.get(OAUTH_SESSION_COOKIE) or secrets.token_urlsafe(32)
+
+    # If the user previously had a different (random) session key on this
+    # device, migrate their existing forms/saved-sheets to the new stable key.
+    old_key = request.cookies.get(OAUTH_SESSION_COOKIE)
+    if old_key and old_key != session_key:
+        form_store.migrate_session_key(old_key, session_key)
+
     form_store.set_oauth_token(token, key=session_key)
 
     # Close the popup and notify the opener window. We pin the targetOrigin

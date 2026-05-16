@@ -416,6 +416,36 @@ def clear_oauth_token(key: str | None = None) -> None:
     execute("DELETE FROM oauth_tokens WHERE key = %s", (resolved,))
 
 
+def migrate_session_key(old_key: str, new_key: str) -> None:
+    """Migrate forms, saved sheets, preferences, and oauth tokens from an old
+    random session key to the new stable (email-derived) key. This ensures
+    data created before the stable-key logic was deployed is not lost."""
+    if not old_key or not new_key or old_key == new_key:
+        return
+    # Migrate forms
+    execute(
+        "UPDATE forms SET oauth_key = %s WHERE oauth_key = %s",
+        (new_key, old_key),
+    )
+    # Migrate saved sheets
+    execute(
+        "UPDATE saved_sheets SET session_key = %s WHERE session_key = %s",
+        (new_key, old_key),
+    )
+    # Migrate user preferences
+    execute(
+        "UPDATE user_preferences SET session_key = %s WHERE session_key = %s AND NOT EXISTS (SELECT 1 FROM user_preferences WHERE session_key = %s)",
+        (new_key, old_key, new_key),
+    )
+    # Migrate oauth token (copy to new key if new key doesn't already have one)
+    existing = fetchone("SELECT key FROM oauth_tokens WHERE key = %s", (new_key,))
+    if not existing:
+        execute(
+            "UPDATE oauth_tokens SET key = %s WHERE key = %s",
+            (new_key, old_key),
+        )
+
+
 # ---------------------------------------------------------------------------
 # Dashboard stats
 # ---------------------------------------------------------------------------
