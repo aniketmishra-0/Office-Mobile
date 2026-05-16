@@ -86,6 +86,13 @@ function BulkEditInner() {
   // Paste area
   const [pasteText, setPasteText] = useState("");
 
+  // Sheet data loading (for filter mode)
+  const [sheetData, setSheetData] = useState<Record<string, string>[] | null>(null);
+  const [sheetDataLoading, setSheetDataLoading] = useState(false);
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [dataMode, setDataMode] = useState<"paste" | "filter">("paste");
+
   // Parsed rows
   const [rows, setRows] = useState<Record<string, string>[]>([]);
   const [parseError, setParseError] = useState<string | null>(null);
@@ -208,6 +215,53 @@ function BulkEditInner() {
     () => sheetHeaders.filter((f) => f.type === "time"),
     [sheetHeaders]
   );
+
+  // Load sheet data for filter mode
+  const loadSheetData = useCallback(async () => {
+    if (!sheetUrl || !sheetReady) return;
+    setSheetDataLoading(true);
+    try {
+      const { getSheetHistory } = await import("@/lib/api");
+      const result = await getSheetHistory(sheetUrl, worksheetName);
+      setSheetData(result.rows);
+      setDataMode("filter");
+      setColumnFilters({});
+    } catch (e: any) {
+      setSheetError(e?.message ?? "Failed to load sheet data");
+    } finally {
+      setSheetDataLoading(false);
+    }
+  }, [sheetUrl, sheetReady, worksheetName]);
+
+  // Unique values per column for filter dropdowns
+  const columnUniqueValues = useMemo(() => {
+    if (!sheetData || !sheetHeaders.length) return {};
+    const result: Record<string, string[]> = {};
+    for (const field of sheetHeaders) {
+      const valSet = new Set<string>();
+      for (const row of sheetData) {
+        const v = (row[field.key] ?? "").trim();
+        if (v) valSet.add(v);
+      }
+      if (valSet.size > 0 && valSet.size < 500) {
+        result[field.key] = [...valSet].sort((a, b) => a.localeCompare(b));
+      }
+    }
+    return result;
+  }, [sheetData, sheetHeaders]);
+
+  // Filtered rows from sheet data
+  const filteredSheetRows = useMemo(() => {
+    if (!sheetData) return [];
+    const activeFilters = Object.entries(columnFilters).filter(([, v]) => v);
+    if (!activeFilters.length) return sheetData;
+    return sheetData.filter((row) =>
+      activeFilters.every(([key, val]) => {
+        const cellValue = (row[key] ?? "").toLowerCase().trim();
+        return cellValue === val.toLowerCase().trim();
+      })
+    );
+  }, [sheetData, columnFilters]);
 
   // Parse pasted text
   const handleParse = useCallback(() => {
@@ -461,32 +515,161 @@ function BulkEditInner() {
           )}
         </section>
 
-        {/* ─── Step 2: Paste Area ─── */}
+        {/* ─── Step 2: Data Source ─── */}
         <section className="mb-6">
           <h2 className="text-[13px] font-semibold text-zinc-500 uppercase tracking-wide mb-3">
-            2. Paste Your Data
+            2. Choose Data Source
           </h2>
-          <textarea
-            className="w-full min-h-[160px] px-4 py-3 text-[13px] font-mono border border-zinc-200 rounded-lg bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-400 resize-y"
-            placeholder={"Paste rows here from Excel, WhatsApp, or any text source.\nTab-separated or comma-separated columns will be auto-detected.\n\nTip: Use 'Copy All' button from History page, or copy from Google Sheets directly."}
-            value={pasteText}
-            onChange={(e) => setPasteText(e.target.value)}
-          />
-          <div className="mt-2 flex items-center gap-3">
-            <button
-              type="button"
-              disabled={!pasteText.trim() || !sheetReady}
-              onClick={handleParse}
-              className="px-4 py-2 text-[12px] font-semibold uppercase tracking-wider bg-zinc-900 text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-800 transition-colors"
-            >
-              Parse & Preview
-            </button>
-            {!sheetReady && pasteText.trim() && (
-              <span className="text-[12px] text-amber-600">
-                Select a sheet first
-              </span>
-            )}
-          </div>
+
+          {/* Mode toggle */}
+          {sheetReady && (
+            <div className="flex gap-2 mb-3">
+              <button
+                type="button"
+                onClick={() => setDataMode("paste")}
+                className={`px-3 py-2 text-[11px] font-semibold uppercase tracking-wider rounded-md border transition-colors ${
+                  dataMode === "paste"
+                    ? "bg-zinc-900 text-white border-zinc-900"
+                    : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50"
+                }`}
+              >
+                Paste Data
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDataMode("filter");
+                  if (!sheetData) loadSheetData();
+                }}
+                className={`px-3 py-2 text-[11px] font-semibold uppercase tracking-wider rounded-md border transition-colors ${
+                  dataMode === "filter"
+                    ? "bg-zinc-900 text-white border-zinc-900"
+                    : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50"
+                }`}
+              >
+                Filter from Sheet
+              </button>
+            </div>
+          )}
+
+          {/* Paste mode */}
+          {dataMode === "paste" && (
+            <>
+              <textarea
+                className="w-full min-h-[160px] px-4 py-3 text-[13px] font-mono border border-zinc-200 rounded-lg bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-400 resize-y"
+                placeholder={"Paste rows here from Excel, WhatsApp, or any text source.\nTab-separated or comma-separated columns will be auto-detected.\n\nTip: Copy from Google Sheets directly."}
+                value={pasteText}
+                onChange={(e) => setPasteText(e.target.value)}
+              />
+              <div className="mt-2 flex items-center gap-3">
+                <button
+                  type="button"
+                  disabled={!pasteText.trim() || !sheetReady}
+                  onClick={handleParse}
+                  className="px-4 py-2 text-[12px] font-semibold uppercase tracking-wider bg-zinc-900 text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-800 transition-colors"
+                >
+                  Parse & Preview
+                </button>
+                {!sheetReady && pasteText.trim() && (
+                  <span className="text-[12px] text-amber-600">
+                    Select a sheet first
+                  </span>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Filter mode */}
+          {dataMode === "filter" && (
+            <>
+              {sheetDataLoading && (
+                <p className="text-[12px] text-zinc-500">Loading sheet data...</p>
+              )}
+
+              {sheetData && (
+                <div className="space-y-3">
+                  <p className="text-[12px] text-zinc-500">
+                    {sheetData.length.toLocaleString()} total rows loaded. Use filters to select rows:
+                  </p>
+
+                  {/* Filter dropdowns */}
+                  <div className="p-3 border border-zinc-200 rounded-lg bg-white">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wide">
+                        Column Filters
+                      </span>
+                      {Object.values(columnFilters).some((v) => v) && (
+                        <button
+                          type="button"
+                          onClick={() => setColumnFilters({})}
+                          className="text-[11px] text-zinc-400 underline hover:text-zinc-600"
+                        >
+                          Clear all
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {sheetHeaders.map((field) => {
+                        const uniqueVals = columnUniqueValues[field.key];
+                        if (!uniqueVals) return null;
+                        return (
+                          <select
+                            key={field.key}
+                            value={columnFilters[field.key] ?? ""}
+                            onChange={(e) =>
+                              setColumnFilters((prev) => ({
+                                ...prev,
+                                [field.key]: e.target.value,
+                              }))
+                            }
+                            className={`px-2 py-1.5 text-[11px] border rounded min-w-[120px] ${
+                              columnFilters[field.key]
+                                ? "border-emerald-400 bg-emerald-50 text-zinc-900"
+                                : "border-zinc-200 bg-white text-zinc-500"
+                            }`}
+                          >
+                            <option value="">{field.label}</option>
+                            {uniqueVals.map((val) => (
+                              <option key={val} value={val}>
+                                {val.length > 35 ? val.slice(0, 35) + "…" : val}
+                              </option>
+                            ))}
+                          </select>
+                        );
+                      })}
+                    </div>
+
+                    {Object.values(columnFilters).some((v) => v) && (
+                      <p className="mt-2 text-[12px] text-emerald-600 font-medium">
+                        {filteredSheetRows.length.toLocaleString()} rows match filters
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Use filtered rows button */}
+                  <button
+                    type="button"
+                    disabled={!filteredSheetRows.length}
+                    onClick={() => {
+                      // Convert filtered rows to use source_header keys for submission
+                      const mapped = filteredSheetRows.map((row) => {
+                        const newRow: Record<string, string> = {};
+                        sheetHeaders.forEach((h) => {
+                          newRow[h.source_header] = row[h.key] ?? "";
+                        });
+                        return newRow;
+                      });
+                      setRows(mapped);
+                    }}
+                    className="px-4 py-2 text-[12px] font-semibold uppercase tracking-wider bg-zinc-900 text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-800 transition-colors"
+                  >
+                    Use {Object.values(columnFilters).some((v) => v) ? `Filtered (${filteredSheetRows.length})` : `All (${sheetData.length})`} Rows
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+
           {parseError && (
             <p className="mt-2 text-[13px] text-red-600">{parseError}</p>
           )}
