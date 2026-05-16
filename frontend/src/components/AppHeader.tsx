@@ -140,7 +140,7 @@ export default function AppHeader({
       <div className="om-header__row">
         <div className="om-header__left">
           <a href="/" style={{ textDecoration: "none", display: "inline-flex" }}>
-            <Logo size="sm" showText={!title} />
+            <Logo size="xl" showText={!title} />
           </a>
         </div>
 

@@ -3,7 +3,7 @@
 import React from "react";
 
 interface LogoProps {
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
   showText?: boolean;
   stacked?: boolean;
 }
@@ -25,12 +25,14 @@ export default function Logo({
     sm: 16,
     md: 22,
     lg: 32,
+    xl: 34,
   }[size];
 
   const wordSize = {
     sm: 14,
     md: 18,
     lg: 26,
+    xl: 26,
   }[size];
 
   return (
