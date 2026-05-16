@@ -8,7 +8,7 @@ import LoadingOverlay from "@/components/LoadingOverlay";
 import MobileDropdown from "@/components/MobileDropdown";
 import SubmitButton from "@/components/SubmitButton";
 import type { FieldSchema } from "@/types/field";
-import { lookupFormsBySheet, getSheetSections } from "@/lib/api";
+import { lookupFormsBySheet, getSheetSections, updateSheetRow } from "@/lib/api";
 import { safeBack } from "@/lib/navigation";
 import { useStepHistory } from "@/lib/useStepHistory";
 
@@ -158,6 +158,11 @@ function MultiHeaderFilterInner() {
   const [selectedSections, setSelectedSections] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRow, setSelectedRow] = useState<{ sectionIdx: number; rowIdx: number; row: Record<string, string> } | null>(null);
+
+  // Edit mode state for row detail view
+  const [editMode, setEditMode] = useState(false);
+  const [editValues, setEditValues] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
 
   // Day-of-week column filter — empty means show all
   const ALL_DAYS = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
@@ -395,21 +400,25 @@ function MultiHeaderFilterInner() {
       if (!hasPrev) return;
       const prevIdx = rowIdx - 1;
       setSelectedRow({ sectionIdx, rowIdx: prevIdx, row: sectionRows[prevIdx] });
+      setEditMode(false);
+      setEditValues({});
     }
     function goToNext() {
       if (!hasNext) return;
       const nextIdx = rowIdx + 1;
       setSelectedRow({ sectionIdx, rowIdx: nextIdx, row: sectionRows[nextIdx] });
+      setEditMode(false);
+      setEditValues({});
     }
 
     return (
       <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", backgroundColor: "var(--cream)" }}>
-        <AppHeader title="Row Details" showBack onBack={() => setSelectedRow(null)} />
+        <AppHeader title="Row Details" showBack onBack={() => { setSelectedRow(null); setEditMode(false); setEditValues({}); }} />
         <div style={{ flex: 1, width: "100%", maxWidth: 700, margin: "0 auto", padding: "20px 16px 40px" }}>
           {/* Nav row */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-            <button onClick={goToPrev} disabled={!hasPrev}
-              style={{ width: 32, height: 32, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--rule)", background: "var(--paper)", cursor: hasPrev ? "pointer" : "not-allowed", opacity: hasPrev ? 1 : 0.3 }}
+            <button onClick={goToPrev} disabled={!hasPrev || editMode}
+              style={{ width: 32, height: 32, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--rule)", background: "var(--paper)", cursor: hasPrev && !editMode ? "pointer" : "not-allowed", opacity: hasPrev && !editMode ? 1 : 0.3 }}
               aria-label="Previous row">
               <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
@@ -419,8 +428,8 @@ function MultiHeaderFilterInner() {
               <strong>{rowIdx + 1}</strong> of <strong>{totalInSection}</strong>
               <span style={{ color: "var(--stone)", marginLeft: 8 }}>· Row {row._row_index ?? rowIdx + 1}</span>
             </p>
-            <button onClick={goToNext} disabled={!hasNext}
-              style={{ width: 32, height: 32, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--rule)", background: "var(--paper)", cursor: hasNext ? "pointer" : "not-allowed", opacity: hasNext ? 1 : 0.3 }}
+            <button onClick={goToNext} disabled={!hasNext || editMode}
+              style={{ width: 32, height: 32, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--rule)", background: "var(--paper)", cursor: hasNext && !editMode ? "pointer" : "not-allowed", opacity: hasNext && !editMode ? 1 : 0.3 }}
               aria-label="Next row">
               <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
@@ -428,24 +437,133 @@ function MultiHeaderFilterInner() {
             </button>
           </div>
 
+          {/* Edit / Save / Cancel buttons */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+            {!editMode ? (
+              <button
+                onClick={() => {
+                  // Initialize edit values from current row
+                  const initial: Record<string, string> = {};
+                  getVisibleFields(sortedFields).forEach((field) => {
+                    initial[field.key] = row[field.key] ?? "";
+                  });
+                  setEditValues(initial);
+                  setEditMode(true);
+                }}
+                style={{
+                  fontFamily: "var(--font-plex-mono), monospace", fontSize: 11, fontWeight: 500,
+                  padding: "8px 16px", borderRadius: 6, cursor: "pointer",
+                  border: "1px solid var(--ink)", background: "var(--ink)", color: "var(--cream)",
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                }}
+              >
+                <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                </svg>
+                Edit
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={async () => {
+                    const rowIndex = Number(row._row_index);
+                    if (!rowIndex || rowIndex < 2) {
+                      setError("Cannot determine row index for update");
+                      return;
+                    }
+                    setSaving(true);
+                    try {
+                      await updateSheetRow({
+                        sheet_url: sheetUrl,
+                        worksheet_name: loaded.worksheet_name,
+                        row_index: rowIndex,
+                        values: editValues,
+                      });
+                      // Update local state with new values
+                      const updatedRow = { ...row, ...editValues };
+                      setSelectedRow({ sectionIdx, rowIdx, row: updatedRow });
+                      // Also update the section data in loaded state
+                      setLoaded((prev) => {
+                        if (!prev) return prev;
+                        const newSections = [...prev.sections];
+                        const sec = { ...newSections[sectionIdx] };
+                        const newRows = [...sec.rows];
+                        // Find the actual row in the section by _row_index
+                        const actualIdx = newRows.findIndex((r) => r._row_index === row._row_index);
+                        if (actualIdx >= 0) {
+                          newRows[actualIdx] = updatedRow;
+                        }
+                        sec.rows = newRows;
+                        newSections[sectionIdx] = sec;
+                        return { ...prev, sections: newSections };
+                      });
+                      setEditMode(false);
+                      setEditValues({});
+                    } catch (e: any) {
+                      setError(e.message ?? "Failed to save changes");
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                  disabled={saving}
+                  style={{
+                    fontFamily: "var(--font-plex-mono), monospace", fontSize: 11, fontWeight: 500,
+                    padding: "8px 16px", borderRadius: 6, cursor: saving ? "not-allowed" : "pointer",
+                    border: "1px solid #27ae60", background: "#27ae60", color: "#fff",
+                    display: "inline-flex", alignItems: "center", gap: 6, opacity: saving ? 0.6 : 1,
+                  }}
+                >
+                  <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                  {saving ? "Saving..." : "Save"}
+                </button>
+                <button
+                  onClick={() => { setEditMode(false); setEditValues({}); }}
+                  disabled={saving}
+                  style={{
+                    fontFamily: "var(--font-plex-mono), monospace", fontSize: 11, fontWeight: 500,
+                    padding: "8px 16px", borderRadius: 6, cursor: "pointer",
+                    border: "1px solid var(--rule)", background: "var(--paper)", color: "var(--ink)",
+                  }}
+                >
+                  Cancel
+                </button>
+              </>
+            )}
+          </div>
+
           {/* 2-column fields grid */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, background: "var(--rule)", border: "1px solid var(--rule)", borderRadius: 10, overflow: "hidden" }}>
             {getVisibleFields(sortedFields).map((field) => {
-              const val = (row[field.key] ?? "").trim();
-              const isFilled = !!val;
+              const val = editMode ? (editValues[field.key] ?? "") : (row[field.key] ?? "").trim();
               return (
                 <div key={field.key} style={{ padding: "14px 16px", background: "var(--paper)", display: "flex", flexDirection: "column", gap: 4 }}>
                   <span style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 9, fontWeight: 500, color: "var(--stone)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     {field.label || field.source_header || field.key}
                   </span>
-                  <p style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 14, color: val ? "var(--ink)" : "var(--clay)", fontWeight: val ? 500 : 400, margin: 0, fontStyle: val ? "normal" : "italic", wordBreak: "break-word" }}>
-                    {val || "—"}
-                  </p>
+                  {editMode ? (
+                    <input
+                      type="text"
+                      value={editValues[field.key] ?? ""}
+                      onChange={(e) => setEditValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                      style={{
+                        fontFamily: "var(--font-plex-mono), monospace", fontSize: 13, color: "var(--ink)",
+                        background: "var(--cream)", border: "1px solid var(--rule)", borderRadius: 4,
+                        padding: "6px 8px", outline: "none", width: "100%",
+                      }}
+                    />
+                  ) : (
+                    <p style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 14, color: val ? "var(--ink)" : "var(--clay)", fontWeight: val ? 500 : 400, margin: 0, fontStyle: val ? "normal" : "italic", wordBreak: "break-word" }}>
+                      {val || "—"}
+                    </p>
+                  )}
                 </div>
               );
             })}
           </div>
         </div>
+        {saving && <LoadingOverlay message="Saving changes..." />}
         {error && <ErrorToast message={error} onDismiss={() => setError(null)} />}
       </div>
     );
