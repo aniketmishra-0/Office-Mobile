@@ -770,3 +770,84 @@ button:active:not(:disabled) {
 }
 
 
+
+/* ============================================================
+   Multi-Header Filter — Mobile-first responsive layout
+   Stacks controls vertically on mobile, goes horizontal on desktop.
+   ============================================================ */
+
+/* Controls container — vertical stack by default */
+.mhf-controls-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Dropdowns row — full width stacked on mobile */
+.mhf-dropdowns-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mhf-dropdown-item {
+  width: 100%;
+}
+
+/* Search row */
+.mhf-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Days row */
+.mhf-days-row {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mhf-days-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ─── Tablet+ (768px) — dropdowns side by side, search below ─── */
+@media (min-width: 768px) {
+  .mhf-dropdowns-row {
+    flex-direction: row;
+    gap: 10px;
+  }
+  .mhf-dropdown-item {
+    flex: 1;
+    min-width: 0;
+    max-width: 300px;
+  }
+  .mhf-search-row {
+    max-width: 400px;
+  }
+}
+
+/* ─── Desktop (1024px) — all in one row ─── */
+@media (min-width: 1024px) {
+  .mhf-controls-row {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .mhf-dropdowns-row {
+    flex: 0 0 auto;
+  }
+  .mhf-dropdown-item {
+    max-width: 250px;
+  }
+  .mhf-search-row {
+    flex: 1;
+    min-width: 180px;
+    max-width: 280px;
+  }
+}
