@@ -8,7 +8,7 @@ import LoadingOverlay from "@/components/LoadingOverlay";
 import MobileDropdown from "@/components/MobileDropdown";
 import SubmitButton from "@/components/SubmitButton";
 import type { FieldSchema } from "@/types/field";
-import { lookupFormsBySheet, getSheetSections, updateSheetRow } from "@/lib/api";
+import { lookupFormsBySheet, getSheetSections, updateSheetRow, checkSheetAccess } from "@/lib/api";
 import { safeBack } from "@/lib/navigation";
 import { useStepHistory } from "@/lib/useStepHistory";
 
@@ -163,6 +163,10 @@ function MultiHeaderFilterInner() {
   const [editMode, setEditMode] = useState(false);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [hasEditAccess, setHasEditAccess] = useState(false);
+
+  // Hidden columns — user can hide specific columns via multi-select
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
 
   // Day-of-week column filter — empty means show all
   const ALL_DAYS = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
@@ -178,18 +182,27 @@ function MultiHeaderFilterInner() {
     });
   };
 
-  // Filter fields based on selected days
+  // Filter fields based on selected days and hidden columns
   const getVisibleFields = (fields: FieldSchema[]) => {
-    if (visibleDays.length === 0) return fields; // no filter = show all
-    return fields.filter((f) => {
-      const header = (f.source_header || f.label || f.key).toUpperCase().trim();
-      // If this field IS a day column, only show it if it's in visibleDays
-      if (ALL_DAYS.includes(header)) {
-        return visibleDays.includes(header);
-      }
-      // Non-day columns always show
-      return true;
-    });
+    let filtered = fields;
+
+    // Hide user-selected columns
+    if (hiddenColumns.length > 0) {
+      filtered = filtered.filter((f) => !hiddenColumns.includes(f.key));
+    }
+
+    // Day filter
+    if (visibleDays.length > 0) {
+      filtered = filtered.filter((f) => {
+        const header = (f.source_header || f.label || f.key).toUpperCase().trim();
+        if (ALL_DAYS.includes(header)) {
+          return visibleDays.includes(header);
+        }
+        return true;
+      });
+    }
+
+    return filtered;
   };
 
   // Detect if the sheet actually has day columns
@@ -243,9 +256,14 @@ function MultiHeaderFilterInner() {
   async function selectTab(tab: TabOption, sheet_url?: string) {
     setAvailableTabs(null); setLoading(true); setError(null);
     try {
-      const data = await getSheetSections(sheet_url ?? sheetUrl, tab.worksheet_name);
+      const effectiveUrl = sheet_url ?? sheetUrl;
+      const data = await getSheetSections(effectiveUrl, tab.worksheet_name);
       setLoaded({ worksheet_name: data.worksheet_name, fields: data.fields, sections: data.sections });
       if (data.sections.length > 0) setSelectedSections([0]);
+      // Check edit access in background (non-blocking)
+      checkSheetAccess(effectiveUrl)
+        .then((access) => setHasEditAccess(access.edit))
+        .catch(() => setHasEditAccess(false));
     } catch (e: any) { setError(e.message ?? "Failed to load data"); }
     finally { setLoading(false); }
   }
@@ -440,6 +458,7 @@ function MultiHeaderFilterInner() {
           {/* Edit / Save / Cancel buttons */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
             {!editMode ? (
+              hasEditAccess && (
               <button
                 onClick={() => {
                   // Initialize edit values from current row
@@ -462,6 +481,7 @@ function MultiHeaderFilterInner() {
                 </svg>
                 Edit
               </button>
+              )
             ) : (
               <>
                 <button
@@ -623,6 +643,19 @@ function MultiHeaderFilterInner() {
                 onMultiChange={(values) => setSelectedSections(values.map(Number))}
                 maxSelect={MAX_OPEN}
                 placeholder={`Select date section (max ${MAX_OPEN})...`}
+              />
+            </div>
+            <div style={{ flex: 1, minWidth: 0, maxWidth: 250 }}>
+              <MobileDropdown
+                multiple
+                size="sm"
+                selectedValues={hiddenColumns}
+                options={sortedFields.map((f) => ({
+                  value: f.key,
+                  label: f.source_header || f.label || f.key,
+                }))}
+                onMultiChange={(values) => setHiddenColumns(values)}
+                placeholder="Hide columns..."
               />
             </div>
             <div style={{ position: "relative", flex: 1, minWidth: 120, maxWidth: 220 }}>
