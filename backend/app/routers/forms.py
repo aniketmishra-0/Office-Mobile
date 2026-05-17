@@ -128,6 +128,8 @@ async def create_sheet(payload: CreateSheetRequest) -> CreateSheetResponse:
         try:
             spreadsheet = client.create(payload.form_title)
             worksheet = spreadsheet.sheet1
+            if payload.worksheet_name:
+                worksheet.update_title(payload.worksheet_name)
             headers = [field.source_header for field in payload.fields]
             worksheet.update("A1", [headers], value_input_option="RAW")
         except Exception as exc:
@@ -337,6 +339,7 @@ async def create_form(payload: CreateFormRequest) -> CreateFormResponse:
             fields=payload.fields,
             custom_keywords=payload.custom_keywords,
             autofill_columns=payload.autofill_columns,
+            ui_config=payload.ui_config,
             oauth_key=oauth_key,
         )
     )
@@ -799,8 +802,9 @@ async def get_public_form(form_id: str) -> PublicFormResponse:
         id=record["id"],
         form_title=record["form_title"],
         worksheet_name=record.get("worksheet_name"),
-        fields=record["fields"],
-        autofill_columns=record.get("autofill_columns", []),
+        fields=[FieldSchema(**f.model_dump()) for f in record["fields"]],
+        autofill_columns=record.get("autofill_columns") or [],
+        ui_config=record.get("ui_config"),
     )
 
 
@@ -864,11 +868,12 @@ async def get_edit_form(
         id=record["id"],
         sheet_url=record["sheet_url"],
         spreadsheet_id=record["spreadsheet_id"],
-        worksheet_name=record["worksheet_name"],
+        worksheet_name=record.get("worksheet_name"),
         form_title=record["form_title"],
-        fields=record["fields"],
-        custom_keywords=record["custom_keywords"],
-        autofill_columns=record.get("autofill_columns", []),
+        fields=[FieldSchema(**f.model_dump()) for f in record["fields"]],
+        custom_keywords=[CustomKeywordRule(**kw.model_dump()) for kw in record["custom_keywords"]],
+        autofill_columns=record.get("autofill_columns") or [],
+        ui_config=record.get("ui_config"),
     )
 
 
@@ -888,6 +893,7 @@ async def update_form(form_id: str, payload: UpdateFormRequest) -> UpdateFormRes
             fields=payload.fields,
             custom_keywords=payload.custom_keywords,
             autofill_columns=payload.autofill_columns,
+            ui_config=payload.ui_config,
         )
     )
     if updated is None:

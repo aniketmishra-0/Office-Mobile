@@ -30,6 +30,7 @@ class PreviewResponse(BaseModel):
 
 class CreateSheetRequest(BaseModel):
     form_title: str = Field(default="Untitled Form", min_length=1, max_length=120)
+    worksheet_name: str | None = Field(default=None, max_length=100)
     fields: list[FieldSchema]
 
 
@@ -47,6 +48,7 @@ class CreateFormRequest(BaseModel):
     fields: list[FieldSchema]
     custom_keywords: list[CustomKeywordRule] = Field(default_factory=list)
     autofill_columns: list[str] = Field(default_factory=list, max_length=5)
+    ui_config: dict | None = None
 
 
 class CreateFormResponse(BaseModel):
@@ -62,6 +64,7 @@ class PublicFormResponse(BaseModel):
     worksheet_name: str | None = None
     fields: list[FieldSchema]
     autofill_columns: list[str] = Field(default_factory=list)
+    ui_config: dict | None = None
 
 
 class EditFormResponse(BaseModel):
@@ -73,6 +76,7 @@ class EditFormResponse(BaseModel):
     fields: list[FieldSchema]
     custom_keywords: list[CustomKeywordRule]
     autofill_columns: list[str] = Field(default_factory=list)
+    ui_config: dict | None = None
 
 
 class UpdateFormRequest(BaseModel):
@@ -81,6 +85,7 @@ class UpdateFormRequest(BaseModel):
     fields: list[FieldSchema]
     custom_keywords: list[CustomKeywordRule] = Field(default_factory=list)
     autofill_columns: list[str] = Field(default_factory=list, max_length=5)
+    ui_config: dict | None = None
 
 
 class UpdateFormResponse(BaseModel):
