@@ -131,10 +131,27 @@ function DataFillPageInner() {
       setAccessStatus(null);
       return;
     }
+
+    // Fast path: check sessionStorage cache (2-min TTL)
+    const cacheKey = `om_access_${formInput.trim()}`;
+    try {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        const { result, ts } = JSON.parse(cached);
+        if (Date.now() - ts < 120_000) {
+          if (!result.read) setAccessStatus("none");
+          else if (!result.edit) setAccessStatus("read");
+          else setAccessStatus("edit");
+          return;
+        }
+      }
+    } catch {}
+
     setAccessStatus("checking");
     const timer = setTimeout(async () => {
       try {
         const status = await checkSheetAccess(formInput);
+        try { sessionStorage.setItem(cacheKey, JSON.stringify({ result: status, ts: Date.now() })); } catch {}
         if (!status.read) {
           setAccessStatus("none");
         } else if (!status.edit) {
@@ -145,7 +162,7 @@ function DataFillPageInner() {
       } catch {
         setAccessStatus("none");
       }
-    }, 500);
+    }, 100);
     return () => clearTimeout(timer);
   }, [formInput, urlValid]);
 

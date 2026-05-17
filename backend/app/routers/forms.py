@@ -195,7 +195,16 @@ async def get_sheet_access(sheet_url: str) -> dict:
 
     from app.services.sheets_client import check_sheet_access
 
-    return await asyncio.to_thread(check_sheet_access, spreadsheet_id)
+    # Capture session key before entering thread — ContextVars don't propagate
+    # to asyncio.to_thread automatically. Without this, the thread cannot find
+    # the user's OAuth token and falls back to the service account only.
+    _session_key = get_current_oauth_session_key()
+
+    def _check():
+        with oauth_session_context(_session_key):
+            return check_sheet_access(spreadsheet_id)
+
+    return await asyncio.to_thread(_check)
 
 
 @router.get("/sheet/protected-columns")

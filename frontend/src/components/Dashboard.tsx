@@ -183,11 +183,27 @@ export default function Dashboard() {
       return;
     }
 
+    // Fast path: check sessionStorage cache (2-min TTL)
+    const cacheKey = `om_access_${sheetUrl.trim()}`;
+    try {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        const { result, ts } = JSON.parse(cached);
+        if (Date.now() - ts < 120_000) {
+          if (!result.read) setAccessStatus("none");
+          else if (!result.edit) setAccessStatus("read");
+          else setAccessStatus("edit");
+          return;
+        }
+      }
+    } catch {}
+
     setAccessStatus("checking");
     const timer = setTimeout(async () => {
       try {
         const { checkSheetAccess } = await import("@/lib/api");
         const status = await checkSheetAccess(sheetUrl);
+        try { sessionStorage.setItem(cacheKey, JSON.stringify({ result: status, ts: Date.now() })); } catch {}
         if (!status.read) {
           setAccessStatus("none");
         } else if (!status.edit) {
@@ -198,7 +214,7 @@ export default function Dashboard() {
       } catch (e) {
         setAccessStatus("none");
       }
-    }, 500); // 500ms debounce
+    }, 100);
 
     return () => clearTimeout(timer);
   }, [sheetUrl, urlValid]);
