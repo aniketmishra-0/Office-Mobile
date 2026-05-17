@@ -88,6 +88,7 @@ def init_db() -> None:
                 cur.execute(stmt)
             # Safe migration
             cur.execute("ALTER TABLE forms ADD COLUMN IF NOT EXISTS ui_config_json JSONB DEFAULT '{}'::jsonb")
+            cur.execute("ALTER TABLE forms ADD COLUMN IF NOT EXISTS autofill_columns_json JSONB DEFAULT '[]'::jsonb")
 
 
 # ---------------------------------------------------------------------------
