@@ -300,53 +300,185 @@ function LoadPageInner() {
 
   // ─── Date/Month detection ─────────────────────────────────────────
   // Strategy: detect months from section titles first. If that yields nothing,
-  // fall back to scanning row-level date columns.
+  // fall back to scanning row-level date columns. Handles ALL common date formats:
+  // DD/MM/YYYY, MM/DD/YYYY, YYYY-MM-DD, DD-Mon-YYYY, Mon DD YYYY, DDMMYY, MMDDYY, etc.
   const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const MONTH_FULL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-  // Detect date columns from row data (sample first 30 rows)
+  const MONTH_ABBRS: Record<string, number> = {
+    jan: 0, january: 0, feb: 1, february: 1, mar: 2, march: 2,
+    apr: 3, april: 3, may: 4, jun: 5, june: 5, jul: 6, july: 6,
+    aug: 7, august: 7, sep: 8, sept: 8, september: 8, oct: 9, october: 9,
+    nov: 10, november: 10, dec: 11, december: 11,
+  };
+
+  // Check if a string looks like a date (any format)
+  function looksLikeDate(val: string): boolean {
+    if (!val) return false;
+    const v = val.trim();
+    // DD/MM/YYYY, MM/DD/YYYY, DD-MM-YYYY, DD.MM.YYYY (with separators)
+    if (/^\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}$/.test(v)) return true;
+    // YYYY-MM-DD, YYYY/MM/DD
+    if (/^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}$/.test(v)) return true;
+    // DD-Mon-YYYY, DD Mon YYYY, D-Mon-YY (e.g. "09-Feb-2026", "9 Feb 26")
+    if (/^\d{1,2}[\s\-.](jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\w*[\s\-.,]+\d{2,4}$/i.test(v)) return true;
+    // Mon DD, YYYY or Mon-DD-YYYY (e.g. "Feb 9, 2026", "February 9 2026")
+    if (/^(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\w*[\s\-.]+\d{1,2}[\s,\-.]+\d{2,4}$/i.test(v)) return true;
+    // Mon DD or DD Mon (without year, e.g. "Feb 9", "9 Feb")
+    if (/^\d{1,2}[\s\-](jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\w*$/i.test(v)) return true;
+    if (/^(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\w*[\s\-]\d{1,2}$/i.test(v)) return true;
+    // DDMMYYYY or MMDDYYYY (8 digits, no separator)
+    if (/^\d{8}$/.test(v)) return true;
+    // DDMMYY or MMDDYY (6 digits, no separator)
+    if (/^\d{6}$/.test(v)) return true;
+    // DD/MM/YY or MM/DD/YY (2-digit year)
+    if (/^\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2}$/.test(v)) return true;
+    return false;
+  }
+
+  // Parse a date string flexibly — handles virtually every common format.
+  // For ambiguous numeric formats (DD/MM vs MM/DD), assumes DD/MM (Indian convention).
+  function parseDate(val: string): Date | null {
+    if (!val) return null;
+    const v = val.trim();
+
+    // 1. DD-Mon-YYYY, DD Mon YYYY, D-Mon-YY (e.g. "09-Feb-2026", "9 Feb 26")
+    const dMonY = v.match(/^(\d{1,2})[\s\-.](jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\w*[\s\-.,]+(\d{2,4})$/i);
+    if (dMonY) {
+      const day = parseInt(dMonY[1]);
+      const monthIdx = MONTH_ABBRS[dMonY[2].toLowerCase().slice(0, 3)] ?? MONTH_ABBRS[dMonY[2].toLowerCase()];
+      const year = parseInt(dMonY[3]) < 100 ? 2000 + parseInt(dMonY[3]) : parseInt(dMonY[3]);
+      if (monthIdx !== undefined && day >= 1 && day <= 31) {
+        return new Date(year, monthIdx, day);
+      }
+    }
+
+    // 2. Mon DD, YYYY or Mon DD YYYY (e.g. "Feb 9, 2026", "February 9 2026")
+    const monDY = v.match(/^(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\w*[\s\-.]+(\d{1,2})[\s,\-.]+(\d{2,4})$/i);
+    if (monDY) {
+      const monthIdx = MONTH_ABBRS[monDY[1].toLowerCase()];
+      const day = parseInt(monDY[2]);
+      const year = parseInt(monDY[3]) < 100 ? 2000 + parseInt(monDY[3]) : parseInt(monDY[3]);
+      if (monthIdx !== undefined && day >= 1 && day <= 31) {
+        return new Date(year, monthIdx, day);
+      }
+    }
+
+    // 3. YYYY-MM-DD or YYYY/MM/DD (ISO-like)
+    const iso = v.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    if (iso) {
+      const year = parseInt(iso[1]);
+      const month = parseInt(iso[2]) - 1;
+      const day = parseInt(iso[3]);
+      if (year > 1990 && year < 2100 && month >= 0 && month < 12 && day >= 1 && day <= 31) {
+        return new Date(year, month, day);
+      }
+    }
+
+    // 4. DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY (with separators, assumes DD/MM for Indian format)
+    const dmy = v.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+    if (dmy) {
+      let a = parseInt(dmy[1]);
+      let b = parseInt(dmy[2]);
+      let year = parseInt(dmy[3]);
+      if (year < 100) year = 2000 + year;
+      // Heuristic: if first number > 12, it must be day (DD/MM/YYYY)
+      // if second number > 12, it must be day (MM/DD/YYYY)
+      // otherwise assume DD/MM/YYYY (Indian convention)
+      let day: number, month: number;
+      if (a > 12 && b <= 12) {
+        day = a; month = b - 1; // DD/MM
+      } else if (b > 12 && a <= 12) {
+        day = b; month = a - 1; // MM/DD
+      } else {
+        // Ambiguous — assume DD/MM (Indian convention)
+        day = a; month = b - 1;
+      }
+      if (month >= 0 && month < 12 && day >= 1 && day <= 31 && year > 1990 && year < 2100) {
+        return new Date(year, month, day);
+      }
+    }
+
+    // 5. DDMMYYYY (8 digits, no separator) — assume DDMMYYYY
+    const d8 = v.match(/^(\d{2})(\d{2})(\d{4})$/);
+    if (d8) {
+      let a = parseInt(d8[1]);
+      let b = parseInt(d8[2]);
+      const year = parseInt(d8[3]);
+      let day: number, month: number;
+      if (a > 12 && b <= 12) { day = a; month = b - 1; }
+      else if (b > 12 && a <= 12) { day = b; month = a - 1; }
+      else { day = a; month = b - 1; } // assume DDMM
+      if (month >= 0 && month < 12 && day >= 1 && day <= 31 && year > 1990 && year < 2100) {
+        return new Date(year, month, day);
+      }
+    }
+
+    // 6. DDMMYY (6 digits, no separator) — assume DDMMYY
+    const d6 = v.match(/^(\d{2})(\d{2})(\d{2})$/);
+    if (d6) {
+      let a = parseInt(d6[1]);
+      let b = parseInt(d6[2]);
+      let year = 2000 + parseInt(d6[3]);
+      let day: number, month: number;
+      if (a > 12 && b <= 12) { day = a; month = b - 1; }
+      else if (b > 12 && a <= 12) { day = b; month = a - 1; }
+      else { day = a; month = b - 1; } // assume DDMM
+      if (month >= 0 && month < 12 && day >= 1 && day <= 31) {
+        return new Date(year, month, day);
+      }
+    }
+
+    // 7. Fallback: native Date parse (handles "May 17, 2026", ISO strings, etc.)
+    const d = new Date(v);
+    if (!isNaN(d.getTime()) && d.getFullYear() > 1990 && d.getFullYear() < 2100) return d;
+
+    return null;
+  }
+
+  // Detect date columns from row data — scans ALL columns, picks the best one.
+  // Prioritizes columns whose header contains "date" or "तारीख", then by highest match ratio.
   const dateColumn = useMemo(() => {
     if (!loaded) return null;
-    for (const field of [...loaded.fields].sort((a, b) => a.order - b.order)) {
+
+    type Candidate = { field: FieldSchema; ratio: number; checked: number };
+    const candidates: Candidate[] = [];
+
+    for (const field of loaded.fields) {
       let dateCount = 0;
       let checked = 0;
       for (const row of loaded.rows) {
         const val = (row[field.key] ?? "").trim();
         if (!val) continue;
         checked++;
-        if (checked > 30) break;
-        if (/\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}/.test(val) ||
-            /\d{4}[\/-]\d{1,2}[\/-]\d{1,2}/.test(val) ||
-            /\d{1,2}\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(val) ||
-            /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{1,2}/i.test(val)) {
+        if (checked > 50) break;
+        if (looksLikeDate(val)) {
           dateCount++;
         }
       }
-      if (checked >= 5 && dateCount / checked >= 0.5) {
-        return field;
+      if (checked >= 3 && dateCount / checked >= 0.4) {
+        candidates.push({ field, ratio: dateCount / checked, checked });
       }
     }
-    return null;
-  }, [loaded]);
 
-  // Parse a date string flexibly (handles DD/MM/YYYY, MM/DD/YYYY, YYYY-MM-DD, "5 Jan 2026", etc.)
-  function parseDate(val: string): Date | null {
-    if (!val) return null;
-    // Try ISO / standard parse first
-    const d = new Date(val);
-    if (!isNaN(d.getTime()) && d.getFullYear() > 1990 && d.getFullYear() < 2100) return d;
-    // Try DD/MM/YYYY or DD-MM-YYYY
-    const dmy = val.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
-    if (dmy) {
-      const day = parseInt(dmy[1]);
-      const month = parseInt(dmy[2]) - 1;
-      const year = parseInt(dmy[3]) < 100 ? 2000 + parseInt(dmy[3]) : parseInt(dmy[3]);
-      if (month >= 0 && month < 12 && day >= 1 && day <= 31) {
-        return new Date(year, month, day);
-      }
+    if (candidates.length === 0) return null;
+
+    // Prefer columns whose label/header contains "date" (case-insensitive)
+    const dateNamedCols = candidates.filter((c) => {
+      const label = (c.field.label || c.field.source_header || "").toLowerCase();
+      return label.includes("date") || label.includes("तारीख") || label.includes("dob") || label === "dt";
+    });
+
+    if (dateNamedCols.length > 0) {
+      // Among date-named columns, pick the one with highest ratio
+      dateNamedCols.sort((a, b) => b.ratio - a.ratio);
+      return dateNamedCols[0].field;
     }
-    return null;
-  }
+
+    // Otherwise pick the column with highest date-match ratio
+    candidates.sort((a, b) => b.ratio - a.ratio);
+    return candidates[0].field;
+  }, [loaded]);
 
   // Extract months: first try section titles, then fall back to row dates
   const availableMonths = useMemo(() => {
