@@ -1799,3 +1799,122 @@ def map_sheet_exception(exc: Exception) -> tuple[int, str]:
 
     logger.exception("sheets.unexpected_error", exc_info=exc)
     return 500, "Unexpected Google Sheets error."
+
+def batch_delete_rows(
+    *,
+    spreadsheet_id: str,
+    worksheet_name: str | None,
+    row_indices: list[int],
+) -> int:
+    """
+    Deletes multiple rows from a worksheet.
+    row_indices are 1-based indices (row 1 = header).
+    Returns the number of rows deleted.
+    """
+    if not _has_credentials() or not row_indices:
+        return 0
+
+    client = get_client()
+    spreadsheet = client.open_by_key(spreadsheet_id)
+    worksheet = _select_worksheet(spreadsheet, worksheet_name)
+
+    requests = []
+    # Delete from bottom to top to avoid index shifting
+    for row_idx in sorted(set(row_indices), reverse=True):
+        if row_idx < 2:
+            continue # Never delete header
+        start_idx = row_idx - 1
+        requests.append({
+            "deleteDimension": {
+                "range": {
+                    "sheetId": worksheet.id,
+                    "dimension": "ROWS",
+                    "startIndex": start_idx,
+                    "endIndex": start_idx + 1
+                }
+            }
+        })
+    
+    if not requests:
+        return 0
+        
+    try:
+        spreadsheet.batch_update({"requests": requests})
+        _invalidate_rows_cache(spreadsheet_id, worksheet_name)
+        return len(requests)
+    except APIError as exc:
+        logger.error("batch_delete_rows failed: %s", str(exc))
+        raise
+
+def batch_update_rows(
+    *,
+    spreadsheet_id: str,
+    worksheet_name: str | None,
+    row_updates: list[dict], # [{"row_index": int, "values": dict[str, Any]}]
+    fields: list[FieldSchema],
+) -> int:
+    """
+    Updates multiple non-contiguous rows in a single batch request.
+    Handles protected columns safely.
+    """
+    if not _has_credentials() or not row_updates:
+        return 0
+
+    client = get_client()
+    spreadsheet = client.open_by_key(spreadsheet_id)
+    worksheet = _select_worksheet(spreadsheet, worksheet_name)
+    sheet_title = worksheet.title
+    
+    headers = _get_cached_headers(spreadsheet_id, worksheet_name)
+    if not headers:
+        headers = worksheet.row_values(1)
+        _store_cached_headers(spreadsheet_id, worksheet_name, headers)
+        
+    protected_cols = _get_protected_columns_from_worksheet(spreadsheet, worksheet)
+    
+    batch_data = []
+    
+    for update in row_updates:
+        row_idx = update["row_index"]
+        if row_idx < 2:
+            continue
+            
+        values_dict = update["values"]
+        row_values = []
+        for i, header in enumerate(headers):
+            matched = False
+            for f in fields:
+                if f.source_header == header:
+                    val = values_dict.get(f.key)
+                    if val is None:
+                        val = values_dict.get(f.source_header, "")
+                    row_values.append(_sanitize_cell(val))
+                    matched = True
+                    break
+            if not matched:
+                row_values.append("")
+                
+        # Only add unprotected cells to batch
+        for i, val in enumerate(row_values):
+            if i in protected_cols:
+                continue
+            col_letter = _col_index_to_letter(i)
+            batch_data.append({
+                "range": f"{sheet_title}!{col_letter}{row_idx}",
+                "values": [[val]]
+            })
+            
+    if not batch_data:
+        return 0
+        
+    try:
+        spreadsheet.values_batch_update(body={
+            "valueInputOption": "USER_ENTERED",
+            "data": batch_data,
+        })
+        _invalidate_rows_cache(spreadsheet_id, worksheet_name)
+        return len(row_updates)
+    except APIError as exc:
+        logger.error("batch_update_rows failed: %s", str(exc))
+        raise
+

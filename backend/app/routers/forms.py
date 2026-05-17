@@ -1095,3 +1095,78 @@ async def batch_append(payload: BatchAppendRequest):
         appended_count=result["appended_count"],
         updated_range=result.get("updated_range"),
     )
+
+class BatchDeleteRequest(BaseModel):
+    sheet_url: str
+    worksheet_name: Optional[str] = None
+    row_indices: list[int] = PydanticField(..., min_length=1)
+
+class BatchDeleteResponse(BaseModel):
+    success: bool
+    deleted_count: int
+
+@router.post("/sheet/batch-delete", response_model=BatchDeleteResponse)
+async def batch_delete_endpoint(payload: BatchDeleteRequest):
+    """Delete multiple rows from a sheet by their 1-based indices."""
+    try:
+        spreadsheet_id = extract_spreadsheet_id(payload.sheet_url)
+    except InvalidGoogleSheetUrl as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+        
+    if not _has_credentials():
+        raise HTTPException(status_code=500, detail="Google credentials not configured")
+        
+    from app.services.sheets_client import batch_delete_rows
+    try:
+        count = await asyncio.to_thread(
+            batch_delete_rows,
+            spreadsheet_id=spreadsheet_id,
+            worksheet_name=payload.worksheet_name,
+            row_indices=payload.row_indices,
+        )
+        return BatchDeleteResponse(success=True, deleted_count=count)
+    except Exception as exc:
+        raise _sheet_error(exc)
+
+class BatchUpdateRequest(BaseModel):
+    sheet_url: str
+    worksheet_name: Optional[str] = None
+    row_updates: list[dict] = PydanticField(..., min_length=1)
+
+class BatchUpdateResponse(BaseModel):
+    success: bool
+    updated_count: int
+
+@router.post("/sheet/batch-update", response_model=BatchUpdateResponse)
+async def batch_update_endpoint(payload: BatchUpdateRequest):
+    """Update multiple non-contiguous rows in a sheet."""
+    try:
+        spreadsheet_id = extract_spreadsheet_id(payload.sheet_url)
+    except InvalidGoogleSheetUrl as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+        
+    if not _has_credentials():
+        raise HTTPException(status_code=500, detail="Google credentials not configured")
+        
+    from app.services.sheets_client import batch_update_rows
+    from app.utils.sanitizer import headers_to_fields
+    
+    try:
+        headers = await asyncio.to_thread(
+            read_headers,
+            spreadsheet_id=spreadsheet_id,
+            worksheet_name=payload.worksheet_name
+        )
+        fields = headers_to_fields(headers)
+        
+        count = await asyncio.to_thread(
+            batch_update_rows,
+            spreadsheet_id=spreadsheet_id,
+            worksheet_name=payload.worksheet_name,
+            row_updates=payload.row_updates,
+            fields=fields,
+        )
+        return BatchUpdateResponse(success=True, updated_count=count)
+    except Exception as exc:
+        raise _sheet_error(exc)
+

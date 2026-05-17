@@ -38,6 +38,12 @@ export const OPEN_IN_OPTIONS: OpenInOption[] = [
     icon: "⊟",
     description: "Filter across multiple columns",
   },
+  {
+    id: "data-cleaner",
+    label: "Data Cleaner",
+    icon: "✨",
+    description: "Find & Replace and remove duplicates",
+  },
 ];
 
 interface Props {

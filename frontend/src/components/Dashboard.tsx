@@ -1026,6 +1026,9 @@ export default function Dashboard() {
                   case "multi-header":
                     router.push(`/multi-header-filter?sheet=${encodedUrl}`);
                     break;
+                  case "data-cleaner":
+                    router.push(`/data-cleaner?url=${encodedUrl}`);
+                    break;
                   default:
                     router.push(`/history?sheet=${encodedUrl}`);
                     break;

@@ -460,16 +460,6 @@ function BulkEditInner() {
 
   // Editing state
   const [editingCell, setEditingCell] = useState<{ row: number; col: string } | null>(null);
-
-  // --- PRO FEATURES STATE ---
-  // Find & Replace
-  const [showFindReplace, setShowFindReplace] = useState(false);
-  const [findText, setFindText] = useState("");
-  const [replaceText, setReplaceText] = useState("");
-
-  // Duplicates
-  const [showDuplicates, setShowDuplicates] = useState(false);
-  const [duplicateCols, setDuplicateCols] = useState<string[]>([]);
   
   // LocalStorage Auto-Save
   const draftKey = sheetReady ? `bulkEditDraft_${sheetUrl}_${worksheetName}` : null;
@@ -497,39 +487,6 @@ function BulkEditInner() {
       }
     }
   }, [rows, draftKey]);
-
-  // Duplicate Check Helper
-  const duplicateIndices = useMemo(() => {
-    if (duplicateCols.length === 0 || rows.length === 0) return [];
-    const seen = new Set<string>();
-    const dups = new Set<string>();
-    
-    rows.forEach((r) => {
-      const key = duplicateCols.map((c) => r[c] || "").join("|");
-      if (seen.has(key)) dups.add(key);
-      seen.add(key);
-    });
-    
-    return rows.map((r, i) => {
-      const key = duplicateCols.map((c) => r[c] || "").join("|");
-      return dups.has(key) ? i : -1;
-    }).filter((i) => i !== -1);
-  }, [rows, duplicateCols]);
-
-  const handleReplaceAll = useCallback(() => {
-    if (!findText) return;
-    setRows(prev => prev.map(row => {
-      const newRow = { ...row };
-      let changed = false;
-      Object.keys(newRow).forEach(key => {
-        if (newRow[key] && newRow[key].includes(findText)) {
-          newRow[key] = newRow[key].replaceAll(findText, replaceText);
-          changed = true;
-        }
-      });
-      return changed ? newRow : row;
-    }));
-  }, [findText, replaceText]);
 
   // Load saved sheets on mount
   useEffect(() => {
@@ -1672,95 +1629,17 @@ function BulkEditInner() {
         {/* ─── Step 3: Preview Grid + Bulk Apply ─── */}
         {rows.length > 0 && (
           <section style={{ marginBottom: 24 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-              <p style={{
-                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                fontWeight: 500,
-                fontSize: 10,
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-                color: "var(--stone)",
-                margin: 0,
-              }}>
-                Preview & Edit ({rows.length} rows)
-              </p>
-              <div style={{ display: "flex", gap: 12 }}>
-                <button
-                  type="button"
-                  onClick={() => setShowFindReplace(!showFindReplace)}
-                  style={{
-                    background: showFindReplace ? "var(--ink)" : "transparent",
-                    color: showFindReplace ? "var(--on-ink)" : "var(--ink)",
-                    border: "1px solid var(--ink)",
-                    padding: "4px 10px",
-                    fontSize: 10,
-                    fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                    textTransform: "uppercase",
-                    cursor: "pointer"
-                  }}
-                >
-                  Find & Replace
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowDuplicates(!showDuplicates)}
-                  style={{
-                    background: showDuplicates ? "var(--ink)" : "transparent",
-                    color: showDuplicates ? "var(--on-ink)" : "var(--ink)",
-                    border: "1px solid var(--ink)",
-                    padding: "4px 10px",
-                    fontSize: 10,
-                    fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                    textTransform: "uppercase",
-                    cursor: "pointer"
-                  }}
-                >
-                  Find Duplicates
-                </button>
-              </div>
-            </div>
-
-            {/* Find & Replace Toolbar */}
-            {showFindReplace && (
-              <div style={{ marginBottom: 16, padding: 14, border: "1px solid var(--rule)", background: "var(--paper)", display: "flex", gap: 12, alignItems: "flex-end" }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: "block", fontSize: 10, color: "var(--stone)", marginBottom: 4, textTransform: "uppercase", fontFamily: "var(--font-plex-mono), monospace" }}>Find</label>
-                  <input type="text" value={findText} onChange={e => setFindText(e.target.value)} style={{ width: "100%", padding: "6px 8px", border: "1px solid var(--rule)", background: "var(--cream)", outline: "none", fontSize: 12, fontFamily: "var(--font-plex-mono), monospace" }} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: "block", fontSize: 10, color: "var(--stone)", marginBottom: 4, textTransform: "uppercase", fontFamily: "var(--font-plex-mono), monospace" }}>Replace</label>
-                  <input type="text" value={replaceText} onChange={e => setReplaceText(e.target.value)} style={{ width: "100%", padding: "6px 8px", border: "1px solid var(--rule)", background: "var(--cream)", outline: "none", fontSize: 12, fontFamily: "var(--font-plex-mono), monospace" }} />
-                </div>
-                <button type="button" onClick={handleReplaceAll} disabled={!findText} style={{ padding: "6px 14px", background: "var(--ink)", color: "var(--on-ink)", border: "none", fontSize: 11, cursor: "pointer", opacity: findText ? 1 : 0.5, fontFamily: "var(--font-plex-mono), monospace", textTransform: "uppercase" }}>Replace All</button>
-              </div>
-            )}
-
-            {/* Duplicates Toolbar */}
-            {showDuplicates && (
-              <div style={{ marginBottom: 16, padding: 14, border: "1px solid var(--rule)", background: "var(--paper)" }}>
-                <p style={{ fontSize: 10, color: "var(--stone)", margin: "0 0 10px 0", textTransform: "uppercase", fontFamily: "var(--font-plex-mono), monospace" }}>Check duplicates based on columns:</p>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-                  {sheetHeaders.map(h => (
-                    <label key={h.key} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontFamily: "var(--font-plex-mono), monospace", cursor: "pointer" }}>
-                      <input 
-                        type="checkbox" 
-                        checked={duplicateCols.includes(h.source_header)}
-                        onChange={(e) => {
-                          if (e.target.checked) setDuplicateCols([...duplicateCols, h.source_header]);
-                          else setDuplicateCols(duplicateCols.filter(c => c !== h.source_header));
-                        }}
-                      />
-                      {h.label}
-                    </label>
-                  ))}
-                </div>
-                {duplicateIndices.length > 0 && (
-                  <p style={{ margin: "10px 0 0 0", fontSize: 11, color: "#d32f2f", fontFamily: "var(--font-plex-mono), monospace" }}>
-                    ⚠️ Found {duplicateIndices.length} duplicate rows (highlighted below).
-                  </p>
-                )}
-              </div>
-            )}
+            <p style={{
+              fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+              fontWeight: 500,
+              fontSize: 10,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              color: "var(--stone)",
+              margin: "0 0 14px 0",
+            }}>
+              Preview & Edit ({rows.length} rows)
+            </p>
 
 
             {/* Bulk Apply Controls */}
@@ -1902,10 +1781,8 @@ function BulkEditInner() {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((row, rowIdx) => {
-                      const isDuplicate = duplicateIndices.includes(rowIdx);
-                      return (
-                      <tr key={rowIdx} style={{ borderBottom: "1px solid var(--rule)", backgroundColor: isDuplicate ? "#fff4e5" : "transparent" }}>
+                    {rows.map((row, rowIdx) => (
+                      <tr key={rowIdx} style={{ borderBottom: "1px solid var(--rule)" }}>
                         <td style={{ padding: "8px", textAlign: "center", color: "var(--stone)", fontSize: 11 }}>
                           {rowIdx + 1}
                         </td>
@@ -1993,7 +1870,7 @@ function BulkEditInner() {
                           </button>
                         </td>
                       </tr>
-                    )})}
+                    ))}
                   </tbody>
                 </table>
               </div>

@@ -553,3 +553,27 @@ export async function renameSavedSheet(
     { title },
   );
 }
+
+export async function batchDeleteRows(sheetUrl: string, worksheetName: string | null, rowIndices: number[]) {
+  return jsonRequest<{ success: boolean; deleted_count: number }>(
+    "POST",
+    "/sheet/batch-delete",
+    {
+      sheet_url: sheetUrl,
+      worksheet_name: worksheetName,
+      row_indices: rowIndices
+    }
+  );
+}
+
+export async function batchUpdateRows(sheetUrl: string, worksheetName: string | null, rowUpdates: {row_index: number, values: Record<string, any>}[]) {
+  return jsonRequest<{ success: boolean; updated_count: number }>(
+    "POST",
+    "/sheet/batch-update",
+    {
+      sheet_url: sheetUrl,
+      worksheet_name: worksheetName,
+      row_updates: rowUpdates
+    }
+  );
+}
