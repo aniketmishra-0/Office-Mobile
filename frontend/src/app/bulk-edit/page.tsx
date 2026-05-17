@@ -31,38 +31,58 @@ export default function BulkEditPage() {
 function parseText(raw: string): string[][] {
   if (!raw.trim()) return [];
 
-  const lines = raw.split(/\r?\n/).filter((l) => l.trim() !== "");
-  if (!lines.length) return [];
+  // Detect delimiter: tabs first, then commas
+  const hasTab = raw.includes("\t");
+  const delimiter = hasTab ? "\t" : ",";
 
-  // Detect delimiter: tabs first, then commas, else single-column
-  const hasTab = lines.some((l) => l.includes("\t"));
-  const hasComma = !hasTab && lines.some((l) => l.includes(","));
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentCell = "";
+  let inQuotes = false;
 
-  const delimiter = hasTab ? "\t" : hasComma ? "," : null;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    const nextCh = raw[i + 1];
 
-  return lines.map((line) => {
-    if (!delimiter) return [line.trim()];
-    if (delimiter === ",") {
-      // Handle quoted CSV fields
-      const cells: string[] = [];
-      let current = "";
-      let inQuotes = false;
-      for (let i = 0; i < line.length; i++) {
-        const ch = line[i];
-        if (ch === '"' && (i === 0 || line[i - 1] !== "\\")) {
-          inQuotes = !inQuotes;
-        } else if (ch === "," && !inQuotes) {
-          cells.push(current.trim());
-          current = "";
-        } else {
-          current += ch;
-        }
+    if (ch === '"') {
+      if (inQuotes && nextCh === '"') {
+        // Escaped quote
+        currentCell += '"';
+        i++; // Skip the next quote
+      } else {
+        // Toggle quotes
+        inQuotes = !inQuotes;
       }
-      cells.push(current.trim());
-      return cells;
+    } else if (ch === delimiter && !inQuotes) {
+      // End of cell
+      currentRow.push(currentCell.trim());
+      currentCell = "";
+    } else if ((ch === '\n' || (ch === '\r' && nextCh === '\n')) && !inQuotes) {
+      // End of row
+      if (ch === '\r') i++; // Skip \n
+      currentRow.push(currentCell.trim());
+      rows.push(currentRow);
+      currentRow = [];
+      currentCell = "";
+    } else {
+      currentCell += ch;
     }
-    return line.split(delimiter).map((c) => c.trim());
-  });
+  }
+
+  // Push the last cell and row if anything is left
+  if (currentCell || currentRow.length > 0) {
+    currentRow.push(currentCell.trim());
+    // Only push if row is not just a single empty string (e.g., trailing newline)
+    if (currentRow.length > 1 || currentRow[0] !== "") {
+      rows.push(currentRow);
+    }
+  }
+
+  return rows;
+}
+
+function normalizeHeader(h: string): string {
+  return h.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 // ---------------------------------------------------------------------------
@@ -723,21 +743,21 @@ function BulkEditInner() {
     }
 
     let dataRows = parsed;
-    const headerNames = sheetHeaders.map((h) => h.source_header.toLowerCase().trim());
-    const firstRow = parsed[0].map((c) => c.toLowerCase().trim());
-    const matchCount = firstRow.filter((c) => c !== "" && headerNames.includes(c)).length;
+    const sheetHeaderNorms = sheetHeaders.map((h) => normalizeHeader(h.source_header));
+    const firstRowNorms = parsed[0].map((c) => normalizeHeader(c));
+    const matchCount = firstRowNorms.filter((c) => c !== "" && sheetHeaderNorms.includes(c)).length;
 
-    // If we detect headers in the first row, auto-map by exact match
+    // If we detect headers in the first row, auto-map by normalized match
     if (matchCount > 0 && parsed.length > 1) {
       dataRows = parsed.slice(1);
       const mapped = dataRows.map((cells) => {
         const row: Record<string, string> = {};
-        firstRow.forEach((colHeader, i) => {
+        firstRowNorms.forEach((colHeader, i) => {
           if (!colHeader) return;
           const matchedHeader = sheetHeaders.find(
             (h) =>
-              h.source_header.toLowerCase().trim() === colHeader ||
-              h.label.toLowerCase().trim() === colHeader
+              normalizeHeader(h.source_header) === colHeader ||
+              normalizeHeader(h.label) === colHeader
           );
           if (matchedHeader && cells[i] !== undefined) {
             row[matchedHeader.source_header] = cells[i];
@@ -768,10 +788,10 @@ function BulkEditInner() {
       
       // Attempt to auto-map default values in the UI by matching the first row values against headers
       const defaultMapping = Array.from({ length: colCount }, (_, i) => {
-        const val = firstRow[i];
-        if (val) {
+        const valNorm = normalizeHeader(parsed[0][i] || "");
+        if (valNorm) {
           const match = sheetHeaders.find(
-            (h) => h.source_header.toLowerCase().trim() === val || h.label.toLowerCase().trim() === val
+            (h) => normalizeHeader(h.source_header) === valNorm || normalizeHeader(h.label) === valNorm
           );
           if (match) return match.source_header;
         }
