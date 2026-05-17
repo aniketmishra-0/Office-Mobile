@@ -681,19 +681,6 @@ function MultiHeaderFilterInner() {
             </div>
           </div>
 
-          {/* Chips */}
-          {selectedSections.length > 0 && (
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 }}>
-              {selectedSections.map((idx) => (
-                <span key={idx} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontFamily: "var(--font-plex-mono), monospace", fontSize: 11, background: "var(--ink)", color: "var(--cream)", borderRadius: 14, padding: "5px 12px 5px 14px" }}>
-                  {loaded.sections[idx]?.title ?? `Section ${idx}`}
-                  <button onClick={() => removeSection(idx)}
-                    style={{ background: "none", border: "none", color: "var(--cream)", cursor: "pointer", fontSize: 14, padding: 0, lineHeight: 1, opacity: 0.7 }}
-                    aria-label="Remove">×</button>
-                </span>
-              ))}
-            </div>
-          )}
 
           {/* Day-of-week filter */}
           {hasDayColumns && (

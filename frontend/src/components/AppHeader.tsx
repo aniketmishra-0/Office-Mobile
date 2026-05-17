@@ -83,7 +83,7 @@ export default function AppHeader({
         const res = await fetch(
           (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "") +
             "/api/auth/status",
-          { credentials: "include", headers },
+          { credentials: "include", headers, cache: "no-store" },
         );
         const data = await res.json();
         if (!mounted) return;
@@ -292,6 +292,18 @@ export default function AppHeader({
                 >
                   <span className="om-header__menu-icon" aria-hidden>⊟</span>
                   <span>Multi-Header Filtering</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="om-header__menu-item"
+                  onClick={() => {
+                    router.push("/data-cleaner");
+                    setOpenMenu(false);
+                  }}
+                >
+                  <span className="om-header__menu-icon" aria-hidden>✨</span>
+                  <span>Data Cleaner</span>
                 </button>
                 <hr className="om-header__menu-rule" />
 

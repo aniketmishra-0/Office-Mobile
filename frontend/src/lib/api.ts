@@ -88,6 +88,7 @@ async function jsonRequest<T>(
     headers: { "Content-Type": "application/json", ...sessionHeaders() },
     body: JSON.stringify(body),
     credentials: "include",
+    cache: "no-store",
   });
   return handleResponse<T>(res);
 }
@@ -98,6 +99,7 @@ async function jsonGet<T>(path: string): Promise<T> {
     method: "GET",
     headers: { "Content-Type": "application/json", ...sessionHeaders() },
     credentials: "include",
+    cache: "no-store",
   });
   return handleResponse<T>(res);
 }
@@ -551,5 +553,29 @@ export async function renameSavedSheet(
     "PATCH",
     `/saved-sheets/${encodeURIComponent(id)}`,
     { title },
+  );
+}
+
+export async function batchDeleteRows(sheetUrl: string, worksheetName: string | null, rowIndices: number[]) {
+  return jsonRequest<{ success: boolean; deleted_count: number }>(
+    "POST",
+    "/sheet/batch-delete",
+    {
+      sheet_url: sheetUrl,
+      worksheet_name: worksheetName,
+      row_indices: rowIndices
+    }
+  );
+}
+
+export async function batchUpdateRows(sheetUrl: string, worksheetName: string | null, rowUpdates: {row_index: number, values: Record<string, any>}[]) {
+  return jsonRequest<{ success: boolean; updated_count: number }>(
+    "POST",
+    "/sheet/batch-update",
+    {
+      sheet_url: sheetUrl,
+      worksheet_name: worksheetName,
+      row_updates: rowUpdates
+    }
   );
 }

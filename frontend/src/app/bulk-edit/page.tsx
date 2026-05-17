@@ -31,38 +31,58 @@ export default function BulkEditPage() {
 function parseText(raw: string): string[][] {
   if (!raw.trim()) return [];
 
-  const lines = raw.split(/\r?\n/).filter((l) => l.trim() !== "");
-  if (!lines.length) return [];
+  // Detect delimiter: tabs first, then commas
+  const hasTab = raw.includes("\t");
+  const delimiter = hasTab ? "\t" : ",";
 
-  // Detect delimiter: tabs first, then commas, else single-column
-  const hasTab = lines.some((l) => l.includes("\t"));
-  const hasComma = !hasTab && lines.some((l) => l.includes(","));
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentCell = "";
+  let inQuotes = false;
 
-  const delimiter = hasTab ? "\t" : hasComma ? "," : null;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    const nextCh = raw[i + 1];
 
-  return lines.map((line) => {
-    if (!delimiter) return [line.trim()];
-    if (delimiter === ",") {
-      // Handle quoted CSV fields
-      const cells: string[] = [];
-      let current = "";
-      let inQuotes = false;
-      for (let i = 0; i < line.length; i++) {
-        const ch = line[i];
-        if (ch === '"' && (i === 0 || line[i - 1] !== "\\")) {
-          inQuotes = !inQuotes;
-        } else if (ch === "," && !inQuotes) {
-          cells.push(current.trim());
-          current = "";
-        } else {
-          current += ch;
-        }
+    if (ch === '"') {
+      if (inQuotes && nextCh === '"') {
+        // Escaped quote
+        currentCell += '"';
+        i++; // Skip the next quote
+      } else {
+        // Toggle quotes
+        inQuotes = !inQuotes;
       }
-      cells.push(current.trim());
-      return cells;
+    } else if (ch === delimiter && !inQuotes) {
+      // End of cell
+      currentRow.push(currentCell.trim());
+      currentCell = "";
+    } else if ((ch === '\n' || (ch === '\r' && nextCh === '\n')) && !inQuotes) {
+      // End of row
+      if (ch === '\r') i++; // Skip \n
+      currentRow.push(currentCell.trim());
+      rows.push(currentRow);
+      currentRow = [];
+      currentCell = "";
+    } else {
+      currentCell += ch;
     }
-    return line.split(delimiter).map((c) => c.trim());
-  });
+  }
+
+  // Push the last cell and row if anything is left
+  if (currentCell || currentRow.length > 0) {
+    currentRow.push(currentCell.trim());
+    // Only push if row is not just a single empty string (e.g., trailing newline)
+    if (currentRow.length > 1 || currentRow[0] !== "") {
+      rows.push(currentRow);
+    }
+  }
+
+  return rows;
+}
+
+function normalizeHeader(h: string): string {
+  return h.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 // ---------------------------------------------------------------------------
@@ -162,6 +182,17 @@ function parseAnyDate(input: string): Date | null {
   if (!isNaN(native.getTime())) return native;
 
   return null;
+}
+
+function isValidCell(value: string, type: string): boolean {
+  if (!value || value.trim() === "") return true; // empty is valid for now
+  if (type === "number") {
+    return !isNaN(Number(value));
+  }
+  if (type === "date") {
+    return parseAnyDate(value) !== null;
+  }
+  return true;
 }
 
 /** Format a Date object to the detected sheet format */
@@ -429,6 +460,33 @@ function BulkEditInner() {
 
   // Editing state
   const [editingCell, setEditingCell] = useState<{ row: number; col: string } | null>(null);
+  
+  // LocalStorage Auto-Save
+  const draftKey = sheetReady ? `bulkEditDraft_${sheetUrl}_${worksheetName}` : null;
+
+  useEffect(() => {
+    if (draftKey && rows.length === 0) {
+      const saved = localStorage.getItem(draftKey);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setRows(parsed);
+          }
+        } catch (e) {}
+      }
+    }
+  }, [draftKey, rows.length]);
+
+  useEffect(() => {
+    if (draftKey) {
+      if (rows.length > 0) {
+        localStorage.setItem(draftKey, JSON.stringify(rows));
+      } else {
+        localStorage.removeItem(draftKey);
+      }
+    }
+  }, [rows, draftKey]);
 
   // Load saved sheets on mount
   useEffect(() => {
@@ -722,14 +780,31 @@ function BulkEditInner() {
       return;
     }
 
-    // Auto-detect and skip header row if first row matches column names
     let dataRows = parsed;
-    const headerNames = sheetHeaders.map((h) => h.source_header.toLowerCase().trim());
-    const firstRow = parsed[0].map((c) => c.toLowerCase().trim());
-    const matchCount = firstRow.filter((c) => headerNames.includes(c)).length;
-    if (matchCount >= Math.ceil(headerNames.length * 0.5) && parsed.length > 1) {
-      // First row looks like a header — skip it
+    const sheetHeaderNorms = sheetHeaders.map((h) => normalizeHeader(h.source_header));
+    const firstRowNorms = parsed[0].map((c) => normalizeHeader(c));
+    const matchCount = firstRowNorms.filter((c) => c !== "" && sheetHeaderNorms.includes(c)).length;
+
+    // If we detect headers in the first row, auto-map by normalized match
+    if (matchCount > 0 && parsed.length > 1) {
       dataRows = parsed.slice(1);
+      const mapped = dataRows.map((cells) => {
+        const row: Record<string, string> = {};
+        firstRowNorms.forEach((colHeader, i) => {
+          if (!colHeader) return;
+          const matchedHeader = sheetHeaders.find(
+            (h) =>
+              normalizeHeader(h.source_header) === colHeader ||
+              normalizeHeader(h.label) === colHeader
+          );
+          if (matchedHeader && cells[i] !== undefined) {
+            row[matchedHeader.source_header] = cells[i];
+          }
+        });
+        return row;
+      });
+      setRows(mapped);
+      return;
     }
 
     const headerCount = sheetHeaders.length;
@@ -748,9 +823,19 @@ function BulkEditInner() {
     } else {
       // Show column mapping UI
       setParsedRaw(dataRows);
-      const defaultMapping = Array.from({ length: colCount }, (_, i) =>
-        i < sheetHeaders.length ? sheetHeaders[i].source_header : null
-      );
+      
+      // Attempt to auto-map default values in the UI by matching the first row values against headers
+      const defaultMapping = Array.from({ length: colCount }, (_, i) => {
+        const valNorm = normalizeHeader(parsed[0][i] || "");
+        if (valNorm) {
+          const match = sheetHeaders.find(
+            (h) => normalizeHeader(h.source_header) === valNorm || normalizeHeader(h.label) === valNorm
+          );
+          if (match) return match.source_header;
+        }
+        return i < sheetHeaders.length ? sheetHeaders[i].source_header : null;
+      });
+      
       setColumnMapping(defaultMapping);
       setShowMapping(true);
     }
@@ -839,6 +924,7 @@ function BulkEditInner() {
         `✓ ${result.appended_count} rows added to "${worksheetName || "Sheet"}"${rangeInfo}`
       );
       setRows([]);
+      if (draftKey) localStorage.removeItem(draftKey);
       setPasteText("");
     } catch (e: any) {
       setSubmitError(
@@ -847,7 +933,7 @@ function BulkEditInner() {
     } finally {
       setSubmitting(false);
     }
-  }, [rows, sheetUrl, worksheetName]);
+  }, [rows, sheetUrl, worksheetName, draftKey]);
 
   // ─── Render ─────────────────────────────────────────────────────────
 
@@ -1255,13 +1341,14 @@ function BulkEditInner() {
                       </label>
 
                       {/* Batch field — multi-select with search */}
-                      {isBatchField && hasDropdown ? (
+                      {isBatchField ? (
                         <MobileDropdown
                           multiple
                           selectedValues={manualBatches}
-                          options={uniqueVals.map((v) => ({ value: v, label: v }))}
+                          options={(uniqueVals || []).map((v) => ({ value: v, label: v }))}
                           onMultiChange={(vals) => setManualBatches(vals)}
-                          placeholder="Search & select batches..."
+                          placeholder="Search or add batch name..."
+                          allowCreate={true}
                         />
                       ) : isDateField ? (
                         /* Date field — native date picker, auto-formats to sheet format */
@@ -1554,6 +1641,7 @@ function BulkEditInner() {
               Preview & Edit ({rows.length} rows)
             </p>
 
+
             {/* Bulk Apply Controls */}
             {(dateColumns.length > 0 || timeColumns.length > 0) && (
               <div style={{ marginBottom: 16, padding: 14, border: "1px solid var(--rule)", display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 12 }}>
@@ -1703,12 +1791,14 @@ function BulkEditInner() {
                             editingCell?.row === rowIdx &&
                             editingCell?.col === h.source_header;
                           const cellValue = row[h.source_header] ?? "";
+                          const valid = isValidCell(cellValue, h.type);
                           return (
                             <td
                               key={h.key}
                               style={{
                                 padding: "6px 10px",
                                 background: !cellValue ? "var(--paper)" : "transparent",
+                                boxShadow: !valid ? "inset 0 0 0 1px #d32f2f" : "none",
                                 cursor: "pointer",
                               }}
                               onClick={() =>

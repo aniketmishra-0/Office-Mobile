@@ -70,7 +70,7 @@ export default function SettingsPanel({ onClose }: Props) {
         } catch {}
         const res = await fetch(
           (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "") + "/api/auth/status",
-          { credentials: "include", headers },
+          { credentials: "include", headers, cache: "no-store" },
         );
         const data = await res.json();
         if (alive) setUser(data.user ?? null);
@@ -132,7 +132,7 @@ export default function SettingsPanel({ onClose }: Props) {
       } catch {}
       await fetch(
         (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "") + "/api/auth/logout",
-        { method: "POST", credentials: "include", headers },
+        { method: "POST", credentials: "include", headers, cache: "no-store" },
       );
     } catch {}
     try {

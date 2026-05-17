@@ -20,6 +20,7 @@ interface SingleSelectProps {
   placeholder?: string;
   disabled?: boolean;
   size?: "default" | "sm";
+  allowCreate?: boolean;
 }
 
 interface MultiSelectProps {
@@ -33,6 +34,7 @@ interface MultiSelectProps {
   placeholder?: string;
   disabled?: boolean;
   size?: "default" | "sm";
+  allowCreate?: boolean;
 }
 
 type MobileDropdownProps = SingleSelectProps | MultiSelectProps;
@@ -57,6 +59,7 @@ export default function MobileDropdown(props: MobileDropdownProps) {
     placeholder = "Select an option",
     disabled = false,
     size = "default",
+    allowCreate = false,
   } = props;
 
   const isMulti = props.multiple === true;
@@ -114,6 +117,8 @@ export default function MobileDropdown(props: MobileDropdownProps) {
         (props as SingleSelectProps).onChange(val);
         setIsOpen(false);
       }
+      // If we are creating an option, we also clear the search in the child component.
+      // Child components can handle this.
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [isMulti, props],
@@ -125,14 +130,14 @@ export default function MobileDropdown(props: MobileDropdownProps) {
     const { selectedValues } = props as MultiSelectProps;
     if (selectedValues.length > 0) {
       const selectedLabels = selectedValues
-        .map((v) => options.find((o) => o.value === v)?.label)
+        .map((v) => options.find((o) => o.value === v)?.label || v)
         .filter(Boolean);
       displayText = selectedLabels.join(", ");
     }
   } else {
     const { value } = props as SingleSelectProps;
     const selectedOption = options.find((o) => o.value === value);
-    displayText = selectedOption ? selectedOption.label : null;
+    displayText = selectedOption ? selectedOption.label : (value || null);
   }
 
   const selectedValue = isMulti ? "" : (props as SingleSelectProps).value;
@@ -176,6 +181,7 @@ export default function MobileDropdown(props: MobileDropdownProps) {
           selectedValue={selectedValue}
           selectedValues={selectedValues}
           onSelect={handleSelect}
+          allowCreate={allowCreate}
         />
       )}
 
@@ -189,6 +195,7 @@ export default function MobileDropdown(props: MobileDropdownProps) {
           onSelect={handleSelect}
           onClose={() => setIsOpen(false)}
           placeholder={placeholder}
+          allowCreate={allowCreate}
         />
       )}
     </div>
@@ -203,6 +210,7 @@ function DesktopDropdown({
   selectedValue,
   selectedValues,
   onSelect,
+  allowCreate,
 }: {
   options: DropdownOption[];
   size: "default" | "sm";
@@ -210,11 +218,16 @@ function DesktopDropdown({
   selectedValue: string;
   selectedValues: string[];
   onSelect: (val: string) => void;
+  allowCreate?: boolean;
 }) {
   const [search, setSearch] = useState("");
-  const filtered = search
+  let filtered = search
     ? options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase()))
     : options;
+
+  if (allowCreate && search.trim() && !options.find((o) => o.label.toLowerCase() === search.trim().toLowerCase())) {
+    filtered = [{ value: search.trim(), label: `Create "${search.trim()}"`, subtitle: 'New option' }, ...filtered];
+  }
 
   return (
     <div
@@ -262,7 +275,7 @@ function DesktopDropdown({
           isMulti={isMulti}
           selectedValue={selectedValue}
           selectedValues={selectedValues}
-          onSelect={onSelect}
+          onSelect={(val) => { onSelect(val); setSearch(""); }}
         />
         {filtered.length === 0 && (
           <div style={{ padding: 16, textAlign: "center", fontSize: 13, color: "var(--stone, #71717a)" }}>
@@ -284,6 +297,7 @@ function BottomSheet({
   onSelect,
   onClose,
   placeholder,
+  allowCreate,
 }: {
   options: DropdownOption[];
   size: "default" | "sm";
@@ -293,14 +307,19 @@ function BottomSheet({
   onSelect: (val: string) => void;
   onClose: () => void;
   placeholder: string;
+  allowCreate?: boolean;
 }) {
   const [animating, setAnimating] = useState(true);
   const [search, setSearch] = useState("");
   const sheetRef = useRef<HTMLDivElement>(null);
 
-  const filtered = search
+  let filtered = search
     ? options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase()))
     : options;
+
+  if (allowCreate && search.trim() && !options.find((o) => o.label.toLowerCase() === search.trim().toLowerCase())) {
+    filtered = [{ value: search.trim(), label: `Create "${search.trim()}"`, subtitle: 'New option' }, ...filtered];
+  }
 
   useEffect(() => {
     // Trigger enter animation
@@ -446,7 +465,7 @@ function BottomSheet({
             isMulti={isMulti}
             selectedValue={selectedValue}
             selectedValues={selectedValues}
-            onSelect={onSelect}
+            onSelect={(val) => { onSelect(val); setSearch(""); }}
             isMobileSheet
           />
           {filtered.length === 0 && (

@@ -273,6 +273,7 @@ export async function syncPrefsFromBackend(opts?: { isFirstSignIn?: boolean }): 
     const res = await fetch(`${API_BASE}/api/preferences`, {
       headers: { ...(_sessionHeaders()) },
       credentials: "include",
+      cache: "no-store",
     });
     if (!res.ok) return;
     const data = await res.json();
@@ -352,6 +353,7 @@ export async function syncPrefsToBackend(): Promise<void> {
       },
       credentials: "include",
       body: JSON.stringify(payload),
+      cache: "no-store",
     });
 
     // If the PUT succeeded, clear the local-write timestamp so the next
