@@ -15,6 +15,7 @@ const connectSrc = [
   apiOrigin,
   "https://accounts.google.com",
   "https://oauth2.googleapis.com",
+  "https://cdn.jsdelivr.net",
 ]
   .filter(Boolean)
   .join(" ");
@@ -24,9 +25,9 @@ const connectSrc = [
 const csp = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-  "style-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "img-src 'self' data: blob: https:",
-  "font-src 'self' data:",
+  "font-src 'self' data: https://fonts.gstatic.com",
   `connect-src ${connectSrc}`,
   // PWA primitives — without these, Chrome silently drops the manifest
   // and blocks the service worker on strict CSP deployments.
