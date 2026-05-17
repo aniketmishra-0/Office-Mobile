@@ -7,6 +7,7 @@ import ErrorToast from "@/components/ErrorToast";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import ClearButton from "@/components/ClearButton";
 import SubmitButton from "@/components/SubmitButton";
+import MobileDropdown from "@/components/MobileDropdown";
 import type { FieldSchema } from "@/types/field";
 import { useStepHistory } from "@/lib/useStepHistory";
 import {
@@ -70,14 +71,11 @@ function LoadPageInner() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortMode, setSortMode] = useState<"count" | "alpha">("count");
 
-  // Section/week filter: "all" means all rows, otherwise index into sections[]
-  const [selectedSection, setSelectedSection] = useState<"all" | number>("all");
+  // Section/week filter: multi-select (indices into sections[])
+  const [selectedSections, setSelectedSections] = useState<number[]>([]);
 
-  // Date filter state
-  const [dateFilterField, setDateFilterField] = useState<string | null>(null);
-  const [selectedMonth, setSelectedMonth] = useState<string>("all"); // "all" or "YYYY-MM"
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  // Month filter: auto-detected from section titles
+  const [selectedMonth, setSelectedMonth] = useState<string>("all"); // "all" or month key
 
   // Back-gesture wiring
   const flowStep: FlowStep = loaded ? "results" : availableTabs ? "tabs" : "input";
@@ -90,21 +88,15 @@ function LoadPageInner() {
           setAvailableTabs(null);
           setSelectedField(null);
           setSearchQuery("");
-          setSelectedSection("all");
-          setDateFilterField(null);
+          setSelectedSections([]);
           setSelectedMonth("all");
-          setDateFrom("");
-          setDateTo("");
           break;
         case "tabs":
           setLoaded(null);
           setSelectedField(null);
           setSearchQuery("");
-          setSelectedSection("all");
-          setDateFilterField(null);
+          setSelectedSections([]);
           setSelectedMonth("all");
-          setDateFrom("");
-          setDateTo("");
           if (sheetUrl && !availableTabs) {
             lookupFormsBySheet(sheetUrl)
               .then((result) => {
@@ -222,11 +214,8 @@ function LoadPageInner() {
     setLoaded(null);
     setSelectedField(null);
     setSearchQuery("");
-    setSelectedSection("all");
-    setDateFilterField(null);
+    setSelectedSections([]);
     setSelectedMonth("all");
-    setDateFrom("");
-    setDateTo("");
 
     try {
       const result = await lookupFormsBySheet(url);
@@ -299,121 +288,80 @@ function LoadPageInner() {
     }
   }
 
-  // Detect date-like columns for month/date filtering
-  const dateColumns = useMemo(() => {
-    if (!loaded) return [];
-    const candidates: FieldSchema[] = [];
-    for (const field of loaded.fields) {
-      // Sample first 20 non-empty values to check if they look like dates
-      let dateCount = 0;
-      let checked = 0;
-      for (const row of loaded.rows) {
-        const val = (row[field.key] ?? "").trim();
-        if (!val) continue;
-        checked++;
-        if (checked > 20) break;
-        // Check common date patterns
-        if (/\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}/.test(val) ||
-            /\d{4}[\/-]\d{1,2}[\/-]\d{1,2}/.test(val) ||
-            /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b/i.test(val) ||
-            !isNaN(Date.parse(val))) {
-          dateCount++;
+  // Auto-detect months from section titles (e.g., "Mon, Jan 5" → "Jan", "5 Jan 2026 - 11 Jan 2026" → "Jan")
+  const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const MONTH_FULL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+  const availableMonths = useMemo(() => {
+    if (!loaded || loaded.sections.length === 0) return [];
+    const monthSet = new Map<string, { label: string; indices: number[] }>();
+
+    loaded.sections.forEach((section, idx) => {
+      const title = section.title.toLowerCase();
+      for (let m = 0; m < MONTH_NAMES.length; m++) {
+        const short = MONTH_NAMES[m].toLowerCase();
+        const full = MONTH_FULL[m].toLowerCase();
+        if (title.includes(short) || title.includes(full)) {
+          const key = MONTH_NAMES[m];
+          if (!monthSet.has(key)) {
+            monthSet.set(key, { label: MONTH_NAMES[m], indices: [] });
+          }
+          monthSet.get(key)!.indices.push(idx);
+          break; // one month per section
         }
       }
-      if (checked > 0 && dateCount / checked >= 0.6) {
-        candidates.push(field);
-      }
-    }
-    return candidates;
+    });
+
+    return [...monthSet.entries()].map(([key, val]) => ({
+      value: key,
+      label: val.label,
+      indices: val.indices,
+      rowCount: val.indices.reduce((sum, i) => sum + (loaded.sections[i]?.rows.length ?? 0), 0),
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
 
-  // Auto-select date filter field when data loads
-  useEffect(() => {
-    if (dateColumns.length > 0 && !dateFilterField) {
-      setDateFilterField(dateColumns[0].key);
-    }
-  }, [dateColumns, dateFilterField]);
-
-  // Extract available months from the date column
-  const availableMonths = useMemo(() => {
-    if (!loaded || !dateFilterField) return [];
-    const monthSet = new Map<string, string>(); // "YYYY-MM" -> display label
-    for (const row of loaded.rows) {
-      const val = (row[dateFilterField] ?? "").trim();
-      if (!val) continue;
-      const parsed = new Date(val);
-      if (isNaN(parsed.getTime())) continue;
-      const key = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}`;
-      if (!monthSet.has(key)) {
-        const label = parsed.toLocaleString("en-US", { month: "short", year: "numeric" });
-        monthSet.set(key, label);
-      }
-    }
-    // Sort by date descending (newest first)
-    return [...monthSet.entries()]
-      .sort((a, b) => b[0].localeCompare(a[0]))
-      .map(([value, label]) => ({ value, label }));
-  }, [loaded, dateFilterField]);
-
-  // Parse a row's date value for filtering
-  function parseRowDate(row: Record<string, string>): Date | null {
-    if (!dateFilterField) return null;
-    const val = (row[dateFilterField] ?? "").trim();
-    if (!val) return null;
-    const parsed = new Date(val);
-    return isNaN(parsed.getTime()) ? null : parsed;
-  }
-
-  // Get the active rows based on section selection + date filters
+  // Get the active rows based on section selection + month filter
   const activeRows = useMemo(() => {
     if (!loaded) return [];
-    let rows = selectedSection === "all" ? loaded.rows : (loaded.sections[selectedSection]?.rows ?? []);
 
-    // Apply month filter
-    if (selectedMonth !== "all" && dateFilterField) {
-      const [yearStr, monthStr] = selectedMonth.split("-");
-      const filterYear = Number(yearStr);
-      const filterMonth = Number(monthStr) - 1;
-      rows = rows.filter((row) => {
-        const val = (row[dateFilterField] ?? "").trim();
-        if (!val) return false;
-        const parsed = new Date(val);
-        if (isNaN(parsed.getTime())) return false;
-        return parsed.getFullYear() === filterYear && parsed.getMonth() === filterMonth;
-      });
-    }
-
-    // Apply date range filter
-    if (dateFrom && dateFilterField) {
-      const fromDate = new Date(dateFrom);
-      if (!isNaN(fromDate.getTime())) {
-        fromDate.setHours(0, 0, 0, 0);
-        rows = rows.filter((row) => {
-          const val = (row[dateFilterField] ?? "").trim();
-          if (!val) return false;
-          const parsed = new Date(val);
-          if (isNaN(parsed.getTime())) return false;
-          parsed.setHours(0, 0, 0, 0);
-          return parsed >= fromDate;
-        });
-      }
-    }
-    if (dateTo && dateFilterField) {
-      const toDate = new Date(dateTo);
-      if (!isNaN(toDate.getTime())) {
-        toDate.setHours(23, 59, 59, 999);
-        rows = rows.filter((row) => {
-          const val = (row[dateFilterField] ?? "").trim();
-          if (!val) return false;
-          const parsed = new Date(val);
-          if (isNaN(parsed.getTime())) return false;
-          return parsed <= toDate;
-        });
+    // If month is selected, use sections that belong to that month
+    if (selectedMonth !== "all") {
+      const monthData = availableMonths.find((m) => m.value === selectedMonth);
+      if (monthData) {
+        let rows: Record<string, string>[] = [];
+        for (const idx of monthData.indices) {
+          const section = loaded.sections[idx];
+          if (section) rows = rows.concat(section.rows);
+        }
+        // If specific sections are also selected within this month, further filter
+        if (selectedSections.length > 0) {
+          const sectionSet = new Set(selectedSections);
+          rows = [];
+          for (const idx of monthData.indices) {
+            if (sectionSet.has(idx)) {
+              const section = loaded.sections[idx];
+              if (section) rows = rows.concat(section.rows);
+            }
+          }
+        }
+        return rows;
       }
     }
 
-    return rows;
-  }, [loaded, selectedSection, selectedMonth, dateFilterField, dateFrom, dateTo]);
+    // If specific sections are selected
+    if (selectedSections.length > 0) {
+      let rows: Record<string, string>[] = [];
+      for (const idx of selectedSections) {
+        const section = loaded.sections[idx];
+        if (section) rows = rows.concat(section.rows);
+      }
+      return rows;
+    }
+
+    // Default: all rows
+    return loaded.rows;
+  }, [loaded, selectedSections, selectedMonth, availableMonths]);
 
   // Compute frequency counts
   const analysis = useMemo(() => {
@@ -480,19 +428,16 @@ function LoadPageInner() {
               margin: "4px 0 0 0",
             }}>
               {selectedField.label} · {analysis?.totalRows ?? 0} rows · {analysis?.uniqueCount ?? 0} unique
-              {selectedSection !== "all" && loaded.sections[selectedSection as number] && (
-                <> · {loaded.sections[selectedSection as number].title}</>
-              )}
               {selectedMonth !== "all" && (
-                <> · {availableMonths.find((m) => m.value === selectedMonth)?.label ?? selectedMonth}</>
+                <> · {selectedMonth}</>
               )}
-              {(dateFrom || dateTo) && (
-                <> · {dateFrom || "…"} → {dateTo || "…"}</>
+              {selectedSections.length > 0 && selectedMonth === "all" && (
+                <> · {selectedSections.length} section{selectedSections.length > 1 ? "s" : ""} selected</>
               )}
             </p>
           </div>
 
-          {/* Controls row: Column picker + Section/Week picker */}
+          {/* Controls row: Column picker + Section/Week picker (multi-select) */}
           <div style={{
             display: "grid",
             gridTemplateColumns: hasSections ? "1fr 1fr" : "1fr",
@@ -539,7 +484,7 @@ function LoadPageInner() {
               </select>
             </div>
 
-            {/* Section/Week picker */}
+            {/* Section/Week multi-select dropdown */}
             {hasSections && (
               <div>
                 <label style={{
@@ -554,278 +499,83 @@ function LoadPageInner() {
                 }}>
                   Week / Section
                 </label>
-                <select
-                  value={selectedSection === "all" ? "all" : String(selectedSection)}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setSelectedSection(val === "all" ? "all" : Number(val));
+                <MobileDropdown
+                  multiple
+                  size="sm"
+                  selectedValues={selectedSections.map(String)}
+                  options={loaded.sections.map((section, idx) => ({
+                    value: String(idx),
+                    label: section.title,
+                    subtitle: `${section.rows.length} rows`,
+                  }))}
+                  onMultiChange={(values) => {
+                    setSelectedSections(values.map(Number));
                     setSearchQuery("");
                   }}
-                  style={{
-                    width: "100%",
-                    fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                    fontSize: 13,
-                    color: "var(--ink)",
-                    background: "var(--cream)",
-                    border: 0,
-                    borderBottom: "2px solid var(--ink)",
-                    borderRadius: 0,
-                    padding: "8px 0",
-                    outline: "none",
-                    cursor: "pointer",
-                  }}
-                >
-                  <option value="all">All sections ({loaded.rows.length} rows)</option>
-                  {loaded.sections.map((section, idx) => (
-                    <option key={idx} value={String(idx)}>
-                      {section.title} ({section.rows.length} rows)
-                    </option>
-                  ))}
-                </select>
+                  placeholder={`All sections (${loaded.rows.length} rows)`}
+                />
               </div>
             )}
           </div>
 
-          {/* Section quick-select pills (for fast week switching) */}
-          {hasSections && loaded.sections.length <= 20 && (
-            <div style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 6,
-              marginBottom: 20,
-            }}>
-              <button
-                type="button"
-                onClick={() => { setSelectedSection("all"); setSearchQuery(""); }}
-                style={{
-                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                  fontSize: 10,
-                  fontWeight: 500,
-                  padding: "5px 12px",
-                  borderRadius: 14,
-                  border: selectedSection === "all" ? "1.5px solid var(--ink)" : "1px solid var(--rule)",
-                  background: selectedSection === "all" ? "var(--ink)" : "var(--paper)",
-                  color: selectedSection === "all" ? "var(--cream)" : "var(--stone)",
-                  cursor: "pointer",
-                  transition: "all 0.15s ease",
-                }}
-              >
-                All
-              </button>
-              {loaded.sections.map((section, idx) => {
-                const isActive = selectedSection === idx;
-                return (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => { setSelectedSection(idx); setSearchQuery(""); }}
-                    style={{
-                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                      fontSize: 10,
-                      fontWeight: 500,
-                      padding: "5px 12px",
-                      borderRadius: 14,
-                      border: isActive ? "1.5px solid var(--ink)" : "1px solid var(--rule)",
-                      background: isActive ? "var(--ink)" : "var(--paper)",
-                      color: isActive ? "var(--cream)" : "var(--stone)",
-                      cursor: "pointer",
-                      transition: "all 0.15s ease",
-                      maxWidth: 180,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {section.title}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Month filter + Date range filter */}
-          {dateColumns.length > 0 && (
-            <div style={{
-              marginBottom: 20,
-              padding: "14px 16px",
-              background: "var(--paper)",
-              border: "1px solid var(--rule)",
-              borderRadius: 8,
-            }}>
-              {/* Date column selector (if multiple date columns) */}
-              {dateColumns.length > 1 && (
-                <div style={{ marginBottom: 12 }}>
-                  <label style={{
-                    display: "block",
+          {/* Month pills — auto-detected from section titles */}
+          {availableMonths.length > 0 && (
+            <div style={{ marginBottom: 20 }}>
+              <label style={{
+                display: "block",
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontWeight: 500,
+                fontSize: 9,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                color: "var(--stone)",
+                marginBottom: 8,
+              }}>
+                Month
+              </label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => { setSelectedMonth("all"); setSearchQuery(""); }}
+                  style={{
                     fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                    fontSize: 11,
                     fontWeight: 500,
-                    fontSize: 9,
-                    letterSpacing: "0.12em",
-                    textTransform: "uppercase",
-                    color: "var(--stone)",
-                    marginBottom: 4,
-                  }}>
-                    Date column
-                  </label>
-                  <select
-                    value={dateFilterField ?? ""}
-                    onChange={(e) => {
-                      setDateFilterField(e.target.value || null);
-                      setSelectedMonth("all");
-                      setDateFrom("");
-                      setDateTo("");
-                    }}
-                    style={{
-                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                      fontSize: 12,
-                      color: "var(--ink)",
-                      background: "var(--cream)",
-                      border: "1px solid var(--rule)",
-                      borderRadius: 4,
-                      padding: "6px 8px",
-                      outline: "none",
-                      cursor: "pointer",
-                    }}
-                  >
-                    {dateColumns.map((f) => (
-                      <option key={f.key} value={f.key}>{f.label}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Month pills */}
-              {availableMonths.length > 0 && (
-                <div style={{ marginBottom: 12 }}>
-                  <label style={{
-                    display: "block",
-                    fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                    fontWeight: 500,
-                    fontSize: 9,
-                    letterSpacing: "0.12em",
-                    textTransform: "uppercase",
-                    color: "var(--stone)",
-                    marginBottom: 6,
-                  }}>
-                    Month
-                  </label>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    padding: "6px 14px",
+                    borderRadius: 14,
+                    border: selectedMonth === "all" ? "1.5px solid var(--ink)" : "1px solid var(--rule)",
+                    background: selectedMonth === "all" ? "var(--ink)" : "var(--paper)",
+                    color: selectedMonth === "all" ? "var(--cream)" : "var(--stone)",
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  All
+                </button>
+                {availableMonths.map(({ value, label, rowCount }) => {
+                  const isActive = selectedMonth === value;
+                  return (
                     <button
+                      key={value}
                       type="button"
-                      onClick={() => setSelectedMonth("all")}
+                      onClick={() => { setSelectedMonth(value); setSearchQuery(""); }}
                       style={{
                         fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                        fontSize: 10,
+                        fontSize: 11,
                         fontWeight: 500,
-                        padding: "5px 12px",
+                        padding: "6px 14px",
                         borderRadius: 14,
-                        border: selectedMonth === "all" ? "1.5px solid var(--ink)" : "1px solid var(--rule)",
-                        background: selectedMonth === "all" ? "var(--ink)" : "transparent",
-                        color: selectedMonth === "all" ? "var(--cream)" : "var(--stone)",
+                        border: isActive ? "1.5px solid var(--ink)" : "1px solid var(--rule)",
+                        background: isActive ? "var(--ink)" : "var(--paper)",
+                        color: isActive ? "var(--cream)" : "var(--stone)",
                         cursor: "pointer",
                         transition: "all 0.15s ease",
                       }}
                     >
-                      All
+                      {label} <span style={{ opacity: 0.6, fontSize: 9 }}>({rowCount})</span>
                     </button>
-                    {availableMonths.map(({ value, label }) => {
-                      const isActive = selectedMonth === value;
-                      return (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() => setSelectedMonth(value)}
-                          style={{
-                            fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                            fontSize: 10,
-                            fontWeight: 500,
-                            padding: "5px 12px",
-                            borderRadius: 14,
-                            border: isActive ? "1.5px solid var(--ink)" : "1px solid var(--rule)",
-                            background: isActive ? "var(--ink)" : "transparent",
-                            color: isActive ? "var(--cream)" : "var(--stone)",
-                            cursor: "pointer",
-                            transition: "all 0.15s ease",
-                          }}
-                        >
-                          {label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Date range inputs */}
-              <div>
-                <label style={{
-                  display: "block",
-                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                  fontWeight: 500,
-                  fontSize: 9,
-                  letterSpacing: "0.12em",
-                  textTransform: "uppercase",
-                  color: "var(--stone)",
-                  marginBottom: 6,
-                }}>
-                  Date range
-                </label>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <input
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                    style={{
-                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                      fontSize: 12,
-                      color: "var(--ink)",
-                      background: "var(--cream)",
-                      border: "1px solid var(--rule)",
-                      borderRadius: 4,
-                      padding: "6px 8px",
-                      outline: "none",
-                    }}
-                  />
-                  <span style={{
-                    fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                    fontSize: 10,
-                    color: "var(--stone)",
-                  }}>to</span>
-                  <input
-                    type="date"
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
-                    style={{
-                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                      fontSize: 12,
-                      color: "var(--ink)",
-                      background: "var(--cream)",
-                      border: "1px solid var(--rule)",
-                      borderRadius: 4,
-                      padding: "6px 8px",
-                      outline: "none",
-                    }}
-                  />
-                  {(dateFrom || dateTo) && (
-                    <button
-                      type="button"
-                      onClick={() => { setDateFrom(""); setDateTo(""); }}
-                      style={{
-                        fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                        fontSize: 9,
-                        fontWeight: 500,
-                        color: "var(--clay)",
-                        background: "none",
-                        border: "1px solid var(--clay)",
-                        borderRadius: 4,
-                        padding: "4px 8px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1001,7 +751,7 @@ function LoadPageInner() {
               </p>
               <button
                 type="button"
-                onClick={() => { setLoaded(null); setSelectedField(null); setSearchQuery(""); setSelectedSection("all"); setDateFilterField(null); setSelectedMonth("all"); setDateFrom(""); setDateTo(""); }}
+                onClick={() => { setLoaded(null); setSelectedField(null); setSearchQuery(""); setSelectedSections([]); setSelectedMonth("all"); }}
                 style={{
                   fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
                   fontSize: 10,
