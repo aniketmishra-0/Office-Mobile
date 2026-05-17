@@ -162,7 +162,7 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
           Start with a blank Google Sheet
         </h2>
         <p className="text-[14px] text-zinc-600 mt-2 leading-relaxed max-w-[90%]">
-          Design your form, configure the aesthetics, and we'll instantly deploy a shareable PWA linked directly to a fresh Google Sheet.
+          Design your form, configure the aesthetics, and we&apos;ll instantly deploy a shareable PWA linked directly to a fresh Google Sheet.
         </p>
       </div>
 
