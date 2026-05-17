@@ -476,7 +476,7 @@ function BulkEditInner() {
         } catch (e) {}
       }
     }
-  }, [draftKey]);
+  }, [draftKey, rows.length]);
 
   useEffect(() => {
     if (draftKey) {
@@ -933,7 +933,7 @@ function BulkEditInner() {
     } finally {
       setSubmitting(false);
     }
-  }, [rows, sheetUrl, worksheetName]);
+  }, [rows, sheetUrl, worksheetName, draftKey]);
 
   // ─── Render ─────────────────────────────────────────────────────────
 

@@ -19,6 +19,8 @@ interface Props {
  *
  * Displays a compact banner with a one-tap "Apply" action.
  */
+const EMPTY_OBJ: Record<string, any> = {};
+
 export default function AiAutofillBanner({
   fields,
   aiData,
@@ -30,9 +32,9 @@ export default function AiAutofillBanner({
   const [dismissed, setDismissed] = useState(false);
   const [applied, setApplied] = useState(false);
 
-  const predictions = aiData?.predictions ?? {};
-  const confidence = aiData?.confidence ?? {};
-  const patternType = aiData?.pattern_type ?? {};
+  const predictions = aiData?.predictions ?? EMPTY_OBJ;
+  const confidence = aiData?.confidence ?? EMPTY_OBJ;
+  const patternType = aiData?.pattern_type ?? EMPTY_OBJ;
   const context = aiData?.context;
 
   const hasPredictions = Object.keys(predictions).length > 0;

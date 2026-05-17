@@ -169,7 +169,7 @@ function DataCleanerInner() {
           Data Cleaner
         </h1>
         <p style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 12, color: "var(--stone)", margin: "0 0 32px 0", letterSpacing: "0.04em" }}>
-          // live find & replace and duplicate remover
+          {"// live find & replace and duplicate remover"}
         </p>
 
         {error && (
