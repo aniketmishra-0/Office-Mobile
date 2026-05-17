@@ -18,6 +18,7 @@ from gspread.exceptions import APIError, SpreadsheetNotFound, WorksheetNotFound
 from app.config import get_settings
 from app.models.field import FieldSchema
 from app.services import form_store
+from app.services import session_context
 
 logger = logging.getLogger(__name__)
 
@@ -130,10 +131,13 @@ def _oauth_credentials() -> Any | None:
     """
     token = form_store.get_oauth_token()
     if not token:
+        logger.debug("oauth_credentials: no token found for session key=%s", 
+                     session_context.get_current_oauth_session_key())
         return None
 
     settings = get_settings()
     if not settings.google_oauth_client_id or not settings.google_oauth_client_secret:
+        logger.debug("oauth_credentials: missing client_id or client_secret")
         return None
 
     try:
@@ -181,23 +185,41 @@ def _authenticated_sheet_access(spreadsheet_id: str) -> dict[str, bool]:
         return {"read": False, "edit": False}
 
     client = get_client()
+    # Log which credential type is being used for debugging
+    is_oauth = _oauth_credentials() is not None
+    logger.info(
+        "access_check.start spreadsheet=%s auth_type=%s session_key=%s",
+        spreadsheet_id,
+        "oauth" if is_oauth else "service_account",
+        session_context.get_current_oauth_session_key(),
+    )
     try:
         spreadsheet = client.open_by_key(spreadsheet_id)
     except PermissionError:
+        logger.info("access_check.permission_error spreadsheet=%s", spreadsheet_id)
         return {"read": False, "edit": False}
-    except Exception:
+    except Exception as exc:
+        logger.warning("access_check.open_failed spreadsheet=%s exc=%s", spreadsheet_id, exc)
         return {"read": False, "edit": False}
 
+    # We can open the sheet → read access confirmed.
+    # Check edit access via batchUpdate with empty requests list.
     try:
-        # A batchUpdate with an empty list of requests requires write permission
-        # but does not modify the sheet or update the "Last Modified" timestamp.
         spreadsheet.batch_update({"requests": []})
+        logger.info("access_check.edit_confirmed spreadsheet=%s", spreadsheet_id)
         return {"read": True, "edit": True}
     except APIError as exc:
         status_code = getattr(getattr(exc, "response", None), "status_code", None)
+        logger.info(
+            "access_check.batch_update_result spreadsheet=%s status=%s",
+            spreadsheet_id, status_code,
+        )
         if status_code == 400:
-            # Some API versions reject empty batchUpdate requests even with
-            # valid edit access. Treat this as editable rather than false-negative.
+            # Some API versions reject empty batchUpdate even with valid edit access.
+            return {"read": True, "edit": True}
+        if status_code == 403:
+            return {"read": True, "edit": False}
+        return {"read": True, "edit": False}
             return {"read": True, "edit": True}
         if status_code == 403:
             return {"read": True, "edit": False}
