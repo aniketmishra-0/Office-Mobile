@@ -11,6 +11,7 @@ import type { FieldSchema } from "@/types/field";
 import { useStepHistory } from "@/lib/useStepHistory";
 import {
   getSheetHistory,
+  getSheetSections,
   lookupFormsBySheet,
   checkSheetAccess,
   getPublicConfig,
@@ -24,10 +25,17 @@ interface TabOption {
   has_form: boolean;
 }
 
-interface LoadedTab {
+interface Section {
+  title: string;
+  rows: Record<string, string>[];
+  start_row: number;
+}
+
+interface LoadedData {
   worksheet_name: string;
   fields: FieldSchema[];
   rows: Record<string, string>[];
+  sections: Section[];
 }
 
 export default function LoadPage() {
@@ -52,7 +60,7 @@ function LoadPageInner() {
   const [loading, setLoading] = useState(false);
   const [availableTabs, setAvailableTabs] = useState<TabOption[] | null>(null);
   const [sheetUrl, setSheetUrl] = useState("");
-  const [loaded, setLoaded] = useState<LoadedTab | null>(null);
+  const [loaded, setLoaded] = useState<LoadedData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [accessStatus, setAccessStatus] = useState<"checking" | "edit" | "read" | "none" | null>(null);
   const [serviceAccountEmail, setServiceAccountEmail] = useState<string | null>(null);
@@ -61,6 +69,9 @@ function LoadPageInner() {
   const [selectedField, setSelectedField] = useState<FieldSchema | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortMode, setSortMode] = useState<"count" | "alpha">("count");
+
+  // Section/week filter: "all" means all rows, otherwise index into sections[]
+  const [selectedSection, setSelectedSection] = useState<"all" | number>("all");
 
   // Back-gesture wiring
   const flowStep: FlowStep = loaded ? "results" : availableTabs ? "tabs" : "input";
@@ -73,11 +84,13 @@ function LoadPageInner() {
           setAvailableTabs(null);
           setSelectedField(null);
           setSearchQuery("");
+          setSelectedSection("all");
           break;
         case "tabs":
           setLoaded(null);
           setSelectedField(null);
           setSearchQuery("");
+          setSelectedSection("all");
           if (sheetUrl && !availableTabs) {
             lookupFormsBySheet(sheetUrl)
               .then((result) => {
@@ -195,6 +208,7 @@ function LoadPageInner() {
     setLoaded(null);
     setSelectedField(null);
     setSearchQuery("");
+    setSelectedSection("all");
 
     try {
       const result = await lookupFormsBySheet(url);
@@ -229,14 +243,20 @@ function LoadPageInner() {
 
     try {
       const url = sheet_url ?? sheetUrl;
-      const data = await getSheetHistory(url, tab.worksheet_name);
+      // Load both: all rows (for "All" mode) and sections (for week filter)
+      const [historyData, sectionsData] = await Promise.all([
+        getSheetHistory(url, tab.worksheet_name),
+        getSheetSections(url, tab.worksheet_name).catch(() => null),
+      ]);
+      const sections: Section[] = sectionsData?.sections ?? [];
       setLoaded({
-        worksheet_name: data.worksheet_name,
-        fields: data.fields,
-        rows: data.rows,
+        worksheet_name: historyData.worksheet_name,
+        fields: historyData.fields,
+        rows: historyData.rows,
+        sections,
       });
       // Auto-select a reasonable column
-      autoSelectColumn(data.fields, data.rows);
+      autoSelectColumn(historyData.fields, historyData.rows);
     } catch (e: any) {
       setError(e.message ?? "Failed to load entries");
     } finally {
@@ -245,7 +265,6 @@ function LoadPageInner() {
   }
 
   function autoSelectColumn(fields: FieldSchema[], rows: Record<string, string>[]) {
-    // Pick first column with > 1 unique value and < 500 unique values
     for (const field of [...fields].sort((a, b) => a.order - b.order)) {
       const uniq = new Set<string>();
       for (const row of rows) {
@@ -257,17 +276,24 @@ function LoadPageInner() {
         return;
       }
     }
-    // Fallback: first field
     if (fields.length > 0) {
       setSelectedField(fields[0]);
     }
   }
 
+  // Get the active rows based on section selection
+  const activeRows = useMemo(() => {
+    if (!loaded) return [];
+    if (selectedSection === "all") return loaded.rows;
+    const section = loaded.sections[selectedSection];
+    return section?.rows ?? [];
+  }, [loaded, selectedSection]);
+
   // Compute frequency counts
   const analysis = useMemo(() => {
-    if (!loaded || !selectedField) return null;
+    if (!loaded || !selectedField || activeRows.length === 0) return null;
     const counts = new Map<string, number>();
-    for (const row of loaded.rows) {
+    for (const row of activeRows) {
       const val = (row[selectedField.key] ?? "").trim();
       if (val) counts.set(val, (counts.get(val) ?? 0) + 1);
     }
@@ -278,10 +304,10 @@ function LoadPageInner() {
       sorted.sort((a, b) => a[0].localeCompare(b[0]));
     }
     const maxCount = sorted[0]?.[1] ?? 1;
-    const totalRows = loaded.rows.length;
+    const totalRows = activeRows.length;
     const uniqueCount = counts.size;
     return { sorted, maxCount, totalRows, uniqueCount };
-  }, [loaded, selectedField, sortMode]);
+  }, [loaded, selectedField, sortMode, activeRows]);
 
   // Filter results by search
   const filteredResults = useMemo(() => {
@@ -291,24 +317,29 @@ function LoadPageInner() {
     return analysis.sorted.filter(([name]) => name.toLowerCase().includes(q));
   }, [analysis, searchQuery]);
 
-  const step: 1 | 2 | 3 = availableTabs ? 2 : loaded ? 3 : 1;
-
   // ═══════════════════════ STEP 3: Results ═══════════════════════
-  if (loaded && selectedField && analysis) {
+  if (loaded && selectedField) {
     const sortedFields = [...loaded.fields].sort((a, b) => a.order - b.order);
+    const hasSections = loaded.sections.length > 0;
 
     return (
       <div className="flex flex-col min-h-screen" style={{ background: "var(--cream)" }}>
         <AppHeader title="Load Analysis" showBack onBack={() => window.history.back()} />
         {loading && <LoadingOverlay message="Loading..." />}
 
-        <div className="flex-1 w-full max-w-[560px] mx-auto px-6 pt-8 pb-10">
+        <div style={{
+          flex: 1,
+          width: "100%",
+          maxWidth: 800,
+          margin: "0 auto",
+          padding: "24px 24px 40px",
+        }}>
           {/* Header */}
-          <div style={{ marginBottom: 20 }}>
+          <div style={{ marginBottom: 24 }}>
             <h2 style={{
               fontFamily: "var(--font-newsreader), Georgia, serif",
               fontWeight: 400,
-              fontSize: 20,
+              fontSize: 22,
               color: "var(--ink)",
               margin: 0,
             }}>
@@ -322,49 +353,163 @@ function LoadPageInner() {
               color: "var(--stone)",
               margin: "4px 0 0 0",
             }}>
-              {selectedField.label} · {analysis.totalRows} rows · {analysis.uniqueCount} unique
+              {selectedField.label} · {analysis?.totalRows ?? 0} rows · {analysis?.uniqueCount ?? 0} unique
+              {selectedSection !== "all" && loaded.sections[selectedSection as number] && (
+                <> · {loaded.sections[selectedSection as number].title}</>
+              )}
             </p>
           </div>
 
-          {/* Column picker dropdown */}
-          <div style={{ marginBottom: 16 }}>
-            <label style={{
-              display: "block",
-              fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-              fontWeight: 500,
-              fontSize: 10,
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              color: "var(--charcoal)",
-              marginBottom: 6,
-            }}>
-              Count by
-            </label>
-            <select
-              value={selectedField.key}
-              onChange={(e) => {
-                const f = loaded.fields.find((field) => field.key === e.target.value);
-                if (f) { setSelectedField(f); setSearchQuery(""); }
-              }}
-              style={{
-                width: "100%",
+          {/* Controls row: Column picker + Section/Week picker */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: hasSections ? "1fr 1fr" : "1fr",
+            gap: 16,
+            marginBottom: 20,
+          }}>
+            {/* Column picker */}
+            <div>
+              <label style={{
+                display: "block",
                 fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                fontSize: 13,
-                color: "var(--ink)",
-                background: "var(--cream)",
-                border: 0,
-                borderBottom: "2px solid var(--ink)",
-                borderRadius: 0,
-                padding: "8px 0",
-                outline: "none",
-                cursor: "pointer",
-              }}
-            >
-              {sortedFields.map((f) => (
-                <option key={f.key} value={f.key}>{f.label}</option>
-              ))}
-            </select>
+                fontWeight: 500,
+                fontSize: 10,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                color: "var(--charcoal)",
+                marginBottom: 6,
+              }}>
+                Count by
+              </label>
+              <select
+                value={selectedField.key}
+                onChange={(e) => {
+                  const f = loaded.fields.find((field) => field.key === e.target.value);
+                  if (f) { setSelectedField(f); setSearchQuery(""); }
+                }}
+                style={{
+                  width: "100%",
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  fontSize: 13,
+                  color: "var(--ink)",
+                  background: "var(--cream)",
+                  border: 0,
+                  borderBottom: "2px solid var(--ink)",
+                  borderRadius: 0,
+                  padding: "8px 0",
+                  outline: "none",
+                  cursor: "pointer",
+                }}
+              >
+                {sortedFields.map((f) => (
+                  <option key={f.key} value={f.key}>{f.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Section/Week picker */}
+            {hasSections && (
+              <div>
+                <label style={{
+                  display: "block",
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  fontWeight: 500,
+                  fontSize: 10,
+                  letterSpacing: "0.14em",
+                  textTransform: "uppercase",
+                  color: "var(--charcoal)",
+                  marginBottom: 6,
+                }}>
+                  Week / Section
+                </label>
+                <select
+                  value={selectedSection === "all" ? "all" : String(selectedSection)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setSelectedSection(val === "all" ? "all" : Number(val));
+                    setSearchQuery("");
+                  }}
+                  style={{
+                    width: "100%",
+                    fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                    fontSize: 13,
+                    color: "var(--ink)",
+                    background: "var(--cream)",
+                    border: 0,
+                    borderBottom: "2px solid var(--ink)",
+                    borderRadius: 0,
+                    padding: "8px 0",
+                    outline: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  <option value="all">All sections ({loaded.rows.length} rows)</option>
+                  {loaded.sections.map((section, idx) => (
+                    <option key={idx} value={String(idx)}>
+                      {section.title} ({section.rows.length} rows)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
+
+          {/* Section quick-select pills (for fast week switching) */}
+          {hasSections && loaded.sections.length <= 20 && (
+            <div style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 6,
+              marginBottom: 20,
+            }}>
+              <button
+                type="button"
+                onClick={() => { setSelectedSection("all"); setSearchQuery(""); }}
+                style={{
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  fontSize: 10,
+                  fontWeight: 500,
+                  padding: "5px 12px",
+                  borderRadius: 14,
+                  border: selectedSection === "all" ? "1.5px solid var(--ink)" : "1px solid var(--rule)",
+                  background: selectedSection === "all" ? "var(--ink)" : "var(--paper)",
+                  color: selectedSection === "all" ? "var(--cream)" : "var(--stone)",
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                All
+              </button>
+              {loaded.sections.map((section, idx) => {
+                const isActive = selectedSection === idx;
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => { setSelectedSection(idx); setSearchQuery(""); }}
+                    style={{
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontSize: 10,
+                      fontWeight: 500,
+                      padding: "5px 12px",
+                      borderRadius: 14,
+                      border: isActive ? "1.5px solid var(--ink)" : "1px solid var(--rule)",
+                      background: isActive ? "var(--ink)" : "var(--paper)",
+                      color: isActive ? "var(--cream)" : "var(--stone)",
+                      cursor: "pointer",
+                      transition: "all 0.15s ease",
+                      maxWidth: 180,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {section.title}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {/* Search + Sort controls */}
           <div style={{ display: "flex", gap: 10, marginBottom: 16, alignItems: "center" }}>
@@ -382,7 +527,7 @@ function LoadPageInner() {
                   background: "var(--paper)",
                   border: "1px solid var(--rule)",
                   borderRadius: 4,
-                  padding: "7px 28px 7px 10px",
+                  padding: "9px 28px 9px 12px",
                   outline: "none",
                 }}
               />
@@ -407,7 +552,7 @@ function LoadPageInner() {
                 background: "var(--paper)",
                 border: "1px solid var(--rule)",
                 borderRadius: 4,
-                padding: "7px 10px",
+                padding: "9px 14px",
                 cursor: "pointer",
                 whiteSpace: "nowrap",
               }}
@@ -416,11 +561,11 @@ function LoadPageInner() {
             </button>
           </div>
 
-          <hr style={{ border: 0, borderTop: "1px solid var(--rule)", margin: "0 0 12px 0" }} />
+          <hr style={{ border: 0, borderTop: "1px solid var(--rule)", margin: "0 0 16px 0" }} />
 
           {/* Results list */}
           <div>
-            {filteredResults.length === 0 && (
+            {(!analysis || filteredResults.length === 0) && (
               <p style={{
                 fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
                 fontSize: 12,
@@ -428,27 +573,27 @@ function LoadPageInner() {
                 textAlign: "center",
                 padding: "40px 0",
               }}>
-                No matches
+                {activeRows.length === 0 ? "No data in this section" : "No matches"}
               </p>
             )}
-            {filteredResults.map(([name, count], idx) => {
+            {analysis && filteredResults.map(([name, count], idx) => {
               const pct = ((count / analysis.totalRows) * 100).toFixed(1);
               const barWidth = (count / analysis.maxCount) * 100;
               return (
                 <div key={name} style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 10,
-                  padding: "10px 0",
+                  gap: 12,
+                  padding: "12px 0",
                   borderBottom: "1px solid var(--rule)",
                 }}>
                   {/* Rank */}
                   <span style={{
                     fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: 400,
                     color: "var(--stone)",
-                    width: 24,
+                    width: 28,
                     textAlign: "right",
                     flexShrink: 0,
                   }}>
@@ -458,7 +603,7 @@ function LoadPageInner() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{
                       fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: 400,
                       color: "var(--ink)",
                       margin: 0,
@@ -469,17 +614,17 @@ function LoadPageInner() {
                       {name}
                     </p>
                     <div style={{
-                      marginTop: 4,
-                      height: 4,
+                      marginTop: 6,
+                      height: 6,
                       background: "var(--rule)",
-                      borderRadius: 2,
+                      borderRadius: 3,
                       overflow: "hidden",
                     }}>
                       <div style={{
                         width: `${barWidth}%`,
                         height: "100%",
                         background: "var(--clay)",
-                        borderRadius: 2,
+                        borderRadius: 3,
                         transition: "width 300ms ease-out",
                       }} />
                     </div>
@@ -488,11 +633,11 @@ function LoadPageInner() {
                   {/* Count */}
                   <span style={{
                     fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                    fontSize: 13,
+                    fontSize: 14,
                     fontWeight: 600,
                     color: "var(--ink)",
                     flexShrink: 0,
-                    minWidth: 32,
+                    minWidth: 36,
                     textAlign: "right",
                   }}>
                     {count}
@@ -500,11 +645,11 @@ function LoadPageInner() {
                   {/* Percentage */}
                   <span style={{
                     fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: 400,
                     color: "var(--stone)",
                     flexShrink: 0,
-                    minWidth: 48,
+                    minWidth: 52,
                     textAlign: "right",
                   }}>
                     {pct}%
@@ -515,29 +660,29 @@ function LoadPageInner() {
           </div>
 
           {/* Summary footer */}
-          <div style={{
-            marginTop: 16,
-            padding: "12px 0",
-            borderTop: "1px solid var(--rule)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: 8,
-          }}>
-            <p style={{
-              fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-              fontSize: 11,
-              fontWeight: 400,
-              color: "var(--stone)",
-              margin: 0,
+          {analysis && (
+            <div style={{
+              marginTop: 20,
+              padding: "14px 0",
+              borderTop: "1px solid var(--rule)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 10,
             }}>
-              {analysis.totalRows} rows · {analysis.uniqueCount} unique values
-            </p>
-            <div style={{ display: "flex", gap: 8 }}>
+              <p style={{
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontSize: 12,
+                fontWeight: 400,
+                color: "var(--stone)",
+                margin: 0,
+              }}>
+                {analysis.totalRows} rows · {analysis.uniqueCount} unique values
+              </p>
               <button
                 type="button"
-                onClick={() => { setLoaded(null); setSelectedField(null); setSearchQuery(""); }}
+                onClick={() => { setLoaded(null); setSelectedField(null); setSearchQuery(""); setSelectedSection("all"); }}
                 style={{
                   fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
                   fontSize: 10,
@@ -548,14 +693,14 @@ function LoadPageInner() {
                   background: "none",
                   border: "1px solid var(--rule)",
                   borderRadius: 4,
-                  padding: "6px 10px",
+                  padding: "7px 12px",
                   cursor: "pointer",
                 }}
               >
                 Change sheet
               </button>
             </div>
-          </div>
+          )}
         </div>
 
         <ErrorToast message={error} onDismiss={() => setError(null)} />
@@ -798,7 +943,6 @@ function LoadPageInner() {
                 ✓ access confirmed
               </p>
             )}
-
             {accessStatus === "read" && (
               <p style={{
                 margin: "10px 0 0 0",
