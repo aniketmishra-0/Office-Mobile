@@ -48,6 +48,11 @@ const FONT_OPTIONS = [
   { value: "plex-mono", label: "IBM Plex Mono" },
 ];
 
+const LAYOUT_OPTIONS = [
+  { value: "standard", label: "Standard List" },
+  { value: "grid", label: "Grid Layout" },
+];
+
 function createDraftField(): DraftField {
   return {
     id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2),
@@ -73,6 +78,7 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
   // Form UI/UX Config
   const [formTheme, setFormTheme] = useState("system");
   const [formFont, setFormFont] = useState("system");
+  const [formLayout, setFormLayout] = useState("standard");
   const [showConfig, setShowConfig] = useState(false);
 
   const canSubmit = useMemo(
@@ -135,6 +141,7 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
     const uiConfig = {
       theme: formTheme,
       font_family: formFont,
+      layout: formLayout,
     };
 
     setError(null);
@@ -149,7 +156,7 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
   return (
     <div className="space-y-8 animate-in pb-12">
       {/* Hero Section */}
-      <div className="relative overflow-hidden rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+      <div className="relative overflow-hidden rounded-2xl border border-zinc-200 bg-transparent p-6 shadow-sm">
         <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
           <svg className="w-32 h-32" fill="currentColor" viewBox="0 0 24 24">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2v4h4v12H6V4h7zM8 12h8v2H8v-2zm0 4h8v2H8v-2z" />
@@ -178,7 +185,7 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                 type="text"
                 value={formTitle}
                 onChange={(e) => setFormTitle(e.target.value)}
-                className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3.5 pr-10 text-[16px] min-h-[52px] shadow-sm transition-shadow focus:border-zinc-400 focus:outline-none focus:ring-4 focus:ring-zinc-100"
+                className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3.5 pr-10 text-[16px] min-h-[52px] shadow-sm transition-shadow focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-950"
                 placeholder="e.g. Feedback Survey"
               />
               {formTitle && <ClearButton onClick={() => setFormTitle("")} right={12} ariaLabel="Clear title" />}
@@ -194,7 +201,7 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                 type="text"
                 value={worksheetName}
                 onChange={(e) => setWorksheetName(e.target.value)}
-                className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3.5 pr-10 text-[16px] min-h-[52px] shadow-sm transition-shadow focus:border-zinc-400 focus:outline-none focus:ring-4 focus:ring-zinc-100"
+                className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3.5 pr-10 text-[16px] min-h-[52px] shadow-sm transition-shadow focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-950"
                 placeholder="e.g. Sheet1"
               />
               {worksheetName !== "Sheet1" && worksheetName !== "" && (
@@ -205,22 +212,22 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
         </div>
 
         {/* UI/UX Configuration Toggle */}
-        <div className="rounded-xl border border-zinc-200 bg-white overflow-hidden transition-all duration-300">
+        <div className="rounded-xl border border-zinc-200 bg-transparent overflow-hidden transition-all duration-300">
           <button
             type="button"
             onClick={() => setShowConfig(!showConfig)}
-            className="w-full flex items-center justify-between p-4 hover:bg-zinc-50 transition-colors"
+            className="w-full flex items-center justify-between p-4 bg-zinc-50 transition-colors"
           >
             <div className="flex items-center gap-2.5">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-100 text-zinc-600">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-200 text-zinc-700">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
                 </svg>
               </span>
-              <span className="text-[14px] font-medium text-zinc-900">Form UI & UX Configuration</span>
+              <span className="text-[14px] font-medium text-zinc-950">Form UI & UX Configuration</span>
             </div>
             <svg
-              className={`w-5 h-5 text-zinc-400 transition-transform duration-300 ${showConfig ? "rotate-180" : ""}`}
+              className={`w-5 h-5 text-zinc-500 transition-transform duration-300 ${showConfig ? "rotate-180" : ""}`}
               fill="none" viewBox="0 0 24 24" stroke="currentColor"
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -228,8 +235,8 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
           </button>
           
           {showConfig && (
-            <div className="p-4 pt-0 border-t border-zinc-100 bg-zinc-50/50 animate-in slide-in-from-top-2">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+            <div className="p-4 pt-4 border-t border-zinc-200 bg-transparent animate-in slide-in-from-top-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-1.5">
                     Form Theme
@@ -250,6 +257,17 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                     value={formFont}
                     options={FONT_OPTIONS}
                     onChange={(val) => setFormFont(val)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-1.5">
+                    Form Layout
+                  </label>
+                  <MobileDropdown
+                    size="sm"
+                    value={formLayout}
+                    options={LAYOUT_OPTIONS}
+                    onChange={(val) => setFormLayout(val)}
                   />
                 </div>
               </div>
@@ -276,7 +294,7 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
           <button
             type="button"
             onClick={() => setFields((prev) => [...prev, createDraftField()])}
-            className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-4 py-2.5 text-[13px] font-medium text-zinc-800 hover:bg-zinc-50 hover:shadow-sm transition-all min-h-[40px]"
+            className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-transparent px-4 py-2.5 text-[13px] font-medium text-zinc-800 hover:bg-zinc-50 hover:shadow-sm transition-all min-h-[40px]"
           >
             <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -289,7 +307,7 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
           {fields.map((field, index) => (
             <div 
               key={field.id} 
-              className="group relative rounded-xl border border-zinc-200 bg-white p-4 shadow-sm transition-all hover:border-zinc-300 hover:shadow-md"
+              className="group relative rounded-xl border border-zinc-200 bg-transparent p-4 shadow-sm transition-all hover:border-zinc-300 hover:shadow-md"
             >
               <div className="grid grid-cols-1 sm:grid-cols-[1fr_200px_auto] gap-4 items-end">
                 <div className="flex-1">
@@ -301,7 +319,7 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                       type="text"
                       value={field.name}
                       onChange={(e) => updateField(field.id, { name: e.target.value })}
-                      className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 pr-9 text-[14px] text-zinc-950 focus:border-zinc-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-zinc-100 transition-all"
+                      className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 pr-9 text-[14px] text-zinc-950 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-950 transition-all"
                       placeholder={`e.g. ${index === 0 ? 'Full Name' : index === 1 ? 'Email Address' : 'Comments'}`}
                     />
                     {field.name && (
@@ -332,7 +350,7 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                     type="button"
                     onClick={() => moveField(field.id, -1)}
                     disabled={index === 0}
-                    className="inline-flex h-[42px] w-10 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-400 hover:bg-zinc-50 hover:text-zinc-700 disabled:opacity-30 transition-colors"
+                    className="inline-flex h-[42px] w-10 items-center justify-center rounded-lg border border-zinc-200 bg-transparent text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700 disabled:opacity-30 transition-colors"
                     aria-label="Move up"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -343,7 +361,7 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                     type="button"
                     onClick={() => moveField(field.id, 1)}
                     disabled={index === fields.length - 1}
-                    className="inline-flex h-[42px] w-10 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-400 hover:bg-zinc-50 hover:text-zinc-700 disabled:opacity-30 transition-colors"
+                    className="inline-flex h-[42px] w-10 items-center justify-center rounded-lg border border-zinc-200 bg-transparent text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700 disabled:opacity-30 transition-colors"
                     aria-label="Move down"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
