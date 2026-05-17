@@ -821,34 +821,47 @@ button:active:not(:disabled) {
 @media (min-width: 768px) {
   .mhf-dropdowns-row {
     flex-direction: row;
-    gap: 10px;
+    gap: 12px;
   }
   .mhf-dropdown-item {
     flex: 1;
     min-width: 0;
-    max-width: 300px;
+    max-width: none;
   }
   .mhf-search-row {
-    max-width: 400px;
+    max-width: none;
   }
 }
 
 /* ─── Desktop (1024px) — all in one row ─── */
 @media (min-width: 1024px) {
+  .mhf-top-controls {
+    padding: 18px 28px 14px !important;
+  }
   .mhf-controls-row {
     flex-direction: row;
     align-items: center;
     flex-wrap: wrap;
+    gap: 12px;
   }
   .mhf-dropdowns-row {
-    flex: 0 0 auto;
+    flex: 0 1 auto;
+    gap: 12px;
   }
   .mhf-dropdown-item {
-    max-width: 250px;
+    min-width: 180px;
+    max-width: none;
   }
   .mhf-search-row {
     flex: 1;
-    min-width: 180px;
-    max-width: 280px;
+    min-width: 220px;
+    max-width: none;
+  }
+  .mhf-days-row {
+    margin-top: 14px;
+    gap: 10px;
+  }
+  .mhf-days-buttons {
+    gap: 8px;
   }
 }

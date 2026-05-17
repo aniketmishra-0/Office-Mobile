@@ -597,7 +597,7 @@ function MultiHeaderFilterInner() {
       <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
 
         {/* Top controls area */}
-        <div style={{ padding: "14px 16px 10px", borderBottom: "1px solid var(--rule)" }}>
+        <div className="mhf-top-controls" style={{ padding: "14px 16px 10px", borderBottom: "1px solid var(--rule)" }}>
           {/* Title row with calendar */}
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 10 }}>
             <div>
