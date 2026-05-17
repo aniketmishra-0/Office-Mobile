@@ -690,10 +690,16 @@ function LoadPageInner() {
             </p>
           </div>
 
-          {/* Controls row: Column picker + Section/Week picker (multi-select) */}
+          {/* Controls row: Column picker + Section/Week + Month + Date Range */}
           <div style={{
             display: "grid",
-            gridTemplateColumns: hasSections ? "1fr 1fr" : "1fr",
+            gridTemplateColumns: (() => {
+              const cols: string[] = ["1fr"]; // Count by
+              if (hasSections) cols.push("1fr"); // Week/Section
+              if (availableMonths.length > 0) cols.push("1fr"); // Month
+              if (dateColumn) cols.push("1fr"); // Date Range
+              return cols.join(" ");
+            })(),
             gap: 16,
             marginBottom: 20,
           }}>
@@ -769,145 +775,122 @@ function LoadPageInner() {
                 />
               </div>
             )}
-          </div>
 
-          {/* Month pills — auto-detected from section titles */}
-          {availableMonths.length > 0 && (
-            <div style={{ marginBottom: 20 }}>
-              <label style={{
-                display: "block",
-                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                fontWeight: 500,
-                fontSize: 9,
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                color: "var(--stone)",
-                marginBottom: 8,
-              }}>
-                Month
-              </label>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                <button
-                  type="button"
-                  onClick={() => { setSelectedMonth("all"); setSearchQuery(""); }}
-                  style={{
-                    fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                    fontSize: 11,
-                    fontWeight: 500,
-                    padding: "6px 14px",
-                    borderRadius: 14,
-                    border: selectedMonth === "all" ? "1.5px solid var(--ink)" : "1px solid var(--rule)",
-                    background: selectedMonth === "all" ? "var(--ink)" : "var(--paper)",
-                    color: selectedMonth === "all" ? "var(--cream)" : "var(--stone)",
-                    cursor: "pointer",
-                    transition: "all 0.15s ease",
-                  }}
-                >
-                  All
-                </button>
-                {availableMonths.map(({ value, label, rowCount }) => {
-                  const isActive = selectedMonth === value;
-                  return (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => { setSelectedMonth(value); setSearchQuery(""); }}
-                      style={{
-                        fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                        fontSize: 11,
-                        fontWeight: 500,
-                        padding: "6px 14px",
-                        borderRadius: 14,
-                        border: isActive ? "1.5px solid var(--ink)" : "1px solid var(--rule)",
-                        background: isActive ? "var(--ink)" : "var(--paper)",
-                        color: isActive ? "var(--cream)" : "var(--stone)",
-                        cursor: "pointer",
-                        transition: "all 0.15s ease",
-                      }}
-                    >
-                      {label} <span style={{ opacity: 0.6, fontSize: 9 }}>({rowCount})</span>
-                    </button>
-                  );
-                })}
+            {/* Month dropdown */}
+            {availableMonths.length > 0 && (
+              <div>
+                <label style={{
+                  display: "block",
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  fontWeight: 500,
+                  fontSize: 10,
+                  letterSpacing: "0.14em",
+                  textTransform: "uppercase",
+                  color: "var(--charcoal)",
+                  marginBottom: 6,
+                }}>
+                  Month
+                </label>
+                <MobileDropdown
+                  size="sm"
+                  value={selectedMonth}
+                  options={[
+                    { value: "all", label: `All months (${loaded.rows.length} rows)` },
+                    ...availableMonths.map(({ value, label, rowCount }) => ({
+                      value,
+                      label: `${label} (${rowCount})`,
+                    })),
+                  ]}
+                  onChange={(val) => { setSelectedMonth(val); setSearchQuery(""); }}
+                  placeholder="All months"
+                />
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Date range filter — shown when a date column is detected */}
-          {dateColumn && (
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              marginBottom: 16,
-              flexWrap: "wrap",
-            }}>
-              <span style={{
-                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                fontWeight: 500,
-                fontSize: 9,
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                color: "var(--stone)",
-              }}>
-                Date range:
-              </span>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                style={{
+            {/* Date Range dropdown-style filter */}
+            {dateColumn && (
+              <div>
+                <label style={{
+                  display: "block",
                   fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                  fontSize: 12,
-                  color: "var(--ink)",
+                  fontWeight: 500,
+                  fontSize: 10,
+                  letterSpacing: "0.14em",
+                  textTransform: "uppercase",
+                  color: "var(--charcoal)",
+                  marginBottom: 6,
+                }}>
+                  Date Range
+                </label>
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
                   background: "var(--paper)",
                   border: "1px solid var(--rule)",
-                  borderRadius: 4,
-                  padding: "6px 10px",
-                  outline: "none",
-                }}
-              />
-              <span style={{
-                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                fontSize: 10,
-                color: "var(--stone)",
-              }}>to</span>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                style={{
-                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                  fontSize: 12,
-                  color: "var(--ink)",
-                  background: "var(--paper)",
-                  border: "1px solid var(--rule)",
-                  borderRadius: 4,
-                  padding: "6px 10px",
-                  outline: "none",
-                }}
-              />
-              {(dateFrom || dateTo) && (
-                <button
-                  type="button"
-                  onClick={() => { setDateFrom(""); setDateTo(""); }}
-                  style={{
+                  borderRadius: 6,
+                  padding: "5px 10px",
+                }}>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    style={{
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontSize: 11,
+                      color: "var(--ink)",
+                      background: "transparent",
+                      border: 0,
+                      outline: "none",
+                      width: "100%",
+                      minWidth: 0,
+                    }}
+                  />
+                  <span style={{
                     fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
                     fontSize: 9,
-                    fontWeight: 500,
-                    color: "var(--clay)",
-                    background: "none",
-                    border: "1px solid var(--clay)",
-                    borderRadius: 4,
-                    padding: "5px 10px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-          )}
+                    color: "var(--stone)",
+                    flexShrink: 0,
+                  }}>→</span>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    style={{
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontSize: 11,
+                      color: "var(--ink)",
+                      background: "transparent",
+                      border: 0,
+                      outline: "none",
+                      width: "100%",
+                      minWidth: 0,
+                    }}
+                  />
+                  {(dateFrom || dateTo) && (
+                    <button
+                      type="button"
+                      onClick={() => { setDateFrom(""); setDateTo(""); }}
+                      style={{
+                        fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                        fontSize: 8,
+                        fontWeight: 600,
+                        color: "var(--clay)",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: "2px 4px",
+                        flexShrink: 0,
+                      }}
+                      aria-label="Clear date range"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Search + Sort controls */}
           <div style={{ display: "flex", gap: 10, marginBottom: 16, alignItems: "center" }}>
