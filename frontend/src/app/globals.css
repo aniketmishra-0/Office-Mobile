@@ -783,15 +783,16 @@ button:active:not(:disabled) {
   gap: 10px;
 }
 
-/* Dropdowns row — full width stacked on mobile */
+/* Dropdowns row — side by side on mobile */
 .mhf-dropdowns-row {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 8px;
 }
 
 .mhf-dropdown-item {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
 }
 
 /* Search row */
