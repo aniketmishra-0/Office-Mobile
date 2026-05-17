@@ -1255,13 +1255,14 @@ function BulkEditInner() {
                       </label>
 
                       {/* Batch field — multi-select with search */}
-                      {isBatchField && hasDropdown ? (
+                      {isBatchField ? (
                         <MobileDropdown
                           multiple
                           selectedValues={manualBatches}
-                          options={uniqueVals.map((v) => ({ value: v, label: v }))}
+                          options={(uniqueVals || []).map((v) => ({ value: v, label: v }))}
                           onMultiChange={(vals) => setManualBatches(vals)}
-                          placeholder="Search & select batches..."
+                          placeholder="Search or add batch name..."
+                          allowCreate={true}
                         />
                       ) : isDateField ? (
                         /* Date field — native date picker, auto-formats to sheet format */
