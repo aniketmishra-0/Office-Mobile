@@ -442,15 +442,10 @@ def read_headers_public(
 def check_sheet_access(spreadsheet_id: str) -> dict[str, bool]:
     """Check if we have read/edit access to the spreadsheet."""
     try:
-        _read_public_sheet_names(spreadsheet_id)
+        _fetch_gviz_json(spreadsheet_id, None)
         public_read = True
     except PublicSheetError:
-        # The xlsx export failed — try the lighter gviz endpoint as fallback
-        try:
-            _fetch_gviz_json(spreadsheet_id, None)
-            public_read = True
-        except PublicSheetError:
-            public_read = False
+        public_read = False
 
     if public_read:
         result = {"read": True, "edit": False}
