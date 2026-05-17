@@ -83,7 +83,7 @@ export default function AppHeader({
         const res = await fetch(
           (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "") +
             "/api/auth/status",
-          { credentials: "include", headers },
+          { credentials: "include", headers, cache: "no-store" },
         );
         const data = await res.json();
         if (!mounted) return;

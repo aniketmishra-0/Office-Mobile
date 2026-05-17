@@ -415,6 +415,7 @@ export default function Dashboard() {
       method: "POST",
       credentials: "include",
       headers,
+      cache: "no-store",
     })
       .then(() => {
         try {

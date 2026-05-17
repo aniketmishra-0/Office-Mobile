@@ -88,6 +88,7 @@ async function jsonRequest<T>(
     headers: { "Content-Type": "application/json", ...sessionHeaders() },
     body: JSON.stringify(body),
     credentials: "include",
+    cache: "no-store",
   });
   return handleResponse<T>(res);
 }
@@ -98,6 +99,7 @@ async function jsonGet<T>(path: string): Promise<T> {
     method: "GET",
     headers: { "Content-Type": "application/json", ...sessionHeaders() },
     credentials: "include",
+    cache: "no-store",
   });
   return handleResponse<T>(res);
 }

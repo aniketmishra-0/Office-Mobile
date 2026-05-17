@@ -118,6 +118,7 @@ export default function WelcomeScreen({ onAuthenticated }: Props) {
           const res = await fetch(`${API_BASE}/api/auth/status`, {
             credentials: "include",
             headers,
+            cache: "no-store",
           });
           const data = await res.json();
           if (data.session_key) {
