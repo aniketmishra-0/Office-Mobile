@@ -193,6 +193,7 @@ export async function createForm(payload: {
   fields: FieldSchema[];
   custom_keywords: CustomKeywordRule[];
   autofill_columns?: string[];
+  ui_config?: Record<string, any> | null;
 }): Promise<CreateFormResponse> {
   return jsonRequest<CreateFormResponse>("POST", "/forms", payload);
 }
@@ -203,6 +204,7 @@ export async function createForm(payload: {
  */
 export async function createSheet(payload: {
   form_title: string;
+  worksheet_name?: string | null;
   fields: FieldSchema[];
 }): Promise<CreateSheetResponse> {
   return jsonRequest<CreateSheetResponse>("POST", "/sheet/create", payload);
@@ -267,6 +269,7 @@ export async function updateForm(
     fields: FieldSchema[];
     custom_keywords: CustomKeywordRule[];
     autofill_columns?: string[];
+    ui_config?: Record<string, any> | null;
   },
 ): Promise<{ success: boolean; id: string }> {
   return jsonRequest<{ success: boolean; id: string }>(

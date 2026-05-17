@@ -91,9 +91,10 @@ export interface FormLibraryResponse {
 export interface PublicFormResponse {
   id: string;
   form_title: string;
-  worksheet_name?: string | null;
+  worksheet_name: string | null;
   fields: FieldSchema[];
   autofill_columns: string[];
+  ui_config?: Record<string, any> | null;
 }
 
 /** Returned by GET /api/forms/:id/edit?token=… */
@@ -106,6 +107,7 @@ export interface EditFormResponse {
   fields: FieldSchema[];
   custom_keywords: CustomKeywordRule[];
   autofill_columns: string[];
+  ui_config?: Record<string, any> | null;
 }
 
 /** Returned by POST /api/forms/:id/submit */

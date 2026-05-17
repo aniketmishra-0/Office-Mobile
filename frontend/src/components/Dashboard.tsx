@@ -358,12 +358,13 @@ export default function Dashboard() {
     return `${diffDays}d ago`;
   }
 
-  async function handleCreateNewForm(payload: { formTitle: string; fields: FieldSchema[] }) {
+  async function handleCreateNewForm(payload: { formTitle: string; worksheetName?: string; fields: FieldSchema[]; uiConfig?: Record<string, any> }) {
     setSaving(true);
     setError(null);
     try {
       const sheet = await createSheet({
         form_title: payload.formTitle,
+        worksheet_name: payload.worksheetName,
         fields: payload.fields,
       });
       const result = await createForm({
@@ -374,6 +375,7 @@ export default function Dashboard() {
         fields: payload.fields,
         custom_keywords: [],
         autofill_columns: [],
+        ui_config: payload.uiConfig,
       });
       setCreatedForm(result);
       setFormTitle(payload.formTitle);

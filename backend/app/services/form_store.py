@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS forms (
     fields_json     JSONB NOT NULL,
     custom_keywords_json  JSONB NOT NULL DEFAULT '[]'::jsonb,
     autofill_columns_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    ui_config_json  JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 )
@@ -85,6 +86,8 @@ def init_db() -> None:
             cur.execute(CREATE_USER_PREFERENCES_SQL)
             for stmt in CREATE_INDEXES_SQL:
                 cur.execute(stmt)
+            # Safe migration
+            cur.execute("ALTER TABLE forms ADD COLUMN IF NOT EXISTS ui_config_json JSONB DEFAULT '{}'::jsonb")
 
 
 # ---------------------------------------------------------------------------
@@ -151,6 +154,7 @@ def _row_to_record(row: dict[str, Any] | None) -> dict[str, Any] | None:
         "fields": _load_fields(row.get("fields_json")),
         "custom_keywords": _load_keywords(row.get("custom_keywords_json")),
         "autofill_columns": _coerce_json(row.get("autofill_columns_json")) or [],
+        "ui_config": _coerce_json(row.get("ui_config_json")),
         "submission_count": row.get("submission_count"),
         "created_at": _iso(row.get("created_at")),
         "updated_at": _iso(row.get("updated_at")),
@@ -171,6 +175,7 @@ def create_form(
     fields: list[FieldSchema],
     custom_keywords: list[CustomKeywordRule],
     autofill_columns: list[str] | None = None,
+    ui_config: dict | None = None,
     oauth_key: str | None = None,
 ) -> dict[str, Any]:
     form_id = uuid4().hex[:12]
@@ -180,8 +185,8 @@ def create_form(
         """
         INSERT INTO forms (
             id, edit_token, oauth_key, sheet_url, spreadsheet_id, worksheet_name,
-            form_title, fields_json, custom_keywords_json, autofill_columns_json
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            form_title, fields_json, custom_keywords_json, autofill_columns_json, ui_config_json
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """,
         (
             form_id,
@@ -194,6 +199,7 @@ def create_form(
             Jsonb(_dump_models(fields)),
             Jsonb(_dump_models(custom_keywords)),
             Jsonb(autofill_columns or []),
+            Jsonb(ui_config or {}),
         ),
     )
 
@@ -249,6 +255,7 @@ def update_form(
     fields: list[FieldSchema],
     custom_keywords: list[CustomKeywordRule],
     autofill_columns: list[str] | None = None,
+    ui_config: dict | None = None,
 ) -> dict[str, Any] | None:
     execute(
         """
@@ -257,6 +264,7 @@ def update_form(
             fields_json = %s,
             custom_keywords_json = %s,
             autofill_columns_json = %s,
+            ui_config_json = %s,
             updated_at = now()
         WHERE id = %s
         """,
@@ -265,6 +273,7 @@ def update_form(
             Jsonb(_dump_models(fields)),
             Jsonb(_dump_models(custom_keywords)),
             Jsonb(autofill_columns or []),
+            Jsonb(ui_config or {}),
             form_id,
         ),
     )
