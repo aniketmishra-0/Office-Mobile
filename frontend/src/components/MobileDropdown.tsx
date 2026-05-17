@@ -210,6 +210,7 @@ function DesktopDropdown({
   selectedValue,
   selectedValues,
   onSelect,
+  allowCreate,
 }: {
   options: DropdownOption[];
   size: "default" | "sm";
@@ -296,6 +297,7 @@ function BottomSheet({
   onSelect,
   onClose,
   placeholder,
+  allowCreate,
 }: {
   options: DropdownOption[];
   size: "default" | "sm";
