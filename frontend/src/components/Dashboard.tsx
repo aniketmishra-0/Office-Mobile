@@ -184,7 +184,9 @@ export default function Dashboard() {
     }
 
     // Fast path: check sessionStorage cache (2-min TTL)
-    const cacheKey = `om_access_${sheetUrl.trim()}`;
+    // Include the session key in the cache so re-login invalidates stale results.
+    const sk = typeof window !== "undefined" ? window.localStorage.getItem("om_session") || "" : "";
+    const cacheKey = `om_access_${sk}_${sheetUrl.trim()}`;
     try {
       const cached = sessionStorage.getItem(cacheKey);
       if (cached) {

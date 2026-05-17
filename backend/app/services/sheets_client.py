@@ -439,7 +439,7 @@ def read_headers_public(
 # ---------------------------------------------------------------------------
 
 
-_ACCESS_CACHE: dict[str, tuple[float, dict[str, bool]]] = {}
+_ACCESS_CACHE: dict[tuple[str, str | None], tuple[float, dict[str, bool]]] = {}
 _ACCESS_CACHE_TTL = 120  # seconds
 
 
@@ -447,7 +447,7 @@ def check_sheet_access(spreadsheet_id: str) -> dict[str, bool]:
     """Check if we have read/edit access to the spreadsheet.
 
     Optimisations vs. the previous sequential implementation:
-      1. Results are cached for 2 minutes per spreadsheet_id.
+      1. Results are cached for 2 minutes per (spreadsheet_id, session_key).
       2. Public-read probe and authenticated-edit probe run in parallel
          (concurrent.futures) instead of sequentially, cutting wall-clock
          time from ~5-8 s to ~2-3 s on a cold call.
@@ -463,7 +463,10 @@ def check_sheet_access(spreadsheet_id: str) -> dict[str, bool]:
     _session_key = None if _raw_session_key is UNSET else _raw_session_key
 
     # ── Cache hit ──────────────────────────────────────────────────────
-    cached = _ACCESS_CACHE.get(spreadsheet_id)
+    # Key includes the session so different users (or re-logins) don't get
+    # stale access results from another identity.
+    _cache_key = (spreadsheet_id, _session_key if isinstance(_session_key, str) else None)
+    cached = _ACCESS_CACHE.get(_cache_key)
     if cached:
         ts, result = cached
         if time.time() - ts < _ACCESS_CACHE_TTL:
@@ -502,7 +505,7 @@ def check_sheet_access(spreadsheet_id: str) -> dict[str, bool]:
     else:
         result = {"read": False, "edit": False}
 
-    _ACCESS_CACHE[spreadsheet_id] = (time.time(), result)
+    _ACCESS_CACHE[_cache_key] = (time.time(), result)
     return result
 
 
