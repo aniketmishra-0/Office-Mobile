@@ -220,10 +220,6 @@ def _authenticated_sheet_access(spreadsheet_id: str) -> dict[str, bool]:
         if status_code == 403:
             return {"read": True, "edit": False}
         return {"read": True, "edit": False}
-            return {"read": True, "edit": True}
-        if status_code == 403:
-            return {"read": True, "edit": False}
-        return {"read": True, "edit": False}
 
 
 def get_client() -> gspread.Client:
