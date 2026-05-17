@@ -1048,6 +1048,9 @@ export default function Dashboard() {
                   case "data-cleaner":
                     router.push(`/data-cleaner?url=${encodedUrl}`);
                     break;
+                  case "load-analysis":
+                    router.push(`/load?sheet=${encodedUrl}`);
+                    break;
                   default:
                     router.push(`/history?sheet=${encodedUrl}`);
                     break;
