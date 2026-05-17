@@ -212,11 +212,11 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
         </div>
 
         {/* UI/UX Configuration Toggle */}
-        <div className="rounded-xl border border-zinc-200 bg-transparent overflow-hidden transition-all duration-300">
+        <div className="rounded-xl border border-zinc-200 bg-transparent transition-all duration-300">
           <button
             type="button"
             onClick={() => setShowConfig(!showConfig)}
-            className="w-full flex items-center justify-between p-4 bg-zinc-50 transition-colors"
+            className={`w-full flex items-center justify-between p-4 bg-zinc-50 transition-colors ${showConfig ? 'rounded-t-xl' : 'rounded-xl'}`}
           >
             <div className="flex items-center gap-2.5">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-200 text-zinc-700">
