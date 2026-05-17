@@ -48,14 +48,14 @@ export default function SplashScreen() {
           </linearGradient>
 
           <clipPath id="sp-clip1">
-            <rect x="30" y="64" width="40" height="5" rx="2.5" />
+            <rect x="38" y="64" width="40" height="5" rx="2.5" />
           </clipPath>
           <clipPath id="sp-clip2">
-            <rect x="30" y="76" width="32" height="5" rx="2.5" />
+            <rect x="38" y="76" width="32" height="5" rx="2.5" />
           </clipPath>
 
           <clipPath id="sp-doc">
-            <polygon points="22,18 72,18 82,28 82,102 22,102" />
+            <polygon points="30,18 80,18 90,28 90,102 30,102" />
           </clipPath>
 
           <filter id="sp-halo" x="-50%" y="-50%" width="200%" height="200%">
@@ -68,25 +68,25 @@ export default function SplashScreen() {
 
         {/* Document icon */}
         <g stroke="#A8A29E" strokeWidth="3.5" strokeLinejoin="round" strokeLinecap="round" fill="none">
-          <rect x="22" y="18" width="60" height="84" rx="6" ry="6" clipPath="url(#sp-doc)" />
-          <line x1="72" y1="18" x2="82" y2="28" />
-          <polyline points="72,18 72,28 82,28" />
+          <rect x="30" y="18" width="60" height="84" rx="6" ry="6" clipPath="url(#sp-doc)" />
+          <line x1="80" y1="18" x2="90" y2="28" />
+          <polyline points="80,18 80,28 90,28" />
         </g>
 
         {/* Base lines */}
-        <rect x="30" y="64" width="40" height="5" rx="2.5" fill="#C8C3BC" />
-        <rect x="30" y="76" width="32" height="5" rx="2.5" fill="#C8C3BC" />
+        <rect x="38" y="64" width="40" height="5" rx="2.5" fill="#C8C3BC" />
+        <rect x="38" y="76" width="32" height="5" rx="2.5" fill="#C8C3BC" />
 
         {/* Beam Line 1 */}
         <g clipPath="url(#sp-clip1)">
-          <rect className="sp-b1" x="30" y="64" width="40" height="5" rx="2.5" fill="url(#sp-beam)" filter="url(#sp-halo)" opacity="0.35" />
-          <rect className="sp-b1" x="30" y="64" width="40" height="5" rx="2.5" fill="url(#sp-beam)" filter="url(#sp-core)" />
+          <rect className="sp-b1" x="38" y="64" width="40" height="5" rx="2.5" fill="url(#sp-beam)" filter="url(#sp-halo)" opacity="0.35" />
+          <rect className="sp-b1" x="38" y="64" width="40" height="5" rx="2.5" fill="url(#sp-beam)" filter="url(#sp-core)" />
         </g>
 
         {/* Beam Line 2 */}
         <g clipPath="url(#sp-clip2)">
-          <rect className="sp-b2" x="30" y="76" width="32" height="5" rx="2.5" fill="url(#sp-beam)" filter="url(#sp-halo)" opacity="0.35" />
-          <rect className="sp-b2" x="30" y="76" width="32" height="5" rx="2.5" fill="url(#sp-beam)" filter="url(#sp-core)" />
+          <rect className="sp-b2" x="38" y="76" width="32" height="5" rx="2.5" fill="url(#sp-beam)" filter="url(#sp-halo)" opacity="0.35" />
+          <rect className="sp-b2" x="38" y="76" width="32" height="5" rx="2.5" fill="url(#sp-beam)" filter="url(#sp-core)" />
         </g>
 
         <style>{`
