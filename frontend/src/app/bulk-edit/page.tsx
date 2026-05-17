@@ -722,14 +722,31 @@ function BulkEditInner() {
       return;
     }
 
-    // Auto-detect and skip header row if first row matches column names
     let dataRows = parsed;
     const headerNames = sheetHeaders.map((h) => h.source_header.toLowerCase().trim());
     const firstRow = parsed[0].map((c) => c.toLowerCase().trim());
-    const matchCount = firstRow.filter((c) => headerNames.includes(c)).length;
-    if (matchCount >= Math.ceil(headerNames.length * 0.5) && parsed.length > 1) {
-      // First row looks like a header — skip it
+    const matchCount = firstRow.filter((c) => c !== "" && headerNames.includes(c)).length;
+
+    // If we detect headers in the first row, auto-map by exact match
+    if (matchCount > 0 && parsed.length > 1) {
       dataRows = parsed.slice(1);
+      const mapped = dataRows.map((cells) => {
+        const row: Record<string, string> = {};
+        firstRow.forEach((colHeader, i) => {
+          if (!colHeader) return;
+          const matchedHeader = sheetHeaders.find(
+            (h) =>
+              h.source_header.toLowerCase().trim() === colHeader ||
+              h.label.toLowerCase().trim() === colHeader
+          );
+          if (matchedHeader && cells[i] !== undefined) {
+            row[matchedHeader.source_header] = cells[i];
+          }
+        });
+        return row;
+      });
+      setRows(mapped);
+      return;
     }
 
     const headerCount = sheetHeaders.length;
@@ -748,9 +765,19 @@ function BulkEditInner() {
     } else {
       // Show column mapping UI
       setParsedRaw(dataRows);
-      const defaultMapping = Array.from({ length: colCount }, (_, i) =>
-        i < sheetHeaders.length ? sheetHeaders[i].source_header : null
-      );
+      
+      // Attempt to auto-map default values in the UI by matching the first row values against headers
+      const defaultMapping = Array.from({ length: colCount }, (_, i) => {
+        const val = firstRow[i];
+        if (val) {
+          const match = sheetHeaders.find(
+            (h) => h.source_header.toLowerCase().trim() === val || h.label.toLowerCase().trim() === val
+          );
+          if (match) return match.source_header;
+        }
+        return i < sheetHeaders.length ? sheetHeaders[i].source_header : null;
+      });
+      
       setColumnMapping(defaultMapping);
       setShowMapping(true);
     }
