@@ -44,6 +44,12 @@ export const OPEN_IN_OPTIONS: OpenInOption[] = [
     icon: "✨",
     description: "Find & Replace and remove duplicates",
   },
+  {
+    id: "load-analysis",
+    label: "Load Analysis",
+    icon: "⊜",
+    description: "See frequency & workload per column value",
+  },
 ];
 
 interface Props {

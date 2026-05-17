@@ -305,6 +305,18 @@ export default function AppHeader({
                   <span className="om-header__menu-icon" aria-hidden>✨</span>
                   <span>Data Cleaner</span>
                 </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="om-header__menu-item"
+                  onClick={() => {
+                    router.push("/load");
+                    setOpenMenu(false);
+                  }}
+                >
+                  <span className="om-header__menu-icon" aria-hidden>⊜</span>
+                  <span>Load Analysis</span>
+                </button>
                 <hr className="om-header__menu-rule" />
 
                 {/* Secondary */}
