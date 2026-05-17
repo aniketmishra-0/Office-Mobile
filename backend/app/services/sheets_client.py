@@ -18,6 +18,7 @@ from gspread.exceptions import APIError, SpreadsheetNotFound, WorksheetNotFound
 from app.config import get_settings
 from app.models.field import FieldSchema
 from app.services import form_store
+from app.services import session_context
 
 logger = logging.getLogger(__name__)
 
@@ -130,10 +131,13 @@ def _oauth_credentials() -> Any | None:
     """
     token = form_store.get_oauth_token()
     if not token:
+        logger.debug("oauth_credentials: no token found for session key=%s", 
+                     session_context.get_current_oauth_session_key())
         return None
 
     settings = get_settings()
     if not settings.google_oauth_client_id or not settings.google_oauth_client_secret:
+        logger.debug("oauth_credentials: missing client_id or client_secret")
         return None
 
     try:
@@ -181,23 +185,41 @@ def _authenticated_sheet_access(spreadsheet_id: str) -> dict[str, bool]:
         return {"read": False, "edit": False}
 
     client = get_client()
+    # Log which credential type is being used for debugging
+    is_oauth = _oauth_credentials() is not None
+    logger.info(
+        "access_check.start spreadsheet=%s auth_type=%s session_key=%s",
+        spreadsheet_id,
+        "oauth" if is_oauth else "service_account",
+        session_context.get_current_oauth_session_key(),
+    )
     try:
         spreadsheet = client.open_by_key(spreadsheet_id)
     except PermissionError:
+        logger.info("access_check.permission_error spreadsheet=%s", spreadsheet_id)
         return {"read": False, "edit": False}
-    except Exception:
+    except Exception as exc:
+        logger.warning("access_check.open_failed spreadsheet=%s exc=%s", spreadsheet_id, exc)
         return {"read": False, "edit": False}
 
+    # We can open the sheet → read access confirmed.
+    # Check edit access via batchUpdate with empty requests list.
     try:
-        # A batchUpdate with an empty list of requests requires write permission
-        # but does not modify the sheet or update the "Last Modified" timestamp.
         spreadsheet.batch_update({"requests": []})
+        logger.info("access_check.edit_confirmed spreadsheet=%s", spreadsheet_id)
         return {"read": True, "edit": True}
     except APIError as exc:
         status_code = getattr(getattr(exc, "response", None), "status_code", None)
+        logger.info(
+            "access_check.batch_update_result spreadsheet=%s status=%s",
+            spreadsheet_id, status_code,
+        )
         if status_code == 400:
-            # Some API versions reject empty batchUpdate requests even with
-            # valid edit access. Treat this as editable rather than false-negative.
+            # Some API versions reject empty batchUpdate even with valid edit access.
+            return {"read": True, "edit": True}
+        if status_code == 403:
+            return {"read": True, "edit": False}
+        return {"read": True, "edit": False}
             return {"read": True, "edit": True}
         if status_code == 403:
             return {"read": True, "edit": False}
@@ -439,7 +461,7 @@ def read_headers_public(
 # ---------------------------------------------------------------------------
 
 
-_ACCESS_CACHE: dict[str, tuple[float, dict[str, bool]]] = {}
+_ACCESS_CACHE: dict[tuple[str, str | None], tuple[float, dict[str, bool]]] = {}
 _ACCESS_CACHE_TTL = 120  # seconds
 
 
@@ -447,15 +469,26 @@ def check_sheet_access(spreadsheet_id: str) -> dict[str, bool]:
     """Check if we have read/edit access to the spreadsheet.
 
     Optimisations vs. the previous sequential implementation:
-      1. Results are cached for 2 minutes per spreadsheet_id.
+      1. Results are cached for 2 minutes per (spreadsheet_id, session_key).
       2. Public-read probe and authenticated-edit probe run in parallel
          (concurrent.futures) instead of sequentially, cutting wall-clock
          time from ~5-8 s to ~2-3 s on a cold call.
     """
     import concurrent.futures as _cf
+    from app.services.session_context import get_oauth_session_key_raw, oauth_session_context, UNSET
+
+    # Capture the current session key so we can restore it in inner threads.
+    # ThreadPoolExecutor threads do NOT inherit ContextVars, so without this
+    # the inner _probe_auth thread can't find the user's OAuth token and
+    # falls back to the service account (which usually has no access).
+    _raw_session_key = get_oauth_session_key_raw()
+    _session_key = None if _raw_session_key is UNSET else _raw_session_key
 
     # ── Cache hit ──────────────────────────────────────────────────────
-    cached = _ACCESS_CACHE.get(spreadsheet_id)
+    # Key includes the session so different users (or re-logins) don't get
+    # stale access results from another identity.
+    _cache_key = (spreadsheet_id, _session_key if isinstance(_session_key, str) else None)
+    cached = _ACCESS_CACHE.get(_cache_key)
     if cached:
         ts, result = cached
         if time.time() - ts < _ACCESS_CACHE_TTL:
@@ -474,7 +507,10 @@ def check_sheet_access(spreadsheet_id: str) -> dict[str, bool]:
     def _probe_auth() -> dict[str, bool]:
         if not has_creds:
             return {"read": False, "edit": False}
-        return _authenticated_sheet_access(spreadsheet_id)
+        # Restore the OAuth session context so get_client() can find
+        # the user's token instead of falling back to the service account.
+        with oauth_session_context(_session_key):
+            return _authenticated_sheet_access(spreadsheet_id)
 
     with _cf.ThreadPoolExecutor(max_workers=2) as pool:
         public_future = pool.submit(_probe_public)
@@ -491,7 +527,7 @@ def check_sheet_access(spreadsheet_id: str) -> dict[str, bool]:
     else:
         result = {"read": False, "edit": False}
 
-    _ACCESS_CACHE[spreadsheet_id] = (time.time(), result)
+    _ACCESS_CACHE[_cache_key] = (time.time(), result)
     return result
 
 
