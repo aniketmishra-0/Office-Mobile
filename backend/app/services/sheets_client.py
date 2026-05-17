@@ -453,6 +453,14 @@ def check_sheet_access(spreadsheet_id: str) -> dict[str, bool]:
          time from ~5-8 s to ~2-3 s on a cold call.
     """
     import concurrent.futures as _cf
+    from app.services.session_context import get_oauth_session_key_raw, oauth_session_context, UNSET
+
+    # Capture the current session key so we can restore it in inner threads.
+    # ThreadPoolExecutor threads do NOT inherit ContextVars, so without this
+    # the inner _probe_auth thread can't find the user's OAuth token and
+    # falls back to the service account (which usually has no access).
+    _raw_session_key = get_oauth_session_key_raw()
+    _session_key = None if _raw_session_key is UNSET else _raw_session_key
 
     # ── Cache hit ──────────────────────────────────────────────────────
     cached = _ACCESS_CACHE.get(spreadsheet_id)
@@ -474,7 +482,10 @@ def check_sheet_access(spreadsheet_id: str) -> dict[str, bool]:
     def _probe_auth() -> dict[str, bool]:
         if not has_creds:
             return {"read": False, "edit": False}
-        return _authenticated_sheet_access(spreadsheet_id)
+        # Restore the OAuth session context so get_client() can find
+        # the user's token instead of falling back to the service account.
+        with oauth_session_context(_session_key):
+            return _authenticated_sheet_access(spreadsheet_id)
 
     with _cf.ThreadPoolExecutor(max_workers=2) as pool:
         public_future = pool.submit(_probe_public)
