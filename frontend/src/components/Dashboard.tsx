@@ -549,26 +549,6 @@ export default function Dashboard() {
             </button>
             <button
               type="button"
-              onClick={() => setMode("mysheet")}
-              style={{
-                padding: "12px 16px",
-                background: mode === "mysheet" ? "var(--ink)" : "transparent",
-                color: mode === "mysheet" ? "var(--on-ink)" : "var(--ink)",
-                border: 0,
-                borderLeft: "1px solid var(--rule)",
-                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                fontWeight: 500,
-                fontSize: 11,
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-                cursor: "pointer",
-                transition: "background-color 200ms ease-out",
-              }}
-            >
-              my sheet
-            </button>
-            <button
-              type="button"
               onClick={() => setMode("create")}
               style={{
                 padding: "12px 16px",
@@ -587,7 +567,33 @@ export default function Dashboard() {
             >
               create new
             </button>
+            <button
+              type="button"
+              onClick={() => setMode("mysheet")}
+              style={{
+                padding: "12px 16px",
+                background: mode === "mysheet" ? "var(--ink)" : "transparent",
+                color: mode === "mysheet" ? "var(--on-ink)" : "var(--ink)",
+                border: 0,
+                borderLeft: "1px solid var(--rule)",
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontWeight: 500,
+                fontSize: 11,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                cursor: "pointer",
+                transition: "background-color 200ms ease-out",
+              }}
+            >
+              my sheet
+            </button>
           </div>
+
+          {mode === "create" && (
+            <div>
+              <FormBuilder submitting={saving} onSubmit={handleCreateNewForm} />
+            </div>
+          )}
 
           {mode === "mysheet" && (
             <div style={{ padding: "16px 0" }}>
@@ -624,12 +630,6 @@ export default function Dashboard() {
               >
                 Open My Sheet →
               </button>
-            </div>
-          )}
-
-          {mode === "create" && (
-            <div>
-              <FormBuilder submitting={saving} onSubmit={handleCreateNewForm} />
             </div>
           )}
 
@@ -836,8 +836,8 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Library */}
-          {sortedVisibleLibrary.length > 0 && (
+          {/* Library — hidden on "my sheet" tab to avoid accidental clear */}
+          {sortedVisibleLibrary.length > 0 && mode !== "mysheet" && (
             <section>
               <div
                 style={{
