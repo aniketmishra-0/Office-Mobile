@@ -44,7 +44,7 @@ export const OPEN_IN_OPTIONS: OpenInOption[] = [
     label: "Data Cleaner",
     icon: "✨",
     description: "Find & Replace and remove duplicates",
-    badge: "coming-soon",
+    badge: "new",
   },
   {
     id: "load-analysis",

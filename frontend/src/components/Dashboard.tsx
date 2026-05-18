@@ -1568,12 +1568,12 @@ export default function Dashboard() {
           <div>
             <label className="block text-[13px] font-semibold text-zinc-800 mb-2">
               Description / JD
-              <span className="ml-2 text-[11px] font-normal text-zinc-500">(optional — form ke upar dikhega)</span>
+              <span className="ml-2 text-[11px] font-normal text-zinc-500">(optional — will be displayed at the top)</span>
             </label>
             <RichTextEditor
               value={description}
               onChange={setDescription}
-              placeholder="Form ka description ya Job Description yahan paste karein..."
+              placeholder="Paste the form description or Job Description here..."
               maxLength={5000}
             />
           </div>
