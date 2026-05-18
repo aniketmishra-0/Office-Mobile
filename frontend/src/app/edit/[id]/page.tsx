@@ -14,6 +14,7 @@ import { getEditForm, updateForm, previewSheet, listWorksheets, addSheetTab, cre
 import type { EditFormResponse, FieldSchema, CustomKeywordRule } from "@/types/field";
 import { QRCodeCanvas } from "qrcode.react";
 import { safeBack } from "@/lib/navigation";
+import RichTextEditor from "@/components/RichTextEditor";
 
 export default function EditFormPage() {
   const params = useParams();
@@ -253,15 +254,12 @@ export default function EditFormPage() {
             Description / JD
             <span className="ml-2 text-[11px] font-normal text-zinc-500">(form ke upar dikhega)</span>
           </label>
-          <textarea
+          <RichTextEditor
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={setDescription}
             placeholder="Form ka description ya Job Description yahan paste karein..."
-            rows={4}
-            maxLength={2000}
-            className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-[14px] min-h-[100px] resize-y focus:outline-none focus:ring-2 focus:ring-zinc-900"
+            maxLength={5000}
           />
-          <p className="mt-1 text-[11px] text-zinc-500">{description.length}/2000</p>
         </div>
 
         {/* Field editor */}

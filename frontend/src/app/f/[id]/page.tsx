@@ -175,11 +175,10 @@ export default function FillFormPage() {
                 </button>
               </div>
               <div
-                className={`text-[14px] leading-relaxed whitespace-pre-wrap overflow-hidden transition-all duration-300 ${descExpanded ? "" : "max-h-[4.5em]"}`}
+                className={`rich-description text-[14px] leading-relaxed overflow-hidden transition-all duration-300 ${descExpanded ? "" : "max-h-[4.5em]"}`}
                 style={{ color: "var(--ft-text-color, var(--ink))" }}
-              >
-                {formData!.description}
-              </div>
+                dangerouslySetInnerHTML={{ __html: formData!.description }}
+              />
               {!descExpanded && formData!.description.length > 150 && (
                 <div className="h-6 -mt-6 relative pointer-events-none" style={{ background: `linear-gradient(to top, var(--ft-card-bg, var(--cream)), transparent)` }} />
               )}
