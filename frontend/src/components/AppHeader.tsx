@@ -139,17 +139,26 @@ export default function AppHeader({
     >
       <div className="om-header__row">
         <div className="om-header__left">
-          <a
-            href="/"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              window.location.href = "/";
+          <button
+            type="button"
+            onClick={() => {
+              // Always force a hard navigation to "/" so Dashboard
+              // remounts with step="input", even when already on "/".
+              window.location.replace("/?t=" + Date.now());
             }}
-            style={{ textDecoration: "none", display: "inline-flex", cursor: "pointer" }}
+            style={{
+              textDecoration: "none",
+              display: "inline-flex",
+              cursor: "pointer",
+              background: "none",
+              border: "none",
+              padding: 0,
+              margin: 0,
+            }}
+            aria-label="Go to home"
           >
             <Logo size="xl" showText={!title} />
-          </a>
+          </button>
         </div>
 
         {title && (
