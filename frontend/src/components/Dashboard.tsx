@@ -25,6 +25,8 @@ import {
   listWorksheets,
   deleteForm,
   deleteAllForms,
+  listSavedSheets,
+  type SavedSheetItem,
 } from "@/lib/api";
 import type {
   FieldSchema,
@@ -62,6 +64,8 @@ export default function Dashboard() {
   const [libraryQuery, setLibraryQuery] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<FormLibraryItem | null>(null);
   const [clearAllConfirm, setClearAllConfirm] = useState(false);
+  const [savedSheets, setSavedSheets] = useState<SavedSheetItem[]>([]);
+  const [savedSheetsLoading, setSavedSheetsLoading] = useState(true);
 
   // Pagination state for large libraries
 
@@ -104,6 +108,17 @@ export default function Dashboard() {
       setLibraryItems([]);
     } finally {
       setLibraryLoading(false);
+    }
+  }
+
+  async function refreshSavedSheets() {
+    try {
+      const data = await listSavedSheets();
+      setSavedSheets(data.items);
+    } catch {
+      setSavedSheets([]);
+    } finally {
+      setSavedSheetsLoading(false);
     }
   }
 
@@ -182,6 +197,10 @@ export default function Dashboard() {
 
   useEffect(() => {
     void refreshLibrary();
+  }, []);
+
+  useEffect(() => {
+    void refreshSavedSheets();
   }, []);
 
   // Check sheet access when URL becomes valid
@@ -610,6 +629,107 @@ export default function Dashboard() {
               >
                 Saved Sheets
               </p>
+
+              {/* Inline saved sheets list */}
+              {savedSheetsLoading && savedSheets.length === 0 && (
+                <p
+                  style={{
+                    fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                    fontSize: 11,
+                    color: "var(--stone)",
+                    padding: "12px 0",
+                  }}
+                >
+                  Loading...
+                </p>
+              )}
+
+              {!savedSheetsLoading && savedSheets.length === 0 && (
+                <p
+                  style={{
+                    fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                    fontSize: 11,
+                    color: "var(--stone)",
+                    padding: "12px 0",
+                  }}
+                >
+                  No saved sheets yet.
+                </p>
+              )}
+
+              {savedSheets.length > 0 && (
+                <div style={{ border: "1px solid var(--rule)", marginBottom: 16 }}>
+                  {savedSheets.map((sheet, idx) => (
+                    <div
+                      key={sheet.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        padding: "12px 14px",
+                        borderBottom: idx < savedSheets.length - 1 ? "1px solid var(--rule)" : "none",
+                        cursor: "pointer",
+                        transition: "background-color 200ms ease-out",
+                      }}
+                      onClick={() => {
+                        const encodedUrl = encodeURIComponent(sheet.sheet_url);
+                        router.push(`/history?sheet=${encodedUrl}`);
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--paper, rgba(0,0,0,0.02))"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                    >
+                      <span
+                        style={{ fontSize: 14, color: "var(--stone)", flexShrink: 0 }}
+                        aria-hidden
+                      >
+                        ☰
+                      </span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p
+                          style={{
+                            fontFamily: "var(--font-newsreader), Georgia, serif",
+                            fontWeight: 400,
+                            fontSize: 14,
+                            color: "var(--ink)",
+                            margin: 0,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {sheet.title}
+                        </p>
+                        <p
+                          style={{
+                            fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                            fontWeight: 300,
+                            fontSize: 10,
+                            letterSpacing: "0.04em",
+                            color: "var(--stone)",
+                            margin: "2px 0 0 0",
+                          }}
+                        >
+                          {sheet.worksheet_name ? `${sheet.worksheet_name} · ` : ""}
+                          saved {new Date(sheet.saved_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                        </p>
+                      </div>
+                      <span
+                        style={{
+                          fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                          fontSize: 10,
+                          fontWeight: 500,
+                          color: "var(--stone)",
+                          letterSpacing: "0.1em",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        open →
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <button
                 type="button"
                 onClick={() => router.push("/my-sheets")}
@@ -628,7 +748,7 @@ export default function Dashboard() {
                   transition: "opacity 200ms ease-out",
                 }}
               >
-                Open My Sheet →
+                Manage All Sheets →
               </button>
             </div>
           )}
