@@ -142,9 +142,12 @@ export default function AppHeader({
           <button
             type="button"
             onClick={() => {
-              // Always force a hard navigation to "/" so Dashboard
-              // remounts with step="input", even when already on "/".
-              window.location.replace("/?t=" + Date.now());
+              // Clear persisted dashboard state so the page reloads fresh
+              try {
+                sessionStorage.removeItem("dashboard-step");
+                sessionStorage.removeItem("dashboard-mode");
+              } catch {}
+              window.location.replace("/");
             }}
             style={{
               textDecoration: "none",
