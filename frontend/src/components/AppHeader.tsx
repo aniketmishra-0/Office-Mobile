@@ -294,24 +294,42 @@ export default function AppHeader({
                   role="menuitem"
                   className="om-header__menu-item"
                   onClick={() => {
-                    router.push("/data-cleaner");
-                    setOpenMenu(false);
-                  }}
-                >
-                  <span className="om-header__menu-icon" aria-hidden>✨</span>
-                  <span>Data Cleaner</span>
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="om-header__menu-item"
-                  onClick={() => {
                     router.push("/load");
                     setOpenMenu(false);
                   }}
                 >
                   <span className="om-header__menu-icon" aria-hidden>⊜</span>
                   <span>Load Analysis</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="om-header__menu-item"
+                  onClick={() => {
+                    router.push("/data-cleaner");
+                    setOpenMenu(false);
+                  }}
+                >
+                  <span className="om-header__menu-icon" aria-hidden>✨</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    Data Cleaner
+                    <span
+                      style={{
+                        fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                        fontWeight: 600,
+                        fontSize: 8,
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                        color: "#fff",
+                        background: "#22c55e",
+                        padding: "2px 6px",
+                        borderRadius: 3,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      New
+                    </span>
+                  </span>
                 </button>
                 <hr className="om-header__menu-rule" />
 

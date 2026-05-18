@@ -880,3 +880,98 @@ button:active:not(:disabled) {
     font-size: 16px !important;
   }
 }
+
+/* ============================================================
+   Rich Text Editor — Description/JD formatting
+   ============================================================ */
+
+.rich-editor-content:empty::before {
+  content: attr(data-placeholder);
+  color: var(--stone, #9ca3af);
+  pointer-events: none;
+}
+
+.rich-editor-content h3 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 8px 0 4px 0;
+  color: var(--ink, #18181b);
+}
+
+.rich-editor-content ul {
+  list-style: disc;
+  padding-left: 20px;
+  margin: 4px 0;
+}
+
+.rich-editor-content ol {
+  list-style: decimal;
+  padding-left: 20px;
+  margin: 4px 0;
+}
+
+.rich-editor-content li {
+  margin: 2px 0;
+}
+
+.rich-editor-content b,
+.rich-editor-content strong {
+  font-weight: 700;
+}
+
+.rich-editor-content i,
+.rich-editor-content em {
+  font-style: italic;
+}
+
+.rich-editor-content u {
+  text-decoration: underline;
+}
+
+/* Dark mode adjustments for rich editor */
+[data-theme="dark"] .rich-editor-content h3 {
+  color: var(--ink);
+}
+
+[data-theme="dark"] .rich-editor-content mark,
+[data-theme="dark"] .rich-editor-content [style*="background-color: rgb(254, 240, 138)"] {
+  background-color: rgba(254, 240, 138, 0.3) !important;
+  color: var(--ink) !important;
+}
+
+/* Rich description display on form fill page */
+.rich-description h3 {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 8px 0 4px 0;
+}
+
+.rich-description ul {
+  list-style: disc;
+  padding-left: 18px;
+  margin: 4px 0;
+}
+
+.rich-description ol {
+  list-style: decimal;
+  padding-left: 18px;
+  margin: 4px 0;
+}
+
+.rich-description li {
+  margin: 2px 0;
+}
+
+.rich-description b,
+.rich-description strong {
+  font-weight: 700;
+}
+
+.rich-description i,
+.rich-description em {
+  font-style: italic;
+}
+
+.rich-description u {
+  text-decoration: underline;
+}

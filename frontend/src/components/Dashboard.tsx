@@ -17,6 +17,7 @@ import OpenInModal from "@/components/OpenInModal";
 import { QRCodeCanvas } from "qrcode.react";
 import { usePrefs } from "@/lib/usePrefs";
 import { useStepHistory } from "@/lib/useStepHistory";
+import RichTextEditor from "@/components/RichTextEditor";
 import {
   createSheet,
   previewSheet,
@@ -1567,17 +1568,14 @@ export default function Dashboard() {
           <div>
             <label className="block text-[13px] font-semibold text-zinc-800 mb-2">
               Description / JD
-              <span className="ml-2 text-[11px] font-normal text-zinc-500">(optional — form ke upar dikhega)</span>
+              <span className="ml-2 text-[11px] font-normal text-zinc-500">(optional — will be displayed at the top)</span>
             </label>
-            <textarea
+            <RichTextEditor
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Form ka description ya Job Description yahan paste karein..."
-              rows={3}
-              maxLength={2000}
-              className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-[14px] min-h-[80px] resize-y focus:outline-none focus:ring-2 focus:ring-zinc-900"
+              onChange={setDescription}
+              placeholder="Paste the form description or Job Description here..."
+              maxLength={5000}
             />
-            <p className="mt-1 text-[11px] text-zinc-500">{description.length}/2000</p>
           </div>
 
           {/* Field editor */}

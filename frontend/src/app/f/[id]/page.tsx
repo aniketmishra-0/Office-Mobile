@@ -23,6 +23,7 @@ export default function FillFormPage() {
 
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState<PublicFormResponse | null>(null);
+  const [descExpanded, setDescExpanded] = useState(false);
   const [suggestions, setSuggestions] = useState<Record<string, string>[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
@@ -161,9 +162,26 @@ export default function FillFormPage() {
         <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-8 overflow-y-auto">
           {/* Form Description / JD */}
           {formData!.description && (
-            <div className="mb-6 rounded-lg border border-zinc-200 bg-white p-4">
-              <p className="text-[11px] font-medium text-zinc-500 uppercase tracking-wide mb-2">Description</p>
-              <p className="text-[14px] text-zinc-700 leading-relaxed whitespace-pre-wrap">{formData!.description}</p>
+            <div className="mb-6 rounded-lg p-4" style={{ background: "var(--ft-card-bg, var(--cream))", border: "var(--ft-card-border, 1px solid var(--rule))", borderRadius: "var(--ft-card-radius, 12px)" }}>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--ft-meta-color, var(--stone))" }}>Description</p>
+                <button
+                  type="button"
+                  onClick={() => setDescExpanded(!descExpanded)}
+                  className="text-[11px] font-medium transition-colors px-2 py-1 rounded-md"
+                  style={{ color: "var(--ft-meta-color, var(--stone))" }}
+                >
+                  {descExpanded ? "Hide" : "View All"}
+                </button>
+              </div>
+              <div
+                className={`rich-description text-[14px] leading-relaxed overflow-hidden transition-all duration-300 ${descExpanded ? "" : "max-h-[4.5em]"}`}
+                style={{ color: "var(--ft-text-color, var(--ink))" }}
+                dangerouslySetInnerHTML={{ __html: formData!.description }}
+              />
+              {!descExpanded && formData!.description.length > 150 && (
+                <div className="h-6 -mt-6 relative pointer-events-none" style={{ background: `linear-gradient(to top, var(--ft-card-bg, var(--cream)), transparent)` }} />
+              )}
             </div>
           )}
 

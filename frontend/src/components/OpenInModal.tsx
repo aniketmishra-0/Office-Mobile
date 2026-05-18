@@ -7,6 +7,7 @@ export interface OpenInOption {
   label: string;
   icon: string;
   description: string;
+  badge?: "coming-soon" | "new";
 }
 
 /**
@@ -43,12 +44,14 @@ export const OPEN_IN_OPTIONS: OpenInOption[] = [
     label: "Data Cleaner",
     icon: "✨",
     description: "Find & Replace and remove duplicates",
+    badge: "new",
   },
   {
     id: "load-analysis",
     label: "Load Analysis",
     icon: "⊜",
     description: "See frequency & workload per column value",
+    badge: "new",
   },
 ];
 
@@ -152,7 +155,8 @@ export default function OpenInModal({ sheetTitle, onSelect, onClose }: Props) {
             <button
               key={option.id}
               type="button"
-              onClick={() => onSelect(option.id)}
+              onClick={() => { if (option.badge !== "coming-soon") onSelect(option.id); }}
+              disabled={option.badge === "coming-soon"}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -163,10 +167,11 @@ export default function OpenInModal({ sheetTitle, onSelect, onClose }: Props) {
                 border: 0,
                 borderBottom: idx < OPEN_IN_OPTIONS.length - 1 ? "1px solid var(--rule)" : "none",
                 textAlign: "left",
-                cursor: "pointer",
+                cursor: option.badge === "coming-soon" ? "default" : "pointer",
+                opacity: option.badge === "coming-soon" ? 0.55 : 1,
                 transition: "background-color 180ms ease-out",
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--paper)"; }}
+              onMouseEnter={(e) => { if (option.badge !== "coming-soon") e.currentTarget.style.background = "var(--paper)"; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
             >
               <span
@@ -193,9 +198,48 @@ export default function OpenInModal({ sheetTitle, onSelect, onClose }: Props) {
                     letterSpacing: "0.04em",
                     color: "var(--ink)",
                     margin: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
                   }}
                 >
                   {option.label}
+                  {option.badge === "coming-soon" && (
+                    <span
+                      style={{
+                        fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                        fontWeight: 600,
+                        fontSize: 8,
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                        color: "var(--stone)",
+                        background: "var(--rule)",
+                        padding: "2px 6px",
+                        borderRadius: 3,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Coming Soon
+                    </span>
+                  )}
+                  {option.badge === "new" && (
+                    <span
+                      style={{
+                        fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                        fontWeight: 600,
+                        fontSize: 8,
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                        color: "#fff",
+                        background: "#22c55e",
+                        padding: "2px 6px",
+                        borderRadius: 3,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      New
+                    </span>
+                  )}
                 </p>
                 <p
                   style={{

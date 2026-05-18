@@ -45,7 +45,7 @@ class CreateFormRequest(BaseModel):
     spreadsheet_id: str
     worksheet_name: str | None = None
     form_title: str = Field(default="Untitled Form", min_length=1, max_length=120)
-    description: str = Field(default="", max_length=2000)
+    description: str = Field(default="", max_length=10000)
     fields: list[FieldSchema]
     custom_keywords: list[CustomKeywordRule] = Field(default_factory=list)
     autofill_columns: list[str] = Field(default_factory=list, max_length=5)
@@ -85,7 +85,7 @@ class EditFormResponse(BaseModel):
 class UpdateFormRequest(BaseModel):
     edit_token: str = Field(..., min_length=16)
     form_title: str = Field(..., min_length=1, max_length=120)
-    description: str = Field(default="", max_length=2000)
+    description: str = Field(default="", max_length=10000)
     fields: list[FieldSchema]
     custom_keywords: list[CustomKeywordRule] = Field(default_factory=list)
     autofill_columns: list[str] = Field(default_factory=list, max_length=5)
