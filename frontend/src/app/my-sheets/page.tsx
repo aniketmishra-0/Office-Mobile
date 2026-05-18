@@ -193,7 +193,7 @@ export default function MySheetsPage() {
 
   return (
     <div className="flex flex-col min-h-screen" style={{ background: "var(--cream)" }}>
-      <AppHeader title="My Sheets" showBack onBack={() => safeBack(router)} />
+      <AppHeader title="My Sheet" showBack onBack={() => safeBack(router)} />
       {loading && sheets.length === 0 && <LoadingOverlay message="Loading..." />}
 
       <div className="flex-1 w-full max-w-[560px] mx-auto px-6 pt-10 pb-32">
@@ -210,7 +210,7 @@ export default function MySheetsPage() {
               margin: "0 0 14px 0",
             }}
           >
-            My Sheets
+            My Sheet
           </p>
           <h1
             style={{

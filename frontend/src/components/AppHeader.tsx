@@ -234,7 +234,7 @@ export default function AppHeader({
                   role="menuitem"
                   className="om-header__menu-item"
                   onClick={() => {
-                    router.push("/dashboard?mode=create");
+                    router.push("/my-sheets");
                     setOpenMenu(false);
                   }}
                 >
