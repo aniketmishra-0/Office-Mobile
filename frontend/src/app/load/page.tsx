@@ -81,6 +81,9 @@ function LoadPageInner() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
+  // Filter panel toggle
+  const [showFilters, setShowFilters] = useState(false);
+
   // Back-gesture wiring
   const flowStep: FlowStep = loaded ? "results" : availableTabs ? "tabs" : "input";
 
@@ -651,7 +654,7 @@ function LoadPageInner() {
         <AppHeader title="Load Analysis" showBack onBack={() => window.history.back()} />
         {loading && <LoadingOverlay message="Loading..." />}
 
-        <div style={{
+        <div className="load-results-container" style={{
           flex: 1,
           width: "100%",
           maxWidth: 800,
@@ -690,18 +693,67 @@ function LoadPageInner() {
             </p>
           </div>
 
-          {/* Controls row: Column picker + Section/Week + Month + Date Range */}
-          <div style={{
+          {/* Filter toggle button */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: showFilters ? 0 : 20 }}>
+            <button
+              type="button"
+              onClick={() => setShowFilters((v) => !v)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontSize: 11,
+                fontWeight: 500,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                color: showFilters ? "var(--ink)" : "var(--charcoal)",
+                background: showFilters ? "var(--paper)" : "transparent",
+                border: "1px solid var(--rule)",
+                borderRadius: 4,
+                padding: "7px 12px",
+                cursor: "pointer",
+                transition: "all 180ms ease-out",
+              }}
+              aria-expanded={showFilters}
+              aria-label="Toggle filters"
+            >
+              {/* Filter icon */}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+              </svg>
+              Filters
+              {/* Show active filter count */}
+              {(selectedSections.length > 0 || selectedMonth !== "all" || dateFrom || dateTo) && (
+                <span style={{
+                  background: "var(--clay)",
+                  color: "#fff",
+                  fontSize: 9,
+                  fontWeight: 700,
+                  borderRadius: "50%",
+                  width: 16,
+                  height: 16,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}>
+                  {(selectedSections.length > 0 ? 1 : 0) + (selectedMonth !== "all" ? 1 : 0) + ((dateFrom || dateTo) ? 1 : 0)}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Collapsible controls panel */}
+          {showFilters && (
+          <div className="load-controls-grid" style={{
             display: "grid",
-            gridTemplateColumns: (() => {
-              const cols: string[] = ["1fr"]; // Count by
-              if (hasSections) cols.push("1fr"); // Week/Section
-              if (availableMonths.length > 0) cols.push("1fr"); // Month
-              if (dateColumn) cols.push("1fr"); // Date Range
-              return cols.join(" ");
-            })(),
             gap: 16,
             marginBottom: 20,
+            marginTop: 12,
+            padding: "16px",
+            background: "var(--paper)",
+            border: "1px solid var(--rule)",
+            borderRadius: 8,
           }}>
             {/* Column picker */}
             <div>
@@ -822,7 +874,7 @@ function LoadPageInner() {
                 }}>
                   Date Range
                 </label>
-                <div style={{
+                <div className="load-date-range" style={{
                   display: "flex",
                   alignItems: "center",
                   gap: 6,
@@ -891,6 +943,7 @@ function LoadPageInner() {
               </div>
             )}
           </div>
+          )}
 
           {/* Search + Sort controls */}
           <div style={{ display: "flex", gap: 10, marginBottom: 16, alignItems: "center" }}>

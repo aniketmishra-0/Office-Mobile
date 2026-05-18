@@ -865,3 +865,35 @@ button:active:not(:disabled) {
     gap: 8px;
   }
 }
+
+/* ============================================================
+   Load Analysis — Mobile-first responsive controls grid
+   Stacks vertically on mobile (2 columns), full row on desktop.
+   ============================================================ */
+
+/* Mobile default: 2 columns, tighter padding */
+.load-controls-grid {
+  grid-template-columns: 1fr 1fr;
+}
+
+.load-results-container {
+  padding: 16px 14px 32px !important;
+}
+
+.load-date-range {
+  flex-wrap: wrap;
+}
+
+/* Tablet+ (768px): all controls in one row, normal padding */
+@media (min-width: 768px) {
+  .load-controls-grid {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+  .load-results-container {
+    padding: 24px 24px 40px !important;
+  }
+  .load-date-range {
+    flex-wrap: nowrap;
+  }
+}
+
