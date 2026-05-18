@@ -118,10 +118,17 @@ app.add_middleware(
 async def global_exception_handler(request: Request, exc: Exception):
     import logging
     logging.getLogger("app").exception("Unhandled error on %s %s", request.method, request.url.path)
-    return JSONResponse(
+    response = JSONResponse(
         status_code=500,
         content={"detail": "Internal server error"},
     )
+    # Manually add CORS headers so the browser doesn't block the error response.
+    origin = request.headers.get("origin")
+    if origin and origin in settings.allowed_origins:
+        response.headers["access-control-allow-origin"] = origin
+        response.headers["access-control-allow-credentials"] = "true"
+        response.headers["vary"] = "Origin"
+    return response
 
 app.include_router(health.router)
 app.include_router(forms.router)
