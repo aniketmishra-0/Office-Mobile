@@ -54,7 +54,7 @@ export default function Dashboard() {
   const { copy } = usePrefs();
   const [step, setStep] = useState<Step>("input");
   useStepHistory(step, setStep, DASHBOARD_STEPS);
-  const [mode, setMode] = useState<"paste" | "create">("paste");
+  const [mode, setMode] = useState<"paste" | "mysheet" | "create">("paste");
   const [mounted, setMounted] = useState(false);
   const [recentSheets, setRecentSheets] = useState<RecentSheet[]>([]);
   const [libraryItems, setLibraryItems] = useState<FormLibraryItem[]>([]);
@@ -77,11 +77,11 @@ export default function Dashboard() {
 
     // Check URL query param for mode (e.g. ?mode=create from sidebar)
     const urlMode = searchParams.get("mode");
-    if (urlMode === "create" || urlMode === "paste") {
+    if (urlMode === "create" || urlMode === "paste" || urlMode === "mysheet") {
       setMode(urlMode);
     } else {
       const savedMode = sessionStorage.getItem("dashboard-mode");
-      if (savedMode === "paste" || savedMode === "create") {
+      if (savedMode === "paste" || savedMode === "create" || savedMode === "mysheet") {
         setMode(savedMode);
       }
     }
@@ -523,7 +523,7 @@ export default function Dashboard() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr",
+              gridTemplateColumns: "1fr 1fr 1fr",
               gap: 0,
               border: "1px solid var(--rule)",
             }}
@@ -549,6 +549,26 @@ export default function Dashboard() {
             </button>
             <button
               type="button"
+              onClick={() => setMode("mysheet")}
+              style={{
+                padding: "12px 16px",
+                background: mode === "mysheet" ? "var(--ink)" : "transparent",
+                color: mode === "mysheet" ? "var(--on-ink)" : "var(--ink)",
+                border: 0,
+                borderLeft: "1px solid var(--rule)",
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontWeight: 500,
+                fontSize: 11,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                cursor: "pointer",
+                transition: "background-color 200ms ease-out",
+              }}
+            >
+              my sheet
+            </button>
+            <button
+              type="button"
               onClick={() => setMode("create")}
               style={{
                 padding: "12px 16px",
@@ -568,6 +588,44 @@ export default function Dashboard() {
               create new
             </button>
           </div>
+
+          {mode === "mysheet" && (
+            <div style={{ padding: "16px 0" }}>
+              <p
+                style={{
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  fontWeight: 500,
+                  fontSize: 10,
+                  letterSpacing: "0.14em",
+                  textTransform: "uppercase",
+                  color: "var(--stone)",
+                  marginBottom: 12,
+                }}
+              >
+                Saved Sheets
+              </p>
+              <button
+                type="button"
+                onClick={() => router.push("/my-sheets")}
+                style={{
+                  width: "100%",
+                  padding: "14px 16px",
+                  background: "var(--ink)",
+                  color: "var(--on-ink)",
+                  border: 0,
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  fontWeight: 500,
+                  fontSize: 12,
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                  cursor: "pointer",
+                  transition: "opacity 200ms ease-out",
+                }}
+              >
+                Open My Sheet →
+              </button>
+            </div>
+          )}
 
           {mode === "create" && (
             <div>
