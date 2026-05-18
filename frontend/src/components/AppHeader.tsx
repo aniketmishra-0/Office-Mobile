@@ -143,11 +143,8 @@ export default function AppHeader({
             href="/"
             onClick={(e) => {
               e.preventDefault();
-              if (window.location.pathname === "/") {
-                window.location.reload();
-              } else {
-                router.push("/");
-              }
+              e.stopPropagation();
+              window.location.href = "/";
             }}
             style={{ textDecoration: "none", display: "inline-flex", cursor: "pointer" }}
           >
