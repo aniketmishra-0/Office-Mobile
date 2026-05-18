@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import Logo from "@/components/Logo";
 import LoadingOverlay from "@/components/LoadingOverlay";
@@ -48,6 +48,7 @@ type RecentSheet = {
 
 export default function Dashboard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const qrRef = useRef<HTMLCanvasElement | null>(null);
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const { copy } = usePrefs();
@@ -73,9 +74,16 @@ export default function Dashboard() {
     if (saved === "done" || saved === "preview") {
       setStep(saved as Step);
     }
-    const savedMode = sessionStorage.getItem("dashboard-mode");
-    if (savedMode === "paste" || savedMode === "create") {
-      setMode(savedMode);
+
+    // Check URL query param for mode (e.g. ?mode=create from sidebar)
+    const urlMode = searchParams.get("mode");
+    if (urlMode === "create" || urlMode === "paste") {
+      setMode(urlMode);
+    } else {
+      const savedMode = sessionStorage.getItem("dashboard-mode");
+      if (savedMode === "paste" || savedMode === "create") {
+        setMode(savedMode);
+      }
     }
     
     try {
@@ -86,7 +94,7 @@ export default function Dashboard() {
     } catch (e) {}
 
     setMounted(true);
-  }, []);
+  }, [searchParams]);
 
   async function refreshLibrary() {
     try {
@@ -557,7 +565,7 @@ export default function Dashboard() {
                 transition: "background-color 200ms ease-out",
               }}
             >
-              create new
+              my sheet
             </button>
           </div>
 

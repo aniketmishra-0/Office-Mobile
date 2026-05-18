@@ -234,12 +234,12 @@ export default function AppHeader({
                   role="menuitem"
                   className="om-header__menu-item"
                   onClick={() => {
-                    router.push("/my-sheets");
+                    router.push("/dashboard?mode=create");
                     setOpenMenu(false);
                   }}
                 >
                   <span className="om-header__menu-icon" aria-hidden>☰</span>
-                  <span>My Sheets</span>
+                  <span>My Sheet</span>
                 </button>
                 <button
                   type="button"
