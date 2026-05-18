@@ -23,6 +23,7 @@ export default function FillFormPage() {
 
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState<PublicFormResponse | null>(null);
+  const [descExpanded, setDescExpanded] = useState(false);
   const [suggestions, setSuggestions] = useState<Record<string, string>[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
@@ -162,8 +163,22 @@ export default function FillFormPage() {
           {/* Form Description / JD */}
           {formData!.description && (
             <div className="mb-6 rounded-lg border border-zinc-200 bg-white p-4">
-              <p className="text-[11px] font-medium text-zinc-500 uppercase tracking-wide mb-2">Description</p>
-              <p className="text-[14px] text-zinc-700 leading-relaxed whitespace-pre-wrap">{formData!.description}</p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] font-medium text-zinc-500 uppercase tracking-wide">Description</p>
+                <button
+                  type="button"
+                  onClick={() => setDescExpanded(!descExpanded)}
+                  className="text-[11px] font-medium text-zinc-600 hover:text-zinc-900 transition-colors px-2 py-1 rounded-md hover:bg-zinc-100"
+                >
+                  {descExpanded ? "Hide" : "View All"}
+                </button>
+              </div>
+              <div className={`text-[14px] text-zinc-700 leading-relaxed whitespace-pre-wrap overflow-hidden transition-all duration-300 ${descExpanded ? "" : "max-h-[4.5em]"}`}>
+                {formData!.description}
+              </div>
+              {!descExpanded && formData!.description.length > 150 && (
+                <div className="h-6 bg-gradient-to-t from-white to-transparent -mt-6 relative pointer-events-none" />
+              )}
             </div>
           )}
 
