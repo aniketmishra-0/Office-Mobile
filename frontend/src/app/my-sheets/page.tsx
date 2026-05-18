@@ -166,6 +166,12 @@ export default function MySheetsPage() {
       case "multi-header":
         router.push(`/multi-header-filter?sheet=${sheetUrl}`);
         break;
+      case "data-cleaner":
+        router.push(`/data-cleaner?url=${sheetUrl}`);
+        break;
+      case "load-analysis":
+        router.push(`/load?sheet=${sheetUrl}`);
+        break;
       default:
         // Future options — fallback to Quick View
         router.push(`/history?sheet=${sheetUrl}`);

@@ -833,7 +833,7 @@ button:active:not(:disabled) {
   }
 }
 
-/* ─── Desktop (1024px) — all in one row ─── */
+/* ─── Desktop (1024px) — all in one row, equal sizing ─── */
 @media (min-width: 1024px) {
   .mhf-top-controls {
     padding: 18px 28px 14px !important;
@@ -841,20 +841,20 @@ button:active:not(:disabled) {
   .mhf-controls-row {
     flex-direction: row;
     align-items: center;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 12px;
   }
   .mhf-dropdowns-row {
-    flex: 0 1 auto;
+    flex: 1;
     gap: 12px;
   }
   .mhf-dropdown-item {
-    min-width: 180px;
+    min-width: 200px;
     max-width: none;
   }
   .mhf-search-row {
     flex: 1;
-    min-width: 220px;
+    min-width: 200px;
     max-width: none;
   }
   .mhf-days-row {

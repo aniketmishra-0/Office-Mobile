@@ -202,18 +202,6 @@ export default function AppHeader({
                   role="menuitem"
                   className="om-header__menu-item"
                   onClick={() => {
-                    setShowSettings(true);
-                    setOpenMenu(false);
-                  }}
-                >
-                  <span className="om-header__menu-icon" aria-hidden>◌</span>
-                  <span>Account settings</span>
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="om-header__menu-item"
-                  onClick={() => {
                     router.push("/dashboard");
                     setOpenMenu(false);
                   }}
@@ -320,6 +308,18 @@ export default function AppHeader({
                 <hr className="om-header__menu-rule" />
 
                 {/* Secondary */}
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="om-header__menu-item"
+                  onClick={() => {
+                    setShowSettings(true);
+                    setOpenMenu(false);
+                  }}
+                >
+                  <span className="om-header__menu-icon" aria-hidden>◌</span>
+                  <span>Account settings</span>
+                </button>
                 <a
                   href="/privacy"
                   role="menuitem"
@@ -330,7 +330,7 @@ export default function AppHeader({
                   <span>Privacy</span>
                 </a>
                 <a
-                  href="mailto:aniketmishra492@gmail.com"
+                  href="/support"
                   role="menuitem"
                   className="om-header__menu-item"
                   onClick={() => setOpenMenu(false)}
