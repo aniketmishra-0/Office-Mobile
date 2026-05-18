@@ -45,6 +45,9 @@ _ROWS_CACHE: dict[tuple, tuple[float, list[dict[str, str]]]] = {}
 _HEADERS_CACHE_TTL_SECONDS = 300
 _HEADERS_CACHE: dict[tuple[str, str], tuple[float, list[str]]] = {}
 
+# Cache for the detected header row number (1-based). Same TTL as headers cache.
+_HEADER_ROW_CACHE: dict[tuple[str, str], tuple[float, int]] = {}
+
 
 def _headers_cache_key(spreadsheet_id: str, worksheet_name: str | None) -> tuple[str, str]:
     return (spreadsheet_id, worksheet_name or "")
@@ -52,6 +55,7 @@ def _headers_cache_key(spreadsheet_id: str, worksheet_name: str | None) -> tuple
 
 def _invalidate_headers_cache(spreadsheet_id: str, worksheet_name: str | None) -> None:
     _HEADERS_CACHE.pop(_headers_cache_key(spreadsheet_id, worksheet_name), None)
+    _HEADER_ROW_CACHE.pop(_headers_cache_key(spreadsheet_id, worksheet_name), None)
 
 
 def _get_cached_headers(
@@ -72,6 +76,27 @@ def _store_cached_headers(
     _HEADERS_CACHE[_headers_cache_key(spreadsheet_id, worksheet_name)] = (
         time.time(),
         headers,
+    )
+
+
+def _get_cached_header_row_num(
+    spreadsheet_id: str, worksheet_name: str | None
+) -> int | None:
+    cached = _HEADER_ROW_CACHE.get(_headers_cache_key(spreadsheet_id, worksheet_name))
+    if cached is None:
+        return None
+    ts, row_num = cached
+    if time.time() - ts >= _HEADERS_CACHE_TTL_SECONDS:
+        return None
+    return row_num
+
+
+def _store_cached_header_row_num(
+    spreadsheet_id: str, worksheet_name: str | None, row_num: int
+) -> None:
+    _HEADER_ROW_CACHE[_headers_cache_key(spreadsheet_id, worksheet_name)] = (
+        time.time(),
+        row_num,
     )
 
 
@@ -536,14 +561,149 @@ def _select_worksheet(spreadsheet: Any, worksheet_name: str | None = None) -> An
     return first_sheet
 
 
+# ---------------------------------------------------------------------------
+# Header / data row detection patterns
+# ---------------------------------------------------------------------------
+
+# Patterns that look like time values (e.g., "1:30 PM", "09:00", "7:30:00 PM")
+_TIME_PATTERN = re.compile(
+    r"^\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM|am|pm)?$"
+)
+
+# Patterns that look like dates (e.g., "18 May 2026", "2026-05-18", "05/18/2026")
+_DATE_PATTERN = re.compile(
+    r"^\d{1,4}[-/\.]\d{1,2}[-/\.]\d{1,4}$|^\d{1,2}\s+\w+\s+\d{4}$|\w+\s+\d{1,2},?\s+\d{4}$"
+)
+
+
+def _is_likely_header_row(row: list[str], min_headers: int = 3) -> bool:
+    """
+    Heuristic: a row is likely a header row if it has multiple non-empty,
+    short-ish text cells that look like column labels (not data values).
+    """
+    non_empty = [cell.strip() for cell in row if cell.strip()]
+    if len(non_empty) < min_headers:
+        return False
+
+    # If most cells are short text (< 50 chars) and not purely numeric, it's headers
+    label_like = 0
+    for cell in non_empty:
+        stripped = cell.strip()
+        # Skip cells that look like pure data (long text, numbers, emails, dates)
+        if len(stripped) > 60:
+            continue
+        if stripped.replace(".", "").replace(",", "").replace(" ", "").isdigit():
+            continue
+        if "@" in stripped and "." in stripped:
+            continue
+        if _DATE_PATTERN.match(stripped):
+            continue
+        if _TIME_PATTERN.match(stripped):
+            continue
+        label_like += 1
+
+    # At least 60% of non-empty cells should look like labels
+    return label_like >= min_headers and label_like / max(len(non_empty), 1) >= 0.6
+
+
+def _find_header_row(worksheet: Any, spreadsheet_id: str, worksheet_name: str | None) -> tuple[list[str], int]:
+    """
+    Find the actual header row in a worksheet. Scans rows 1-10 and returns
+    the best candidate header row along with its 1-based row index.
+
+    Returns (headers, header_row_number) where header_row_number is 1-based.
+    """
+    try:
+        total_cols = worksheet.col_count
+        end_col = _col_index_to_letter(min(total_cols - 1, 51))  # Cap at AZ
+        first_rows = worksheet.get(f"A1:{end_col}10")
+    except Exception:
+        # Fallback: just read row 1
+        headers = worksheet.row_values(1)
+        return headers, 1
+
+    if not first_rows:
+        return [], 1
+
+    # Check row 1 first
+    row1 = first_rows[0] if first_rows else []
+    if _is_likely_header_row(row1):
+        return row1, 1
+
+    # Row 1 doesn't look like headers — scan rows 2-10
+    # Use a lower threshold (min 2 headers) for the scan to catch smaller sheets
+    best_row_idx = 0
+    best_score = 0
+
+    for idx, row in enumerate(first_rows):
+        non_empty = [cell.strip() for cell in row if cell.strip()]
+        if len(non_empty) < 2:
+            continue
+        # Use min_headers=2 for scanning to catch smaller sheets too
+        if _is_likely_header_row(row, min_headers=2):
+            score = len(non_empty)
+            if score > best_score:
+                best_score = score
+                best_row_idx = idx
+
+    if best_score >= 2 and best_row_idx > 0:
+        logger.info(
+            "Detected header row at row %d (row 1 was not headers) for %s/%s",
+            best_row_idx + 1,
+            spreadsheet_id,
+            worksheet_name,
+        )
+        return first_rows[best_row_idx], best_row_idx + 1
+
+    # Additional heuristic: if row 1 has only 1 non-empty cell and it's long text
+    # (looks like a title), and row 2 has multiple cells, use row 2
+    row1_non_empty = [cell.strip() for cell in row1 if cell.strip()]
+    if len(row1_non_empty) <= 1 and len(first_rows) > 1:
+        row2 = first_rows[1]
+        row2_non_empty = [cell.strip() for cell in row2 if cell.strip()]
+        if len(row2_non_empty) >= 2:
+            logger.info(
+                "Row 1 appears to be a title (1 cell), using row 2 as headers for %s/%s",
+                spreadsheet_id,
+                worksheet_name,
+            )
+            return row2, 2
+
+    # Fallback: use row 1
+    return row1, 1
+
+
 def read_headers_authenticated(
     spreadsheet_id: str, worksheet_name: str | None = None
 ) -> tuple[str, str, list[str]]:
+    """
+    Read headers from a Google Sheet. If row 1 doesn't look like a proper
+    header row (e.g., it's a title/merged cell or has too few columns),
+    scan rows 2-10 to find the actual header row.
+
+    Returns (spreadsheet_title, worksheet_title, headers).
+    """
     client = get_client()
     spreadsheet = client.open_by_key(spreadsheet_id)
     worksheet = _select_worksheet(spreadsheet, worksheet_name)
-    headers = worksheet.row_values(1)
+    headers, _row_num = _find_header_row(worksheet, spreadsheet_id, worksheet_name)
     return spreadsheet.title, worksheet.title, headers
+
+
+def read_headers_authenticated_with_row(
+    spreadsheet_id: str, worksheet_name: str | None = None
+) -> tuple[str, str, list[str], int]:
+    """
+    Like read_headers_authenticated but also returns the 1-based row number
+    where headers were found. Used by read_sheet_rows to know where data starts.
+
+    Returns (spreadsheet_title, worksheet_title, headers, header_row_number).
+    """
+    client = get_client()
+    spreadsheet = client.open_by_key(spreadsheet_id)
+    worksheet = _select_worksheet(spreadsheet, worksheet_name)
+    headers, row_num = _find_header_row(worksheet, spreadsheet_id, worksheet_name)
+    return spreadsheet.title, worksheet.title, headers, row_num
 
 
 def read_headers(
@@ -620,9 +780,23 @@ def _read_live_headers(worksheet: Any, spreadsheet_id: str, worksheet_name: str 
     cached = _get_cached_headers(spreadsheet_id, worksheet_name)
     if cached is not None:
         return cached
-    headers = worksheet.row_values(1)
+    headers, row_num = _find_header_row(worksheet, spreadsheet_id, worksheet_name)
     _store_cached_headers(spreadsheet_id, worksheet_name, headers)
+    _store_cached_header_row_num(spreadsheet_id, worksheet_name, row_num)
     return headers
+
+
+def _read_live_headers_with_row(worksheet: Any, spreadsheet_id: str, worksheet_name: str | None) -> tuple[list[str], int]:
+    """Return the header row and its 1-based row number. Uses cache for headers and row number."""
+    cached_headers = _get_cached_headers(spreadsheet_id, worksheet_name)
+    cached_row_num = _get_cached_header_row_num(spreadsheet_id, worksheet_name)
+    if cached_headers is not None and cached_row_num is not None:
+        return cached_headers, cached_row_num
+    # Re-detect
+    headers, row_num = _find_header_row(worksheet, spreadsheet_id, worksheet_name)
+    _store_cached_headers(spreadsheet_id, worksheet_name, headers)
+    _store_cached_header_row_num(spreadsheet_id, worksheet_name, row_num)
+    return headers, row_num
 
 
 def _build_row_from_headers(
@@ -960,16 +1134,6 @@ def batch_append_rows(
 # Mid-sheet header / title row detection
 # ---------------------------------------------------------------------------
 
-# Patterns that look like time values (e.g., "1:30 PM", "09:00", "7:30:00 PM")
-_TIME_PATTERN = re.compile(
-    r"^\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM|am|pm)?$"
-)
-
-# Patterns that look like dates (e.g., "18 May 2026", "2026-05-18", "05/18/2026")
-_DATE_PATTERN = re.compile(
-    r"^\d{1,4}[-/\.]\d{1,2}[-/\.]\d{1,4}$|^\d{1,2}\s+\w+\s+\d{4}$|\w+\s+\d{1,2},?\s+\d{4}$"
-)
-
 
 def _is_header_or_title_row(
     row_data: list[str],
@@ -1093,8 +1257,10 @@ def read_sheet_rows(
         spreadsheet = client.open_by_key(spreadsheet_id)
         worksheet = _select_worksheet(spreadsheet, worksheet_name)
 
-        # Read headers to map columns (cached)
-        live_headers = _read_live_headers(worksheet, spreadsheet_id, worksheet_name)
+        # Read headers to map columns (with smart row detection)
+        live_headers, header_row_num = _read_live_headers_with_row(
+            worksheet, spreadsheet_id, worksheet_name
+        )
         if not live_headers:
             return []
 
@@ -1119,17 +1285,18 @@ def read_sheet_rows(
                 col_idx = field.column_index
             field_col_map[field.key] = col_idx
 
-        # Read data rows (skip header row).
-        # Cap to max_rows to avoid fetching entire massive sheets.
-        total_rows = max(worksheet.row_count - 1, 0)
+        # Read data rows (skip header row and any rows above it).
+        # Data starts at header_row_num + 1.
+        data_start_row = header_row_num + 1
+        total_rows = max(worksheet.row_count - header_row_num, 0)
         if total_rows == 0:
             return []
         rows_to_read = min(total_rows, max_rows)
         end_col = _col_index_to_letter(max(field_col_map.values()))
-        data_range = f"A2:{end_col}{rows_to_read + 1}"
+        data_range = f"A{data_start_row}:{end_col}{data_start_row + rows_to_read - 1}"
 
         logger.info(
-            f"Reading {rows_to_read} rows from {worksheet.title}!{data_range}"
+            f"Reading {rows_to_read} rows from {worksheet.title}!{data_range} (header at row {header_row_num})"
         )
         all_data = worksheet.get(data_range)
 
@@ -1145,7 +1312,7 @@ def read_sheet_rows(
             if _is_header_or_title_row(row_data, live_headers, total_columns):
                 skipped_header_rows += 1
                 logger.debug(
-                    "Skipping header/title row at sheet row %d", data_idx + 2
+                    "Skipping header/title row at sheet row %d", data_start_row + data_idx
                 )
                 continue
 
@@ -1158,8 +1325,8 @@ def read_sheet_rows(
                 if value.strip():
                     has_data = True
             if has_data:
-                # Store the actual 1-based sheet row index (data starts at row 2)
-                row_dict["_row_index"] = str(data_idx + 2)
+                # Store the actual 1-based sheet row index
+                row_dict["_row_index"] = str(data_start_row + data_idx)
                 rows.append(row_dict)
 
         if skipped_header_rows:
@@ -1219,7 +1386,9 @@ def read_sheet_sections(
         spreadsheet = client.open_by_key(spreadsheet_id)
         worksheet = _select_worksheet(spreadsheet, worksheet_name)
 
-        live_headers = _read_live_headers(worksheet, spreadsheet_id, worksheet_name)
+        live_headers, header_row_num = _read_live_headers_with_row(
+            worksheet, spreadsheet_id, worksheet_name
+        )
         if not live_headers:
             return []
 
@@ -1243,12 +1412,13 @@ def read_sheet_sections(
                 col_idx = field.column_index
             field_col_map[field.key] = col_idx
 
-        total_rows = max(worksheet.row_count - 1, 0)
+        data_start_row = header_row_num + 1
+        total_rows = max(worksheet.row_count - header_row_num, 0)
         if total_rows == 0:
             return []
         rows_to_read = min(total_rows, max_rows)
         end_col = _col_index_to_letter(max(field_col_map.values()))
-        data_range = f"A2:{end_col}{rows_to_read + 1}"
+        data_range = f"A{data_start_row}:{end_col}{data_start_row + rows_to_read - 1}"
 
         all_data = worksheet.get(data_range)
         if not all_data:
@@ -1260,10 +1430,10 @@ def read_sheet_sections(
         sections: list[dict] = []
         current_section_title = "Section 1"
         current_section_rows: list[dict[str, str]] = []
-        current_section_start = 2  # Row 2 (after header)
+        current_section_start = data_start_row
 
         for data_idx, row_data in enumerate(all_data):
-            sheet_row = data_idx + 2
+            sheet_row = data_start_row + data_idx
 
             if _is_header_or_title_row(row_data, live_headers, total_columns):
                 # Save current section if it has data
