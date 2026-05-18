@@ -852,3 +852,13 @@ button:active:not(:disabled) {
     max-width: 280px;
   }
 }
+
+/* ============================================================
+   Load Analysis — Mobile-first filter grid
+   2-column grid on mobile, expands on larger screens.
+   ============================================================ */
+@media (max-width: 380px) {
+  .load-filter-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
