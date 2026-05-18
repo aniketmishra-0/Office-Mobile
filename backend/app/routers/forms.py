@@ -62,7 +62,11 @@ def _get_record_or_404(form_id: str) -> dict:
 
 
 async def _get_record_or_404_async(form_id: str) -> dict:
-    record = await asyncio.to_thread(form_store.get_form, form_id)
+    try:
+        record = await asyncio.to_thread(form_store.get_form, form_id)
+    except Exception as exc:
+        logger.exception("get_form FAILED form_id=%s", form_id)
+        raise HTTPException(status_code=500, detail=f"Database error: {type(exc).__name__}: {str(exc)[:200]}")
     if record is None:
         raise HTTPException(status_code=404, detail="Form not found")
     return record

@@ -110,6 +110,19 @@ app.add_middleware(
     max_age=86400,
 )
 
+
+# Global exception handler — ensures CORS headers are present even on 500s.
+# Without this, the browser blocks the response body and the frontend only
+# sees "CORS error" instead of the actual error message.
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import logging
+    logging.getLogger("app").exception("Unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
+
 app.include_router(health.router)
 app.include_router(forms.router)
 app.include_router(auth.router)
