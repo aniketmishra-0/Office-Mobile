@@ -95,6 +95,51 @@ def _validate_sheet_url_matches(sheet_url: str, spreadsheet_id: str) -> None:
         )
 
 
+def _sync_description_to_dashboard(
+    spreadsheet_id: str,
+    worksheet_name: str,
+    description: str,
+) -> None:
+    """
+    Sync the form description to the 'Dashboard' tab in the Google Sheet.
+    Creates the Dashboard tab if it doesn't exist.
+    Updates the description for the given worksheet_name row, or appends a new row.
+    """
+    try:
+        client = get_client()
+        spreadsheet = client.open_by_key(spreadsheet_id)
+
+        # Get or create Dashboard tab
+        try:
+            dashboard_ws = spreadsheet.worksheet("Dashboard")
+        except Exception:
+            # Dashboard tab doesn't exist — create it
+            dashboard_ws = spreadsheet.add_worksheet(title="Dashboard", rows=100, cols=2)
+            dashboard_ws.update("A1", [["Subsheet", "Description"]], value_input_option="RAW")
+
+        # Find existing row for this worksheet_name and update, or append
+        all_values = dashboard_ws.get_all_values()
+        found_row = None
+        for i, row in enumerate(all_values):
+            if i == 0:
+                continue  # skip header
+            if row and row[0] == worksheet_name:
+                found_row = i + 1  # 1-based row number
+                break
+
+        if found_row:
+            # Update existing row's description
+            dashboard_ws.update_cell(found_row, 2, description)
+        else:
+            # Append new row
+            dashboard_ws.append_row(
+                [worksheet_name, description],
+                value_input_option="RAW",
+            )
+    except Exception as exc:
+        logger.debug("_sync_description_to_dashboard failed: %s", exc)
+
+
 def _validate_submission(record: dict, values: dict) -> None:
     allowed_keys = {field.key for field in record["fields"]}
     for key in values:
@@ -385,47 +430,19 @@ async def create_form(payload: CreateFormRequest) -> CreateFormResponse:
     form_url = f"/f/{record['id']}"
     edit_url = f"/edit/{record['id']}?token={record['edit_token']}"
 
-    # Auto-create a "Dashboard" worksheet tab if it doesn't exist yet.
-    # This tab tracks all sub-sheets and their descriptions.
+    # Sync description to the Dashboard tab in Google Sheet (background)
     try:
         _dash_session_key = oauth_key or get_current_oauth_session_key()
 
-        def _ensure_dashboard_tab():
+        def _ensure_dashboard_entry():
             with oauth_session_context(_dash_session_key):
-                from app.services.sheets_client import list_worksheet_names as _list_ws
-                try:
-                    existing_tabs = _list_ws(payload.spreadsheet_id)
-                except Exception:
-                    existing_tabs = []
-                if "Dashboard" not in existing_tabs:
-                    try:
-                        add_worksheet_tab(
-                            payload.spreadsheet_id,
-                            "Dashboard",
-                            ["Subsheet", "Description"],
-                        )
-                    except Exception as e:
-                        logger.debug("Could not auto-create Dashboard tab: %s", e)
-                # Add this form's entry to the Dashboard tab
-                try:
-                    from app.services.sheets_client import get_client as _gc
-                    client = _gc()
-                    spreadsheet = client.open_by_key(payload.spreadsheet_id)
-                    dashboard_ws = spreadsheet.worksheet("Dashboard")
-                    # Check if this worksheet is already listed
-                    all_values = dashboard_ws.get_all_values()
-                    existing_names = [row[0] for row in all_values[1:]] if len(all_values) > 1 else []
-                    ws_name = payload.worksheet_name or "Sheet1"
-                    if ws_name not in existing_names:
-                        dashboard_ws.append_row(
-                            [ws_name, payload.description or ""],
-                            value_input_option="RAW",
-                        )
-                except Exception as e:
-                    logger.debug("Could not update Dashboard tab: %s", e)
+                _sync_description_to_dashboard(
+                    spreadsheet_id=payload.spreadsheet_id,
+                    worksheet_name=payload.worksheet_name or "Sheet1",
+                    description=payload.description,
+                )
 
-        # Run in background — don't block the response
-        asyncio.get_event_loop().run_in_executor(None, _ensure_dashboard_tab)
+        asyncio.get_event_loop().run_in_executor(None, _ensure_dashboard_entry)
     except Exception:
         pass
 
@@ -1005,6 +1022,22 @@ async def update_form(form_id: str, payload: UpdateFormRequest) -> UpdateFormRes
     except Exception as exc:
         if _has_credentials():
             raise _sheet_error(exc) from exc
+
+    # Sync description to the Dashboard tab in Google Sheet
+    _update_session_key = updated.get("oauth_key") or get_current_oauth_session_key()
+
+    def _sync_dashboard_description():
+        with oauth_session_context(_update_session_key):
+            _sync_description_to_dashboard(
+                spreadsheet_id=updated["spreadsheet_id"],
+                worksheet_name=updated.get("worksheet_name") or "Sheet1",
+                description=payload.description,
+            )
+
+    try:
+        await asyncio.to_thread(_sync_dashboard_description)
+    except Exception as exc:
+        logger.debug("Could not sync description to Dashboard tab: %s", exc)
 
     return UpdateFormResponse(success=True, id=form_id)
 
