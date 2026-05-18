@@ -9,6 +9,7 @@ import ErrorToast from "@/components/ErrorToast";
 import KeywordRulesEditor from "@/components/KeywordRulesEditor";
 import FormFieldEditor from "@/components/FormFieldEditor";
 import FormBuilder from "@/components/FormBuilder";
+import FormDesignPicker from "@/components/FormDesignPicker";
 import MobileDropdown from "@/components/MobileDropdown";
 import SubmitButton from "@/components/SubmitButton";
 import ClearButton from "@/components/ClearButton";
@@ -187,6 +188,7 @@ export default function Dashboard() {
   const [reapplying, setReapplying] = useState(false);
   const [showSetup, setShowSetup] = useState(false);
   const [autofillColumns, setAutofillColumns] = useState<string[]>([]);
+  const [formDesign, setFormDesign] = useState("minimal");
   const [accessStatus, setAccessStatus] = useState<"checking" | "edit" | "read" | "none" | null>(null);
   const [showOpenIn, setShowOpenIn] = useState(false);
 
@@ -358,6 +360,7 @@ export default function Dashboard() {
         fields,
         custom_keywords: rules,
         autofill_columns: autofillColumns,
+        ui_config: { design: formDesign },
       });
       setCreatedForm(result);
       await refreshLibrary();
@@ -1582,6 +1585,11 @@ export default function Dashboard() {
                 Re-apply rules
               </button>
             )}
+          </div>
+
+          {/* Form Design Picker */}
+          <div className="rounded-xl border border-zinc-200 bg-white p-4">
+            <FormDesignPicker value={formDesign} onChange={setFormDesign} />
           </div>
         </div>
 

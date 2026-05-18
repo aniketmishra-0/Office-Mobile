@@ -5,6 +5,7 @@ import type { FieldSchema, FieldType } from "@/types/field";
 import ClearButton from "@/components/ClearButton";
 import SubmitButton from "@/components/SubmitButton";
 import MobileDropdown from "@/components/MobileDropdown";
+import FormDesignPicker from "@/components/FormDesignPicker";
 
 type DraftField = {
   id: string;
@@ -79,6 +80,7 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
   const [formTheme, setFormTheme] = useState("system");
   const [formFont, setFormFont] = useState("system");
   const [formLayout, setFormLayout] = useState("standard");
+  const [formDesign, setFormDesign] = useState("minimal");
   const [showConfig, setShowConfig] = useState(false);
 
   const canSubmit = useMemo(
@@ -139,6 +141,7 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
     });
 
     const uiConfig = {
+      design: formDesign,
       theme: formTheme,
       font_family: formFont,
       layout: formLayout,
@@ -236,6 +239,13 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
           
           {showConfig && (
             <div className="p-4 pt-4 border-t border-zinc-200 bg-transparent animate-in slide-in-from-top-2">
+              {/* Design Picker */}
+              <div className="mb-5">
+                <FormDesignPicker value={formDesign} onChange={setFormDesign} />
+              </div>
+
+              <hr className="border-zinc-200 mb-4" />
+
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-1.5">

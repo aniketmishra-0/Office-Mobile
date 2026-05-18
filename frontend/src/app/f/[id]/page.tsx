@@ -9,6 +9,7 @@ import SuccessScreen from "@/components/SuccessScreen";
 import DynamicForm from "@/components/DynamicForm";
 import type { DynamicFormHandle } from "@/components/DynamicForm";
 import SubmitButton from "@/components/SubmitButton";
+import FormThemeWrapper from "@/components/FormThemeWrapper";
 import { submitForm, getPublicForm, getFormSuggestions, getAiSuggestions } from "@/lib/api";
 import { safeBack } from "@/lib/navigation";
 import type { AiSuggestionsResponse } from "@/lib/api";
@@ -153,38 +154,40 @@ export default function FillFormPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-zinc-100">
-      <AppHeader title={formData!.worksheet_name || formData!.form_title} showBack onBack={() => safeBack(router)} />
+    <FormThemeWrapper designId={formData!.ui_config?.design}>
+      <div className="flex flex-col min-h-screen">
+        <AppHeader title={formData!.worksheet_name || formData!.form_title} showBack onBack={() => safeBack(router)} />
 
-      <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-8 overflow-y-auto">
-        <AiAutofillBanner
-          fields={formData!.fields}
-          aiData={aiData}
-          loading={aiLoading}
-          error={aiError}
-          onApply={handleAiApply}
-          onRetry={loadAiSuggestions}
-        />
-        <DynamicForm
-          ref={formRef}
-          fields={formData!.fields}
-          onSubmit={handleSubmit}
-          submitting={submitting}
-          resetKey={resetKey}
-          suggestions={suggestions}
-          suggestionsLoading={suggestionsLoading}
-          suggestionsError={suggestionsError}
-          autofillColumns={formData!.autofill_columns ?? []}
-          onAutofillOpen={loadSuggestions}
-          onRetrySuggestions={() => {
-            suggestionsRequested.current = false;
-            void loadSuggestions();
-          }}
-          folderName={formData!.worksheet_name || formData!.form_title}
-        />
+        <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-8 overflow-y-auto">
+          <AiAutofillBanner
+            fields={formData!.fields}
+            aiData={aiData}
+            loading={aiLoading}
+            error={aiError}
+            onApply={handleAiApply}
+            onRetry={loadAiSuggestions}
+          />
+          <DynamicForm
+            ref={formRef}
+            fields={formData!.fields}
+            onSubmit={handleSubmit}
+            submitting={submitting}
+            resetKey={resetKey}
+            suggestions={suggestions}
+            suggestionsLoading={suggestionsLoading}
+            suggestionsError={suggestionsError}
+            autofillColumns={formData!.autofill_columns ?? []}
+            onAutofillOpen={loadSuggestions}
+            onRetrySuggestions={() => {
+              suggestionsRequested.current = false;
+              void loadSuggestions();
+            }}
+            folderName={formData!.worksheet_name || formData!.form_title}
+          />
+        </div>
+        <SubmitButton submitting={submitting} form="dynamic-form" />
+        <ErrorToast message={error} onDismiss={() => setError(null)} />
       </div>
-      <SubmitButton submitting={submitting} form="dynamic-form" />
-      <ErrorToast message={error} onDismiss={() => setError(null)} />
-    </div>
+    </FormThemeWrapper>
   );
 }
