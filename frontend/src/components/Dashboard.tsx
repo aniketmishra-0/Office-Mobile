@@ -66,6 +66,7 @@ export default function Dashboard() {
   const [clearAllConfirm, setClearAllConfirm] = useState(false);
   const [savedSheets, setSavedSheets] = useState<SavedSheetItem[]>([]);
   const [savedSheetsLoading, setSavedSheetsLoading] = useState(true);
+  const [openInSavedSheet, setOpenInSavedSheet] = useState<SavedSheetItem | null>(null);
 
   // Pagination state for large libraries
 
@@ -671,10 +672,7 @@ export default function Dashboard() {
                         cursor: "pointer",
                         transition: "background-color 200ms ease-out",
                       }}
-                      onClick={() => {
-                        const encodedUrl = encodeURIComponent(sheet.sheet_url);
-                        router.push(`/history?sheet=${encodedUrl}`);
-                      }}
+                      onClick={() => setOpenInSavedSheet(sheet)}
                       onMouseEnter={(e) => { e.currentTarget.style.background = "var(--paper, rgba(0,0,0,0.02))"; }}
                       onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
                     >
@@ -1243,6 +1241,41 @@ export default function Dashboard() {
                 }
               }}
               onClose={() => setShowOpenIn(false)}
+            />
+          )}
+
+          {/* Open In modal — shown when user clicks a saved sheet */}
+          {openInSavedSheet && (
+            <OpenInModal
+              sheetTitle={openInSavedSheet.title}
+              onSelect={(optionId) => {
+                const encodedUrl = encodeURIComponent(openInSavedSheet.sheet_url);
+                setOpenInSavedSheet(null);
+                switch (optionId) {
+                  case "form-fill":
+                    router.push(`/form-fill?sheet=${encodedUrl}`);
+                    break;
+                  case "quick-view":
+                    router.push(`/history?sheet=${encodedUrl}`);
+                    break;
+                  case "data-correction":
+                    router.push(`/data-fill?sheet=${encodedUrl}`);
+                    break;
+                  case "multi-header":
+                    router.push(`/multi-header-filter?sheet=${encodedUrl}`);
+                    break;
+                  case "data-cleaner":
+                    router.push(`/data-cleaner?url=${encodedUrl}`);
+                    break;
+                  case "load-analysis":
+                    router.push(`/load?sheet=${encodedUrl}`);
+                    break;
+                  default:
+                    router.push(`/history?sheet=${encodedUrl}`);
+                    break;
+                }
+              }}
+              onClose={() => setOpenInSavedSheet(null)}
             />
           )}
 
