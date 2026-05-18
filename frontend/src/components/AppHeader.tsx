@@ -139,7 +139,18 @@ export default function AppHeader({
     >
       <div className="om-header__row">
         <div className="om-header__left">
-          <a href="/" style={{ textDecoration: "none", display: "inline-flex" }}>
+          <a
+            href="/"
+            onClick={(e) => {
+              e.preventDefault();
+              if (window.location.pathname === "/") {
+                window.location.reload();
+              } else {
+                router.push("/");
+              }
+            }}
+            style={{ textDecoration: "none", display: "inline-flex", cursor: "pointer" }}
+          >
             <Logo size="xl" showText={!title} />
           </a>
         </div>
