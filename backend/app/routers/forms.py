@@ -8,6 +8,7 @@ from functools import partial
 from fastapi import APIRouter, HTTPException, Query, Body
 
 from app.config import get_settings
+from app.models.field import CustomKeywordRule, FieldSchema
 from app.models.form import (
     CreateSheetRequest,
     CreateSheetResponse,
