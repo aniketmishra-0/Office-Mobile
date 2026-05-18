@@ -473,30 +473,95 @@ function HistoryPageInner() {
 
   // ═══════════════════════ Detail view ═══════════════════════
   if (selectedRow && loaded) {
+    // Find current row index in the filtered matches list for prev/next navigation
+    const currentIdx = matches.findIndex((r) => r === selectedRow);
+    const hasPrev = currentIdx > 0;
+    const hasNext = currentIdx >= 0 && currentIdx < matches.length - 1;
+
+    const goToPrev = () => {
+      if (hasPrev) setSelectedRow(matches[currentIdx - 1]);
+    };
+    const goToNext = () => {
+      if (hasNext) setSelectedRow(matches[currentIdx + 1]);
+    };
+
     return (
       <div className="flex flex-col min-h-screen" style={{ background: "var(--cream)" }}>
         <AppHeader title="Entry details" showBack onBack={() => window.history.back()} />
         <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-10">
-          <div style={{ marginBottom: 16 }}>
-            <h2 style={{
-              fontFamily: "var(--font-newsreader), Georgia, serif",
-              fontWeight: 400,
-              fontSize: 16,
-              color: "var(--ink)",
-              margin: 0,
-            }}>
-              {loaded.worksheet_name}
-            </h2>
-            <p style={{
-              fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-              fontWeight: 300,
-              fontSize: 10,
-              letterSpacing: "0.04em",
-              color: "var(--stone)",
-              margin: "2px 0 0 0",
-            }}>
-              Row {selectedRow._row_index || "—"} · full entry
-            </p>
+          <div style={{ marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <h2 style={{
+                fontFamily: "var(--font-newsreader), Georgia, serif",
+                fontWeight: 400,
+                fontSize: 16,
+                color: "var(--ink)",
+                margin: 0,
+              }}>
+                {loaded.worksheet_name}
+              </h2>
+              <p style={{
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontWeight: 300,
+                fontSize: 10,
+                letterSpacing: "0.04em",
+                color: "var(--stone)",
+                margin: "2px 0 0 0",
+              }}>
+                Row {selectedRow._row_index || "—"} · full entry
+              </p>
+            </div>
+            {/* Prev / Next navigation arrows */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <button
+                type="button"
+                onClick={goToPrev}
+                disabled={!hasPrev}
+                aria-label="Previous row"
+                title="Previous row"
+                style={{
+                  width: 32,
+                  height: 32,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: 6,
+                  border: "1px solid var(--rule)",
+                  background: hasPrev ? "var(--paper)" : "transparent",
+                  cursor: hasPrev ? "pointer" : "not-allowed",
+                  opacity: hasPrev ? 1 : 0.3,
+                  transition: "opacity 0.15s",
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--ink)" }}>
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={goToNext}
+                disabled={!hasNext}
+                aria-label="Next row"
+                title="Next row"
+                style={{
+                  width: 32,
+                  height: 32,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: 6,
+                  border: "1px solid var(--rule)",
+                  background: hasNext ? "var(--paper)" : "transparent",
+                  cursor: hasNext ? "pointer" : "not-allowed",
+                  opacity: hasNext ? 1 : 0.3,
+                  transition: "opacity 0.15s",
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--ink)" }}>
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </button>
+            </div>
           </div>
           <div style={{ border: "1px solid var(--rule)", overflow: "hidden" }} className="desktop-detail-fields">
             {[...loaded.fields]
