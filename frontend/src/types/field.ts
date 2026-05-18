@@ -91,6 +91,7 @@ export interface FormLibraryResponse {
 export interface PublicFormResponse {
   id: string;
   form_title: string;
+  description: string;
   worksheet_name: string | null;
   fields: FieldSchema[];
   autofill_columns: string[];
@@ -104,6 +105,7 @@ export interface EditFormResponse {
   spreadsheet_id: string;
   worksheet_name: string | null;
   form_title: string;
+  description: string;
   fields: FieldSchema[];
   custom_keywords: CustomKeywordRule[];
   autofill_columns: string[];

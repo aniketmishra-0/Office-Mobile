@@ -10,7 +10,7 @@ import FormFieldEditor from "@/components/FormFieldEditor";
 import KeywordRulesEditor from "@/components/KeywordRulesEditor";
 import AutofillColumnSelector from "@/components/AutofillColumnSelector";
 import SubmitButton from "@/components/SubmitButton";
-import { getEditForm, updateForm, previewSheet } from "@/lib/api";
+import { getEditForm, updateForm, previewSheet, listWorksheets, addSheetTab, createForm, lookupFormsBySheet } from "@/lib/api";
 import type { EditFormResponse, FieldSchema, CustomKeywordRule } from "@/types/field";
 import { QRCodeCanvas } from "qrcode.react";
 import { safeBack } from "@/lib/navigation";
@@ -26,6 +26,7 @@ export default function EditFormPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [formData, setFormData] = useState<EditFormResponse | null>(null);
   const [formTitle, setFormTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [fields, setFields] = useState<FieldSchema[]>([]);
   const [rules, setRules] = useState<CustomKeywordRule[]>([]);
   const [autofillColumns, setAutofillColumns] = useState<string[]>([]);
@@ -39,6 +40,14 @@ export default function EditFormPage() {
   const manuallyChangedTypes = useRef<Set<string>>(new Set());
   const qrRef = useRef<HTMLCanvasElement | null>(null);
 
+  // Sub-sheet management
+  const [worksheets, setWorksheets] = useState<string[]>([]);
+  const [showAddSubSheet, setShowAddSubSheet] = useState(false);
+  const [newTabName, setNewTabName] = useState("");
+  const [newTabHeaders, setNewTabHeaders] = useState("");
+  const [addingTab, setAddingTab] = useState(false);
+  const [subSheetForms, setSubSheetForms] = useState<Array<{ id: string | null; form_title: string; worksheet_name: string | null; has_form: boolean }>>([]);
+
   useEffect(() => {
     if (!token) {
       setLoadError("Missing edit token. Use the edit link you received when creating the form.");
@@ -49,6 +58,7 @@ export default function EditFormPage() {
       .then((data) => {
         setFormData(data);
         setFormTitle(data.form_title);
+        setDescription(data.description || "");
         setFields(data.fields);
         setRules(data.custom_keywords);
         setAutofillColumns(data.autofill_columns ?? []);
@@ -62,6 +72,17 @@ export default function EditFormPage() {
       setShareUrl(`${window.location.origin}/f/${id}`);
     }
   }, [id]);
+
+  // Load worksheets and sub-sheet forms when form data is available
+  useEffect(() => {
+    if (!formData) return;
+    listWorksheets(formData.sheet_url)
+      .then((ws) => setWorksheets(ws.items))
+      .catch(() => {});
+    lookupFormsBySheet(formData.sheet_url)
+      .then((data) => setSubSheetForms(data.items))
+      .catch(() => {});
+  }, [formData]);
 
   function handleFieldChange(updated: FieldSchema[]) {
     updated.forEach((updatedField) => {
@@ -102,6 +123,7 @@ export default function EditFormPage() {
       await updateForm(id, {
         edit_token: token,
         form_title: formTitle,
+        description,
         fields: fields.map((field) => ({
           ...field,
           source_header: field.label,
@@ -124,6 +146,35 @@ export default function EditFormPage() {
       setCopiedShare(true);
       setTimeout(() => setCopiedShare(false), 1500);
     });
+  }
+
+  async function handleAddSubSheet() {
+    if (!formData || !newTabName.trim()) return;
+    setAddingTab(true);
+    setError(null);
+    try {
+      const headers = newTabHeaders.trim()
+        ? newTabHeaders.split(",").map((h) => h.trim()).filter(Boolean)
+        : undefined;
+      const result = await addSheetTab({
+        sheet_url: formData.sheet_url,
+        tab_name: newTabName.trim(),
+        headers,
+      });
+      // Refresh worksheets list
+      const ws = await listWorksheets(formData.sheet_url);
+      setWorksheets(ws.items);
+      // Refresh sub-sheet forms
+      const lookup = await lookupFormsBySheet(formData.sheet_url);
+      setSubSheetForms(lookup.items);
+      setNewTabName("");
+      setNewTabHeaders("");
+      setShowAddSubSheet(false);
+    } catch (e: any) {
+      setError(e.message ?? "Failed to add sub-sheet");
+    } finally {
+      setAddingTab(false);
+    }
   }
 
   function handleDownloadQr() {
@@ -196,6 +247,23 @@ export default function EditFormPage() {
           </div>
         </div>
 
+        {/* Description / JD */}
+        <div>
+          <label className="block text-[13px] font-semibold text-zinc-800 mb-2">
+            Description / JD
+            <span className="ml-2 text-[11px] font-normal text-zinc-500">(form ke upar dikhega)</span>
+          </label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Form ka description ya Job Description yahan paste karein..."
+            rows={4}
+            maxLength={2000}
+            className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-[14px] min-h-[100px] resize-y focus:outline-none focus:ring-2 focus:ring-zinc-900"
+          />
+          <p className="mt-1 text-[11px] text-zinc-500">{description.length}/2000</p>
+        </div>
+
         {/* Field editor */}
         <FormFieldEditor
           fields={fields}
@@ -238,6 +306,101 @@ export default function EditFormPage() {
             <p className="text-[12px] text-zinc-600 break-all font-mono">{formData.sheet_url}</p>
             {formData.worksheet_name && (
               <p className="text-[12px] text-zinc-500 mt-1">Tab: {formData.worksheet_name}</p>
+            )}
+          </div>
+        )}
+
+        {/* Sub-Sheets Management */}
+        {formData && (
+          <div className="rounded-lg border border-zinc-200 bg-white p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-medium text-zinc-500 uppercase tracking-wide mb-1">Sub-Sheets</p>
+                <p className="text-[13px] font-semibold text-zinc-950">Manage worksheet tabs</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddSubSheet(!showAddSubSheet)}
+                className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-[12px] font-medium text-zinc-700 hover:bg-zinc-50"
+              >
+                {showAddSubSheet ? "Cancel" : "+ Add Tab"}
+              </button>
+            </div>
+
+            {/* Existing tabs */}
+            {worksheets.length > 0 && (
+              <div className="space-y-1.5">
+                {worksheets.map((tab) => {
+                  const subForm = subSheetForms.find((f) => f.worksheet_name === tab);
+                  return (
+                    <div key={tab} className="flex items-center justify-between py-2 px-3 rounded-md bg-zinc-50 border border-zinc-100">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[13px] font-medium text-zinc-800">{tab}</span>
+                        {subForm?.has_form && (
+                          <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium">form</span>
+                        )}
+                        {tab === formData.worksheet_name && (
+                          <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">current</span>
+                        )}
+                      </div>
+                      {subForm?.has_form && subForm.id && subForm.id !== id && (
+                        <a
+                          href={`/f/${subForm.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] text-zinc-600 hover:text-zinc-900 font-medium"
+                        >
+                          Open →
+                        </a>
+                      )}
+                      {!subForm?.has_form && (
+                        <a
+                          href={`/form-fill?sheet=${encodeURIComponent(formData.sheet_url)}`}
+                          className="text-[11px] text-zinc-600 hover:text-zinc-900 font-medium"
+                        >
+                          Create form →
+                        </a>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Add new tab form */}
+            {showAddSubSheet && (
+              <div className="space-y-3 pt-2 border-t border-zinc-100">
+                <div>
+                  <label className="block text-[12px] font-semibold text-zinc-700 mb-1.5">Tab name</label>
+                  <input
+                    type="text"
+                    value={newTabName}
+                    onChange={(e) => setNewTabName(e.target.value)}
+                    placeholder="e.g. January, Staff, Morning Shift"
+                    className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-[14px] focus:outline-none focus:ring-2 focus:ring-zinc-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[12px] font-semibold text-zinc-700 mb-1.5">
+                    Headers <span className="font-normal text-zinc-500">(comma separated, optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={newTabHeaders}
+                    onChange={(e) => setNewTabHeaders(e.target.value)}
+                    placeholder="e.g. Name, Email, Phone, Date"
+                    className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-[14px] focus:outline-none focus:ring-2 focus:ring-zinc-900"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddSubSheet}
+                  disabled={addingTab || !newTabName.trim()}
+                  className="w-full rounded-lg bg-zinc-950 text-white py-2.5 text-[13px] font-medium disabled:opacity-50"
+                >
+                  {addingTab ? "Adding..." : "Add Sub-Sheet"}
+                </button>
+              </div>
             )}
           </div>
         )}

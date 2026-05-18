@@ -71,6 +71,7 @@ function FormFillInner() {
   const [copiedEdit, setCopiedEdit] = useState(false);
   const [reapplying, setReapplying] = useState(false);
   const [autofillColumns, setAutofillColumns] = useState<string[]>([]);
+  const [description, setDescription] = useState("");
   const [accessStatus, setAccessStatus] = useState<"checking" | "edit" | "read" | "none" | null>(null);
 
   useEffect(() => {
@@ -211,6 +212,7 @@ function FormFillInner() {
         spreadsheet_id: previewData.spreadsheet_id,
         worksheet_name: selectedWorksheet ?? previewData.worksheet_name,
         form_title: formTitle || previewData.spreadsheet_title,
+        description,
         fields,
         custom_keywords: rules,
         autofill_columns: autofillColumns,
@@ -550,6 +552,23 @@ function FormFillInner() {
               />
               {formTitle && <ClearButton onClick={() => setFormTitle("")} right={10} ariaLabel="Clear title" />}
             </div>
+          </div>
+
+          {/* Description / JD */}
+          <div>
+            <label className="block text-[13px] font-semibold text-zinc-800 mb-2">
+              Description / JD
+              <span className="ml-2 text-[11px] font-normal text-zinc-500">(optional — form ke upar dikhega)</span>
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Form ka description ya Job Description yahan paste karein..."
+              rows={3}
+              maxLength={2000}
+              className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-[14px] min-h-[80px] resize-y focus:outline-none focus:ring-2 focus:ring-zinc-900"
+            />
+            <p className="mt-1 text-[11px] text-zinc-500">{description.length}/2000</p>
           </div>
 
           {/* Field editor */}

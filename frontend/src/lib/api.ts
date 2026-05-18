@@ -192,6 +192,7 @@ export async function createForm(payload: {
   spreadsheet_id: string;
   worksheet_name: string | null;
   form_title: string;
+  description?: string;
   fields: FieldSchema[];
   custom_keywords: CustomKeywordRule[];
   autofill_columns?: string[];
@@ -268,6 +269,7 @@ export async function updateForm(
   payload: {
     edit_token: string;
     form_title: string;
+    description?: string;
     fields: FieldSchema[];
     custom_keywords: CustomKeywordRule[];
     autofill_columns?: string[];
@@ -445,6 +447,22 @@ export async function batchAppendRows(payload: {
   return jsonRequest<{ success: boolean; appended_count: number; updated_range: string | null }>(
     "POST",
     "/sheet/batch-append",
+    payload,
+  );
+}
+
+/**
+ * POST /api/sheet/add-tab
+ * Add a new worksheet tab to an existing spreadsheet.
+ */
+export async function addSheetTab(payload: {
+  sheet_url: string;
+  tab_name: string;
+  headers?: string[];
+}): Promise<{ success: boolean; worksheet_name: string; spreadsheet_id: string }> {
+  return jsonRequest<{ success: boolean; worksheet_name: string; spreadsheet_id: string }>(
+    "POST",
+    "/sheet/add-tab",
     payload,
   );
 }

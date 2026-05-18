@@ -159,6 +159,14 @@ export default function FillFormPage() {
         <AppHeader title={formData!.worksheet_name || formData!.form_title} showBack onBack={() => safeBack(router)} />
 
         <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-8 overflow-y-auto">
+          {/* Form Description / JD */}
+          {formData!.description && (
+            <div className="mb-6 rounded-lg border border-zinc-200 bg-white p-4">
+              <p className="text-[11px] font-medium text-zinc-500 uppercase tracking-wide mb-2">Description</p>
+              <p className="text-[14px] text-zinc-700 leading-relaxed whitespace-pre-wrap">{formData!.description}</p>
+            </div>
+          )}
+
           <AiAutofillBanner
             fields={formData!.fields}
             aiData={aiData}

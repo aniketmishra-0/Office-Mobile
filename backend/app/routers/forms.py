@@ -27,6 +27,7 @@ from app.services import form_store
 from app.services.session_context import DEFAULT_OAUTH_KEY, get_current_oauth_session_key, oauth_session_context
 from app.services.sheets_client import (
     _has_credentials,
+    add_worksheet_tab,
     append_form_row,
     batch_append_rows,
     get_client,
@@ -159,6 +160,35 @@ async def create_sheet(payload: CreateSheetRequest) -> CreateSheetResponse:
         )
 
     return await asyncio.to_thread(_do_create)
+
+
+@router.post("/sheet/add-tab")
+async def add_sheet_tab(payload: dict = Body(...)) -> dict:
+    """Add a new worksheet tab to an existing spreadsheet."""
+    sheet_url = payload.get("sheet_url", "")
+    tab_name = payload.get("tab_name", "")
+    headers = payload.get("headers")  # optional list of header strings
+
+    if not sheet_url or not tab_name:
+        raise HTTPException(status_code=400, detail="sheet_url and tab_name are required")
+
+    try:
+        spreadsheet_id = extract_spreadsheet_id(sheet_url)
+    except InvalidGoogleSheetUrl as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    _session_key = get_current_oauth_session_key()
+
+    def _add():
+        with oauth_session_context(_session_key):
+            return add_worksheet_tab(spreadsheet_id, tab_name, headers)
+
+    try:
+        actual_name = await asyncio.to_thread(_add)
+    except Exception as exc:
+        raise _sheet_error(exc) from exc
+
+    return {"success": True, "worksheet_name": actual_name, "spreadsheet_id": spreadsheet_id}
 
 
 @router.get("/forms/library")
@@ -343,6 +373,7 @@ async def create_form(payload: CreateFormRequest) -> CreateFormResponse:
             spreadsheet_id=payload.spreadsheet_id,
             worksheet_name=payload.worksheet_name,
             form_title=payload.form_title,
+            description=payload.description,
             fields=payload.fields,
             custom_keywords=payload.custom_keywords,
             autofill_columns=payload.autofill_columns,
@@ -353,6 +384,50 @@ async def create_form(payload: CreateFormRequest) -> CreateFormResponse:
 
     form_url = f"/f/{record['id']}"
     edit_url = f"/edit/{record['id']}?token={record['edit_token']}"
+
+    # Auto-create a "Dashboard" worksheet tab if it doesn't exist yet.
+    # This tab tracks all sub-sheets and their descriptions.
+    try:
+        _dash_session_key = oauth_key or get_current_oauth_session_key()
+
+        def _ensure_dashboard_tab():
+            with oauth_session_context(_dash_session_key):
+                from app.services.sheets_client import list_worksheet_names as _list_ws
+                try:
+                    existing_tabs = _list_ws(payload.spreadsheet_id)
+                except Exception:
+                    existing_tabs = []
+                if "Dashboard" not in existing_tabs:
+                    try:
+                        add_worksheet_tab(
+                            payload.spreadsheet_id,
+                            "Dashboard",
+                            ["Subsheet", "Description"],
+                        )
+                    except Exception as e:
+                        logger.debug("Could not auto-create Dashboard tab: %s", e)
+                # Add this form's entry to the Dashboard tab
+                try:
+                    from app.services.sheets_client import get_client as _gc
+                    client = _gc()
+                    spreadsheet = client.open_by_key(payload.spreadsheet_id)
+                    dashboard_ws = spreadsheet.worksheet("Dashboard")
+                    # Check if this worksheet is already listed
+                    all_values = dashboard_ws.get_all_values()
+                    existing_names = [row[0] for row in all_values[1:]] if len(all_values) > 1 else []
+                    ws_name = payload.worksheet_name or "Sheet1"
+                    if ws_name not in existing_names:
+                        dashboard_ws.append_row(
+                            [ws_name, payload.description or ""],
+                            value_input_option="RAW",
+                        )
+                except Exception as e:
+                    logger.debug("Could not update Dashboard tab: %s", e)
+
+        # Run in background — don't block the response
+        asyncio.get_event_loop().run_in_executor(None, _ensure_dashboard_tab)
+    except Exception:
+        pass
 
     return CreateFormResponse(
         id=record["id"],
@@ -809,6 +884,7 @@ async def get_public_form(form_id: str) -> PublicFormResponse:
         return PublicFormResponse(
             id=record["id"],
             form_title=record["form_title"],
+            description=record.get("description") or "",
             worksheet_name=record.get("worksheet_name"),
             fields=[FieldSchema(**f.model_dump()) for f in record["fields"]],
             autofill_columns=record.get("autofill_columns") or [],
@@ -884,6 +960,7 @@ async def get_edit_form(
         spreadsheet_id=record["spreadsheet_id"],
         worksheet_name=record.get("worksheet_name"),
         form_title=record["form_title"],
+        description=record.get("description") or "",
         fields=[FieldSchema(**f.model_dump()) for f in record["fields"]],
         custom_keywords=[CustomKeywordRule(**kw.model_dump()) for kw in record["custom_keywords"]],
         autofill_columns=record.get("autofill_columns") or [],
@@ -904,6 +981,7 @@ async def update_form(form_id: str, payload: UpdateFormRequest) -> UpdateFormRes
             form_store.update_form,
             form_id=form_id,
             form_title=payload.form_title,
+            description=payload.description,
             fields=payload.fields,
             custom_keywords=payload.custom_keywords,
             autofill_columns=payload.autofill_columns,

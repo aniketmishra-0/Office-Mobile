@@ -457,6 +457,16 @@ def list_worksheet_names(spreadsheet_id: str) -> list[str]:
     )
 
 
+def add_worksheet_tab(spreadsheet_id: str, tab_name: str, headers: list[str] | None = None) -> str:
+    """Add a new worksheet tab to an existing spreadsheet. Returns the actual tab name."""
+    client = get_client()
+    spreadsheet = client.open_by_key(spreadsheet_id)
+    worksheet = spreadsheet.add_worksheet(title=tab_name, rows=1000, cols=max(26, len(headers or [])))
+    if headers:
+        worksheet.update("A1", [headers], value_input_option="RAW")
+    return worksheet.title
+
+
 def read_headers_public(
     spreadsheet_id: str, worksheet_name: str | None = None
 ) -> tuple[str, str, list[str]]:
