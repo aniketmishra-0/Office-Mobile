@@ -62,6 +62,11 @@ function HistoryPageInner() {
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
   const [showFilterPanel, setShowFilterPanel] = useState(false);
 
+  // Month filter & date range filter
+  const [selectedMonth, setSelectedMonth] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
   // Auto-load sheet from URL param on mount
   useEffect(() => {
     if (sheetParam) {
@@ -163,6 +168,9 @@ function HistoryPageInner() {
     setLoaded(null);
     setSearchQuery("");
     setColumnFilters({});
+    setSelectedMonth("");
+    setDateFrom("");
+    setDateTo("");
     setSelectedRow(null);
 
     try {
@@ -231,10 +239,87 @@ function HistoryPageInner() {
     }
   }
 
-  // Search across ALL columns + column-specific filters
+  // Detect the date column key (look for a field with "date" in label/key)
+  const dateFieldKey = useMemo(() => {
+    if (!loaded) return null;
+    const dateField = loaded.fields.find(
+      (f) =>
+        f.key.toLowerCase() === "date" ||
+        f.label.toLowerCase() === "date" ||
+        f.key.toLowerCase().includes("date")
+    );
+    return dateField?.key ?? null;
+  }, [loaded]);
+
+  // Parse a date string (supports DD-Mon-YYYY, DD/MM/YYYY, YYYY-MM-DD, etc.)
+  const parseDate = useCallback((str: string): Date | null => {
+    if (!str) return null;
+    const trimmed = str.trim();
+    // Try DD-Mon-YYYY (e.g. 10-Feb-2026)
+    const monMatch = trimmed.match(/^(\d{1,2})[-/](\w{3})[-/](\d{4})$/);
+    if (monMatch) {
+      const d = new Date(`${monMatch[2]} ${monMatch[1]}, ${monMatch[3]}`);
+      if (!isNaN(d.getTime())) return d;
+    }
+    // Try standard Date.parse
+    const d = new Date(trimmed);
+    if (!isNaN(d.getTime())) return d;
+    // Try DD/MM/YYYY
+    const slashMatch = trimmed.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/);
+    if (slashMatch) {
+      const d2 = new Date(+slashMatch[3], +slashMatch[2] - 1, +slashMatch[1]);
+      if (!isNaN(d2.getTime())) return d2;
+    }
+    return null;
+  }, []);
+
+  // Available months from the date column
+  const availableMonths = useMemo(() => {
+    if (!loaded || !dateFieldKey) return [];
+    const monthSet = new Map<string, string>(); // value -> label
+    for (const row of loaded.rows) {
+      const d = parseDate(row[dateFieldKey] ?? "");
+      if (d) {
+        const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        if (!monthSet.has(val)) {
+          const label = d.toLocaleString("en-US", { month: "short", year: "numeric" });
+          monthSet.set(val, label);
+        }
+      }
+    }
+    // Sort descending (newest first)
+    return [...monthSet.entries()]
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([value, label]) => ({ value, label }));
+  }, [loaded, dateFieldKey, parseDate]);
+
+  // Search across ALL columns + column-specific filters + month + date range
   const matches = useMemo(() => {
     if (!loaded || !loaded.rows.length) return [];
     let filtered = loaded.rows;
+
+    // Apply month filter
+    if (selectedMonth && dateFieldKey) {
+      const [yr, mo] = selectedMonth.split("-").map(Number);
+      filtered = filtered.filter((row) => {
+        const d = parseDate(row[dateFieldKey] ?? "");
+        if (!d) return false;
+        return d.getFullYear() === yr && d.getMonth() + 1 === mo;
+      });
+    }
+
+    // Apply date range filter
+    if ((dateFrom || dateTo) && dateFieldKey) {
+      const from = dateFrom ? new Date(dateFrom + "T00:00:00") : null;
+      const to = dateTo ? new Date(dateTo + "T23:59:59") : null;
+      filtered = filtered.filter((row) => {
+        const d = parseDate(row[dateFieldKey] ?? "");
+        if (!d) return false;
+        if (from && d < from) return false;
+        if (to && d > to) return false;
+        return true;
+      });
+    }
 
     // Apply column-specific filters
     const activeFilters = Object.entries(columnFilters).filter(([, v]) => v);
@@ -257,7 +342,7 @@ function HistoryPageInner() {
     }
 
     return filtered;
-  }, [loaded, searchQuery, columnFilters]);
+  }, [loaded, searchQuery, columnFilters, selectedMonth, dateFrom, dateTo, dateFieldKey, parseDate]);
 
   // Get unique values per column for filter dropdowns
   const columnUniqueValues = useMemo(() => {
@@ -284,7 +369,7 @@ function HistoryPageInner() {
   // Reset visible count when query or dataset changes
   React.useEffect(() => {
     setVisibleCount(ROWS_PER_PAGE);
-  }, [searchQuery, loaded, columnFilters]);
+  }, [searchQuery, loaded, columnFilters, selectedMonth, dateFrom, dateTo]);
 
   const visibleMatches = useMemo(
     () => matches.slice(0, visibleCount),
@@ -342,12 +427,18 @@ function HistoryPageInner() {
           setLoaded(null);
           setAvailableTabs(null);
           setSearchQuery("");
+          setSelectedMonth("");
+          setDateFrom("");
+          setDateTo("");
           break;
         case "tabs":
           // Pop from "loaded" or "detail" back to the tab picker.
           setSelectedRow(null);
           setLoaded(null);
           setSearchQuery("");
+          setSelectedMonth("");
+          setDateFrom("");
+          setDateTo("");
           if (sheetUrl && !availableTabs) {
             lookupFormsBySheet(sheetUrl)
               .then((result) => {
@@ -540,8 +631,98 @@ function HistoryPageInner() {
               )}
             </div>
 
+            {/* Month dropdown */}
+            {dateFieldKey && availableMonths.length > 0 && (
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                style={{
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  fontSize: 11,
+                  fontWeight: 500,
+                  color: selectedMonth ? "var(--ink)" : "var(--charcoal)",
+                  background: selectedMonth ? "rgba(200, 98, 58, 0.08)" : "var(--paper)",
+                  border: selectedMonth ? "1px solid rgba(200, 98, 58, 0.4)" : "1px solid var(--rule)",
+                  borderRadius: 4,
+                  padding: "6px 8px",
+                  cursor: "pointer",
+                  minWidth: 0,
+                }}
+              >
+                <option value="">All months</option>
+                {availableMonths.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+            )}
+
+            {/* Date range filter */}
+            {dateFieldKey && (
+              <div className="date-range-filter" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  style={{
+                    fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                    fontSize: 11,
+                    color: dateFrom ? "var(--ink)" : "var(--stone)",
+                    background: dateFrom ? "rgba(200, 98, 58, 0.08)" : "var(--paper)",
+                    border: dateFrom ? "1px solid rgba(200, 98, 58, 0.4)" : "1px solid var(--rule)",
+                    borderRadius: 4,
+                    padding: "5px 6px",
+                    minWidth: 0,
+                    maxWidth: 130,
+                  }}
+                  title="From date"
+                />
+                <span style={{
+                  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                  fontSize: 10,
+                  color: "var(--stone)",
+                }}>→</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  style={{
+                    fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                    fontSize: 11,
+                    color: dateTo ? "var(--ink)" : "var(--stone)",
+                    background: dateTo ? "rgba(200, 98, 58, 0.08)" : "var(--paper)",
+                    border: dateTo ? "1px solid rgba(200, 98, 58, 0.4)" : "1px solid var(--rule)",
+                    borderRadius: 4,
+                    padding: "5px 6px",
+                    minWidth: 0,
+                    maxWidth: 130,
+                  }}
+                  title="To date"
+                />
+                {(dateFrom || dateTo) && (
+                  <button
+                    type="button"
+                    onClick={() => { setDateFrom(""); setDateTo(""); }}
+                    style={{
+                      background: "none",
+                      border: 0,
+                      cursor: "pointer",
+                      padding: 2,
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                    aria-label="Clear date range"
+                    title="Clear date range"
+                  >
+                    <svg style={{ width: 12, height: 12, color: "var(--stone)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Match count */}
-            {searchQuery && (
+            {(searchQuery || selectedMonth || dateFrom || dateTo || Object.values(columnFilters).some((v) => v)) && (
               <span style={{
                 fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
                 fontSize: 10,
@@ -607,7 +788,7 @@ function HistoryPageInner() {
                 whiteSpace: "nowrap",
               }}
             >
-              📋 Copy {Object.values(columnFilters).some((v) => v) || searchQuery ? `Filtered (${matches.length})` : "All"}
+              📋 Copy {Object.values(columnFilters).some((v) => v) || searchQuery || selectedMonth || dateFrom || dateTo ? `Filtered (${matches.length})` : "All"}
             </button>
 
             <button
@@ -718,7 +899,7 @@ function HistoryPageInner() {
                   );
                 })}
               </div>
-              {Object.values(columnFilters).some((v) => v) && (
+              {(Object.values(columnFilters).some((v) => v) || selectedMonth || dateFrom || dateTo) && (
                 <p style={{
                   fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
                   fontSize: 10,

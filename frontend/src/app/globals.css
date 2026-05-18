@@ -862,3 +862,21 @@ button:active:not(:disabled) {
     grid-template-columns: 1fr !important;
   }
 }
+
+/* ============================================================
+   History / Quick View — Mobile-responsive filter bar
+   On mobile, the top bar stacks vertically and date inputs
+   shrink to fit. The table scrolls horizontally.
+   ============================================================ */
+@media (max-width: 768px) {
+  .date-range-filter {
+    flex-wrap: nowrap;
+    width: 100%;
+  }
+  .date-range-filter input[type="date"] {
+    flex: 1;
+    min-width: 0 !important;
+    max-width: none !important;
+    font-size: 16px !important;
+  }
+}
