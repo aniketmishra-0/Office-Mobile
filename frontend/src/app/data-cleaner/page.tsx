@@ -173,13 +173,13 @@ function DataCleanerInner() {
         </p>
 
         {error && (
-          <div style={{ padding: 12, background: "#fef2f2", borderLeft: "4px solid #ef4444", color: "#991b1b", marginBottom: 24, fontSize: 12, fontFamily: "var(--font-plex-mono), monospace" }}>
+          <div style={{ padding: 12, background: "rgba(184, 58, 58, 0.08)", borderLeft: "4px solid var(--error)", color: "var(--error)", marginBottom: 24, fontSize: 12, fontFamily: "var(--font-plex-mono), monospace" }}>
             {error}
           </div>
         )}
         
         {successMsg && (
-          <div style={{ padding: 12, background: "#f0fdf4", borderLeft: "4px solid #22c55e", color: "#166534", marginBottom: 24, fontSize: 12, fontFamily: "var(--font-plex-mono), monospace" }}>
+          <div style={{ padding: 12, background: "rgba(200, 98, 58, 0.08)", borderLeft: "4px solid var(--clay)", color: "var(--clay)", marginBottom: 24, fontSize: 12, fontFamily: "var(--font-plex-mono), monospace" }}>
             {successMsg}
           </div>
         )}

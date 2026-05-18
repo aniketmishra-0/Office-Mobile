@@ -23,7 +23,7 @@ export default function SplashScreen() {
         alignItems: "center",
         justifyContent: "center",
         gap: 24,
-        background: "#EDEAE5",
+        background: "var(--cream, #EDEAE5)",
         width: "100vw",
         height: "100dvh",
       }}

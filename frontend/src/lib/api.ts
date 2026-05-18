@@ -214,7 +214,7 @@ export async function createSheet(payload: {
 
 /**
  * GET /api/forms/library
- * Fetch the saved forms dashboard content.
+ * Fetch the saved forms library content.
  */
 export async function listFormLibrary(limit = 50): Promise<FormLibraryResponse> {
   return jsonGet<FormLibraryResponse>(`/forms/library?limit=${limit}`);
@@ -471,32 +471,6 @@ export async function deleteAllForms(): Promise<{ success: boolean; deleted_coun
  */
 export async function unauthorizeForm(id: string, token?: string): Promise<{ success: boolean }> {
   return jsonRequest<{ success: boolean }>("POST", `/forms/${encodeURIComponent(id)}/unauthorize`, { token });
-}
-
-// ---------------------------------------------------------------------------
-// Dashboard stats
-// ---------------------------------------------------------------------------
-
-export interface DashboardStats {
-  total_forms: number;
-  total_submissions: number;
-  today_submissions: number;
-  daily: Array<{ date: string; count: number }>;
-  top_forms: Array<{ id: string; form_title: string; submission_count: number }>;
-  recent_submissions: Array<{
-    id: string;
-    form_id: string;
-    form_title: string;
-    submitted_at: string;
-  }>;
-}
-
-/**
- * GET /api/dashboard/stats
- * Fetch aggregated stats for the dashboard widgets page.
- */
-export async function getDashboardStats(): Promise<DashboardStats> {
-  return jsonGet<DashboardStats>("/dashboard/stats");
 }
 
 // ---------------------------------------------------------------------------

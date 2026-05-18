@@ -941,7 +941,7 @@ function BulkEditInner() {
   if (!sheetReady && !availableTabs) {
     return (
       <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", backgroundColor: "var(--cream)" }}>
-        <AppHeader title="Bulk Edit" showBack onBack={() => safeBack(router, "/dashboard")} />
+        <AppHeader title="Bulk Edit" showBack onBack={() => safeBack(router, "/")} />
         {sheetLoading && <LoadingOverlay message="Loading sheet..." />}
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
           <div style={{ width: "100%", maxWidth: 400 }}>
@@ -1033,7 +1033,7 @@ function BulkEditInner() {
             setSheetData(null);
             loadSheet(sheetUrl);
           } else {
-            safeBack(router, "/dashboard");
+            safeBack(router, "/");
           }
         }}
       />

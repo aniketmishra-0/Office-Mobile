@@ -529,7 +529,7 @@ function MultiHeaderFilterInner() {
                   style={{
                     fontFamily: "var(--font-plex-mono), monospace", fontSize: 11, fontWeight: 500,
                     padding: "8px 16px", borderRadius: 6, cursor: saving ? "not-allowed" : "pointer",
-                    border: "1px solid #27ae60", background: "#27ae60", color: "#fff",
+                    border: "1px solid var(--clay)", background: "var(--clay)", color: "var(--on-clay)",
                     display: "inline-flex", alignItems: "center", gap: 6, opacity: saving ? 0.6 : 1,
                   }}
                 >

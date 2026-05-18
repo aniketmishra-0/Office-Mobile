@@ -160,13 +160,6 @@ async def create_sheet(payload: CreateSheetRequest) -> CreateSheetResponse:
     return await asyncio.to_thread(_do_create)
 
 
-@router.get("/dashboard/stats")
-async def get_dashboard_stats() -> dict:
-    """Aggregated stats for the dashboard widgets page."""
-    stats = await asyncio.to_thread(form_store.get_dashboard_stats)
-    return stats
-
-
 @router.get("/forms/library")
 async def list_form_library(limit: int = Query(50, ge=1, le=200)) -> dict:
     oauth_key = get_current_oauth_session_key()
