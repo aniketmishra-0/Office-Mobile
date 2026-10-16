@@ -17,7 +17,8 @@ export type FieldType =
   | "textarea"
   | "url"
   | "file"
-  | "checkbox";
+  | "checkbox"
+  | "select";
 
 // ---------------------------------------------------------------------------
 // Configuration types
@@ -37,6 +38,7 @@ export interface FieldSchema {
   order: number;
   column_index: number;
   placeholder?: string;
+  options?: string[];
 }
 
 // ---------------------------------------------------------------------------

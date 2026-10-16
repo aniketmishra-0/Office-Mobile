@@ -767,6 +767,106 @@ def read_headers(
         raise
 
 
+def fetch_column_validations(
+    spreadsheet_id: str,
+    worksheet_name: str | None = None,
+) -> dict[int, dict[str, Any]]:
+    """
+    Inspect Google Sheet Data Validation rules on the worksheet.
+    Returns column_index (0-based) -> {
+        "type": "select" | "checkbox" | "date" | "number",
+        "options": ["Option 1", "Option 2", ...]  # when type == "select"
+    }
+    """
+    if not _has_credentials():
+        return {}
+
+    try:
+        client = get_client()
+        spreadsheet = client.open_by_key(spreadsheet_id)
+        worksheet = _select_worksheet(spreadsheet, worksheet_name)
+
+        meta = spreadsheet.fetch_sheet_metadata(
+            params={
+                "includeGridData": True,
+                "ranges": [f"'{worksheet.title}'!1:25"],
+                "fields": "sheets(properties(sheetId,title),data(rowData(values(dataValidation))))",
+            }
+        )
+
+        validations: dict[int, dict[str, Any]] = {}
+
+        for sheet in meta.get("sheets", []):
+            sheet_title = sheet.get("properties", {}).get("title")
+            if sheet_title != worksheet.title:
+                continue
+
+            for data in sheet.get("data", []):
+                for row in data.get("rowData", []):
+                    cells = row.get("values", [])
+                    for c_idx, cell in enumerate(cells):
+                        if c_idx in validations:
+                            continue
+                        dv = cell.get("dataValidation")
+                        if not dv:
+                            continue
+
+                        cond = dv.get("condition", {})
+                        c_type = cond.get("type")
+                        c_vals = cond.get("values", [])
+
+                        if c_type == "ONE_OF_LIST":
+                            opts = [
+                                str(v.get("userEnteredValue", "")).strip()
+                                for v in c_vals
+                                if v.get("userEnteredValue") is not None
+                            ]
+                            clean_opts = [o for o in opts if o]
+                            if clean_opts:
+                                validations[c_idx] = {
+                                    "type": "select",
+                                    "options": clean_opts,
+                                }
+                        elif c_type == "ONE_OF_RANGE":
+                            range_expr = (
+                                c_vals[0].get("userEnteredValue", "")
+                                if c_vals
+                                else ""
+                            )
+                            clean_range = (
+                                range_expr.lstrip("=").replace("$", "").strip()
+                            )
+                            if clean_range:
+                                try:
+                                    rg = spreadsheet.values_get(clean_range)
+                                    extracted: list[str] = []
+                                    for r in rg.get("values", []):
+                                        for c in r:
+                                            val_str = str(c).strip()
+                                            if val_str and val_str not in extracted:
+                                                extracted.append(val_str)
+                                    if extracted:
+                                        validations[c_idx] = {
+                                            "type": "select",
+                                            "options": extracted,
+                                        }
+                                except Exception as exc:
+                                    logging.getLogger(__name__).debug(
+                                        "Failed to read ONE_OF_RANGE %s: %s", clean_range, exc
+                                    )
+                        elif c_type == "BOOLEAN":
+                            validations[c_idx] = {"type": "checkbox"}
+                        elif c_type and c_type.startswith("DATE_"):
+                            validations[c_idx] = {"type": "date"}
+                        elif c_type and c_type.startswith("NUMBER_"):
+                            validations[c_idx] = {"type": "number"}
+
+        return validations
+    except Exception as exc:
+        logging.getLogger(__name__).warning("fetch_column_validations failed: %s", exc)
+        return {}
+
+
 def sync_sheet_headers(
     *,
     spreadsheet_id: str,
@@ -1450,7 +1550,12 @@ def read_sheet_history_authenticated(
         _HISTORY_CACHE[cache_key] = (time.time(), res)
         return res
 
-    fields, _warnings = headers_to_fields(headers, custom_keywords=[])
+    column_validations = {}
+    try:
+        column_validations = fetch_column_validations(spreadsheet_id, worksheet.title)
+    except Exception:
+        pass
+    fields, _warnings = headers_to_fields(headers, custom_keywords=[], column_validations=column_validations)
     if not fields:
         res = (spreadsheet.title, worksheet.title, [], [])
         _HISTORY_CACHE[cache_key] = (time.time(), res)

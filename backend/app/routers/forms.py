@@ -30,6 +30,7 @@ from app.services.sheets_client import (
     add_worksheet_tab,
     append_form_row,
     batch_append_rows,
+    fetch_column_validations,
     get_client,
     get_protected_columns,
     map_sheet_exception,
@@ -389,7 +390,16 @@ async def preview_sheet(payload: PreviewRequest) -> PreviewResponse:
     except Exception as exc:
         raise _sheet_error(exc) from exc
 
-    fields, warnings = headers_to_fields(headers, payload.custom_keywords)
+    # Attempt to fetch Google Sheet Data Validations (dropdowns, checkboxes, dates)
+    column_validations: dict[int, dict] = {}
+    try:
+        column_validations = await asyncio.to_thread(
+            fetch_column_validations, spreadsheet_id, worksheet_name
+        )
+    except Exception as exc:
+        logger.debug("Non-critical: could not fetch data validations: %s", exc)
+
+    fields, warnings = headers_to_fields(headers, payload.custom_keywords, column_validations)
     _ensure_fields(fields)
 
     return PreviewResponse(

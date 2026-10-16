@@ -139,6 +139,29 @@ function FieldControl({
 }) {
   const set = (v: string) => onChange(field.key, v);
 
+  const isSelect =
+    field.type === "select" ||
+    (Boolean(field.options?.length) &&
+      field.type !== "checkbox" &&
+      field.type !== "date" &&
+      field.type !== "time" &&
+      field.type !== "file");
+
+  if (isSelect) {
+    return (
+      <SelectControl
+        id={id}
+        value={value}
+        options={field.options || []}
+        onChange={set}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        placeholder={field.placeholder}
+        required={field.required}
+      />
+    );
+  }
+
   // Treat text fields as checkbox if the current value is TRUE/FALSE
   const effectiveType =
     field.type !== "checkbox" &&
@@ -365,6 +388,187 @@ function TextInput({
         .om-input-clear:focus-visible {
           color: var(--ink);
           outline: none;
+        }
+      `}</style>
+    </>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Select/Dropdown — mobile-friendly dropdown with quick chip pills.
+   ──────────────────────────────────────────────────────────────────── */
+
+function SelectControl({
+  id,
+  value,
+  options,
+  onChange,
+  onFocus,
+  onBlur,
+  placeholder,
+  required,
+}: {
+  id: string;
+  value: string;
+  options: string[];
+  onChange: (v: string) => void;
+  onFocus: () => void;
+  onBlur: () => void;
+  placeholder?: string;
+  required?: boolean;
+}) {
+  return (
+    <>
+      <div className="om-select-wrap">
+        <select
+          id={id}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          required={required}
+          className={`om-select ${!value ? "is-empty" : ""}`}
+        >
+          <option value="" disabled hidden>
+            {placeholder || "Select an option…"}
+          </option>
+          {options.map((opt) => (
+            <option key={opt} value={opt}>
+              {opt}
+            </option>
+          ))}
+        </select>
+        <span className="om-select-arrow" aria-hidden="true">
+          ▾
+        </span>
+        {value && (
+          <button
+            type="button"
+            tabIndex={-1}
+            aria-label="Clear selection"
+            className="om-select-clear"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              onChange("");
+            }}
+          >
+            ×
+          </button>
+        )}
+      </div>
+
+      {options.length > 0 && options.length <= 8 && (
+        <div className="om-quick-chips">
+          {options.map((opt) => {
+            const isSelected = value === opt;
+            return (
+              <button
+                key={opt}
+                type="button"
+                className={`om-quick-chip ${isSelected ? "is-selected" : ""}`}
+                onClick={() => onChange(isSelected ? "" : opt)}
+              >
+                {opt}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <style jsx>{`
+        .om-select-wrap {
+          position: relative;
+          width: 100%;
+        }
+        .om-select {
+          width: 100%;
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-weight: 400;
+          font-size: 14px;
+          line-height: 1.5;
+          color: var(--ink);
+          background: transparent;
+          border: 0;
+          border-bottom: 1px solid var(--rule);
+          border-radius: 0;
+          padding: 6px 48px 6px 0;
+          outline: none;
+          appearance: none;
+          -webkit-appearance: none;
+          cursor: pointer;
+          transition: border-color 200ms ease-out, padding 200ms ease-out;
+        }
+        .om-select.is-empty {
+          color: var(--stone);
+        }
+        .om-select:focus {
+          border-bottom: 2px solid var(--clay);
+          padding-bottom: 5px;
+        }
+        :global(.om-field.has-error) .om-select {
+          border-bottom-color: var(--error) !important;
+        }
+        .om-select option {
+          background: #ffffff;
+          color: #18181b;
+        }
+        :global(.dark) .om-select option {
+          background: #18181b;
+          color: #fafafa;
+        }
+        .om-select-arrow {
+          position: absolute;
+          top: 50%;
+          right: 0;
+          transform: translateY(-50%);
+          font-size: 14px;
+          color: var(--stone);
+          pointer-events: none;
+        }
+        .om-select-clear {
+          position: absolute;
+          top: 50%;
+          right: 20px;
+          transform: translateY(-50%);
+          width: 20px;
+          height: 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 16px;
+          line-height: 1;
+          color: var(--stone);
+          background: transparent;
+          border: 0;
+          cursor: pointer;
+        }
+        .om-select-clear:hover {
+          color: var(--ink);
+        }
+        .om-quick-chips {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-top: 8px;
+        }
+        .om-quick-chip {
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-size: 11px;
+          padding: 4px 10px;
+          border-radius: 9999px;
+          border: 1px solid var(--rule);
+          background: transparent;
+          color: var(--ink);
+          cursor: pointer;
+          transition: all 150ms ease;
+        }
+        .om-quick-chip:hover {
+          border-color: var(--stone);
+        }
+        .om-quick-chip.is-selected {
+          background: var(--ink);
+          color: var(--paper, #fff);
+          border-color: var(--ink);
         }
       `}</style>
     </>

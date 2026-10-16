@@ -11,6 +11,7 @@ type DraftField = {
   id: string;
   name: string;
   type: FieldType;
+  options?: string[];
 };
 
 interface Props {
@@ -25,6 +26,7 @@ interface Props {
 
 const FIELD_TYPES: Array<{ value: FieldType; label: string }> = [
   { value: "text", label: "Text" },
+  { value: "select", label: "Dropdown" },
   { value: "number", label: "Number" },
   { value: "date", label: "Date" },
   { value: "time", label: "Time" },
@@ -133,6 +135,7 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
         source_header: header,
         label: header,
         type: field.type,
+        options: field.options,
         required: false,
         order: index,
         column_index: index,
@@ -391,6 +394,39 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                   </button>
                 </div>
               </div>
+
+              {field.type === "select" && (
+                <div className="mt-3 pt-3 border-t border-zinc-100">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-1.5">
+                    Dropdown Choices (comma-separated)
+                  </label>
+                  <input
+                    type="text"
+                    value={(field.options || []).join(", ")}
+                    onChange={(e) => {
+                      const parsed = e.target.value
+                        .split(",")
+                        .map((s) => s.trim())
+                        .filter(Boolean);
+                      updateField(field.id, { options: parsed });
+                    }}
+                    placeholder="e.g. Yes, No, Maybe or High, Medium, Low"
+                    className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-[13px] font-mono text-zinc-950 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-950"
+                  />
+                  {field.options && field.options.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {field.options.map((opt, i) => (
+                        <span
+                          key={i}
+                          className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono bg-zinc-100 text-zinc-700 border border-zinc-200"
+                        >
+                          {opt}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>

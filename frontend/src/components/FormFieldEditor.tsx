@@ -13,6 +13,7 @@ interface Props {
 
 const TYPE_LABELS: Record<FieldType, string> = {
   text: "Short Text",
+  select: "Dropdown",
   tel: "Phone",
   email: "Email",
   date: "Date",
@@ -139,6 +140,53 @@ export default function FormFieldEditor({ fields, onChange, autofillColumns = []
                   </button>
                 )}
               </div>
+
+              {/* Dropdown Options Editor (if field type is select) */}
+              {field.type === "select" && (
+                <div className="mt-2.5 pt-2.5 border-t border-zinc-100">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">
+                      Dropdown Choices (comma-separated)
+                    </span>
+                    {field.options?.length ? (
+                      <span className="text-[11px] text-zinc-400 font-mono">
+                        {field.options.length} choice{field.options.length > 1 ? "s" : ""}
+                      </span>
+                    ) : null}
+                  </div>
+                  <input
+                    type="text"
+                    value={(field.options || []).join(", ")}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      const parsed = raw
+                        .split(",")
+                        .map((s) => s.trim())
+                        .filter(Boolean);
+                      const updated = [...fields];
+                      updated[fieldIndex] = {
+                        ...updated[fieldIndex],
+                        options: parsed,
+                      };
+                      onChange(updated);
+                    }}
+                    placeholder="e.g. High, Medium, Low"
+                    className="w-full text-xs font-mono rounded border border-zinc-200 px-2.5 py-1.5 focus:border-zinc-950 focus:outline-none bg-zinc-50/50"
+                  />
+                  {field.options && field.options.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {field.options.map((opt, i) => (
+                        <span
+                          key={i}
+                          className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono bg-zinc-100 text-zinc-700 border border-zinc-200"
+                        >
+                          {opt}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}

@@ -675,6 +675,39 @@ function DataFillPageInner() {
                           {(editValues[field.key] ?? "").toUpperCase() === "TRUE" ? "TRUE" : "FALSE"}
                         </span>
                       </button>
+                    ) : (field.type === "select" || (field.options && field.options.length > 0)) ? (
+                      <div className="mt-1">
+                        <select
+                          value={editValues[field.key] ?? ""}
+                          onChange={(e) => setEditValues({ ...editValues, [field.key]: e.target.value })}
+                          className={`w-full px-3 py-2 text-[14px] rounded-md border ${isMissing ? "border-red-300 bg-red-50/30" : "border-zinc-200"} bg-white focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent`}
+                        >
+                          <option value="">— Select an option —</option>
+                          {(field.options || []).map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                        </select>
+                        {(field.options || []).length <= 6 && (
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {(field.options || []).map((opt) => (
+                              <button
+                                key={opt}
+                                type="button"
+                                onClick={() => setEditValues({ ...editValues, [field.key]: opt })}
+                                className={`px-2.5 py-1 text-xs rounded-full border transition-all ${
+                                  editValues[field.key] === opt
+                                    ? "bg-zinc-900 text-white border-zinc-900"
+                                    : "bg-zinc-50 text-zinc-700 border-zinc-200 hover:border-zinc-400"
+                                }`}
+                              >
+                                {opt}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     ) : (
                     <input ref={(el) => { editFieldRefs.current[fieldIdx] = el; }}
                       type={field.type === "number" ? "number" : field.type === "email" ? "email" : field.type === "tel" ? "tel" : field.type === "url" ? "url" : "text"}

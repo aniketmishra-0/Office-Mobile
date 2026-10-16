@@ -38,6 +38,7 @@ def make_field_key(label: str, fallback_order: int) -> str:
 def headers_to_fields(
     raw_headers: list[str],
     custom_keywords: list[CustomKeywordRule] | None = None,
+    column_validations: dict[int, dict] | None = None,
 ) -> tuple[list[FieldSchema], list[str]]:
     fields: list[FieldSchema] = []
     warnings: list[str] = []
@@ -58,16 +59,26 @@ def headers_to_fields(
         if key_count > 0:
             warnings.append(f"Duplicate header '{label}' was renamed internally to '{key}'.")
 
+        # Check if Google Sheet provided explicit Data Validation for this column
+        validation = (column_validations or {}).get(column_index)
+        field_options: list[str] | None = None
+        if validation:
+            field_type = validation.get("type") or infer_field_type(source_header, custom_keywords)
+            field_options = validation.get("options")
+        else:
+            field_type = infer_field_type(source_header, custom_keywords)
+
         fields.append(
             FieldSchema(
                 key=key,
                 source_header=source_header,
                 label=label,
-                type=infer_field_type(source_header, custom_keywords),
+                type=field_type,
+                options=field_options,
                 required=is_required_header(source_header),
                 order=len(fields),
                 column_index=column_index,
-                placeholder=f"Enter {label.lower()}",
+                placeholder=f"Select {label.lower()}" if field_type == "select" else f"Enter {label.lower()}",
             )
         )
 

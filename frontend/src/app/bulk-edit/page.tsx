@@ -1314,7 +1314,7 @@ function BulkEditInner() {
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
                 {sheetHeaders.map((field) => {
-                  const uniqueVals = columnUniqueValues[field.key];
+                  const uniqueVals = field.options && field.options.length > 0 ? field.options : columnUniqueValues[field.key];
                   const hasDropdown = uniqueVals && uniqueVals.length > 0 && uniqueVals.length < 200;
                   const isBatchField = field.label.toLowerCase().includes("batch");
                   const isDateField = field.type === "date" || field.label.toLowerCase().includes("date");

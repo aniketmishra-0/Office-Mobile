@@ -11,6 +11,7 @@ interface Props {
 
 const TYPE_LABELS: Record<FieldType, string> = {
   text: "Short Text",
+  select: "Dropdown",
   tel: "Phone",
   email: "Email",
   date: "Date",
