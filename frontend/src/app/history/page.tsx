@@ -7,6 +7,7 @@ import ErrorToast from "@/components/ErrorToast";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import ClearButton from "@/components/ClearButton";
 import SubmitButton from "@/components/SubmitButton";
+import FieldRenderer from "@/components/FieldRenderer";
 import type { FieldSchema } from "@/types/field";
 import { safeBack } from "@/lib/navigation";
 import { useStepHistory } from "@/lib/useStepHistory";
@@ -16,6 +17,10 @@ import {
   lookupFormsBySheet,
   checkSheetAccess,
   getPublicConfig,
+  updateSheetRow,
+  batchAppendRows,
+  batchDeleteRows,
+  getSheetSections,
 } from "@/lib/api";
 
 interface TabOption {
@@ -55,8 +60,21 @@ function HistoryPageInner() {
   const [searchQuery, setSearchQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [selectedRow, setSelectedRow] = useState<Record<string, string> | null>(null);
+  const [rowEditValues, setRowEditValues] = useState<Record<string, string>>({});
+  const [savingRow, setSavingRow] = useState(false);
+  const [rowSaveSuccess, setRowSaveSuccess] = useState<string | null>(null);
+  const [rowSaveError, setRowSaveError] = useState<string | null>(null);
+  const [formViewMode, setFormViewMode] = useState<"form" | "summary">("form");
+  const [isAddingNewRow, setIsAddingNewRow] = useState(false);
+  const [newRowValues, setNewRowValues] = useState<Record<string, string>>({});
+  const [isSavingNewRow, setIsSavingNewRow] = useState(false);
+  const [isDeletingRow, setIsDeletingRow] = useState(false);
+  const [fieldSearch, setFieldSearch] = useState("");
+  const [detectedSectionsCount, setDetectedSectionsCount] = useState<number | null>(null);
+  const [showMultiHeaderAlert, setShowMultiHeaderAlert] = useState(false);
   const [accessStatus, setAccessStatus] = useState<"checking" | "edit" | "read" | "none" | null>(null);
   const [serviceAccountEmail, setServiceAccountEmail] = useState<string | null>(null);
+  const hasEditPermission = accessStatus !== "read" && accessStatus !== "none";
 
   // Column-level filters: key = field.key, value = selected filter value
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
@@ -226,6 +244,20 @@ function HistoryPageInner() {
           fields: data.fields,
           rows: data.rows,
         });
+
+        // Auto-detect multi-header / section structure
+        const targetUrl = sheet_url ?? sheetUrl;
+        getSheetSections(targetUrl, tab.worksheet_name)
+          .then((secData) => {
+            if (secData && secData.sections && secData.sections.length > 1) {
+              setDetectedSectionsCount(secData.sections.length);
+              setShowMultiHeaderAlert(true);
+            } else {
+              setDetectedSectionsCount(null);
+              setShowMultiHeaderAlert(false);
+            }
+          })
+          .catch(() => {});
       }
     } catch (e: any) {
       setError(e.message ?? "Failed to load entries");
@@ -411,7 +443,7 @@ function HistoryPageInner() {
   // transition as a synthetic browser history entry and drive backwards
   // motion on swipe / back button.
   type FlowStep = "input" | "tabs" | "loaded" | "detail";
-  const flowStep: FlowStep = selectedRow
+  const flowStep: FlowStep = selectedRow || isAddingNewRow
     ? "detail"
     : loaded
     ? "loaded"
@@ -424,6 +456,7 @@ function HistoryPageInner() {
       switch (next) {
         case "input":
           setSelectedRow(null);
+          setIsAddingNewRow(false);
           setLoaded(null);
           setAvailableTabs(null);
           setSearchQuery("");
@@ -434,6 +467,7 @@ function HistoryPageInner() {
         case "tabs":
           // Pop from "loaded" or "detail" back to the tab picker.
           setSelectedRow(null);
+          setIsAddingNewRow(false);
           setLoaded(null);
           setSearchQuery("");
           setSelectedMonth("");
@@ -458,6 +492,7 @@ function HistoryPageInner() {
         case "loaded":
           // From "detail", clearing the row puts us back on the loaded list.
           setSelectedRow(null);
+          setIsAddingNewRow(false);
           break;
         case "detail":
           // Forward-only via row click — nothing to do for back.
@@ -470,106 +505,773 @@ function HistoryPageInner() {
   useStepHistory(flowStep, setFlowStep, ["input", "tabs", "loaded", "detail"]);
 
   // ════════════════════════════════════════════════════════════════════
+  const handleOpenRowForm = useCallback(
+    (row: Record<string, string>) => {
+      setSelectedRow(row);
+      const initial: Record<string, string> = {};
+      if (loaded) {
+        loaded.fields.forEach((f) => {
+          initial[f.key] = row[f.key] ?? "";
+        });
+      }
+      setRowEditValues(initial);
+      setRowSaveSuccess(null);
+      setRowSaveError(null);
+    },
+    [loaded],
+  );
 
-  // ═══════════════════════ Detail view ═══════════════════════
+  const isRowDirty = useMemo(() => {
+    if (!selectedRow || !loaded) return false;
+    return loaded.fields.some((f) => {
+      const orig = (selectedRow[f.key] ?? "").trim();
+      const curr = (rowEditValues[f.key] ?? "").trim();
+      return orig !== curr;
+    });
+  }, [selectedRow, loaded, rowEditValues]);
+
+  const handleSaveRow = async () => {
+    if (!selectedRow || !loaded) return;
+    const rowIndex = Number(selectedRow._row_index);
+    if (!rowIndex || rowIndex < 2) {
+      setRowSaveError("Cannot determine row index in Google Sheet");
+      return;
+    }
+    setSavingRow(true);
+    setRowSaveError(null);
+    setRowSaveSuccess(null);
+    try {
+      const targetUrl = sheetUrl || sheetParam || formInput;
+      await updateSheetRow({
+        sheet_url: targetUrl,
+        worksheet_name: loaded.worksheet_name,
+        row_index: rowIndex,
+        values: rowEditValues,
+      });
+
+      const updatedRow = { ...selectedRow, ...rowEditValues };
+      setSelectedRow(updatedRow);
+
+      setLoaded((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          rows: prev.rows.map((r) =>
+            r._row_index === selectedRow._row_index ? updatedRow : r
+          ),
+        };
+      });
+
+      setRowSaveSuccess(`Row ${rowIndex} updated successfully in Google Sheet!`);
+      setTimeout(() => setRowSaveSuccess(null), 4000);
+    } catch (err: any) {
+      setRowSaveError(err.message || "Failed to update row in Google Sheet");
+    } finally {
+      setSavingRow(false);
+    }
+  };
+
+  const handleSaveNewRow = async () => {
+    if (!loaded) return;
+    setIsSavingNewRow(true);
+    setRowSaveError(null);
+    try {
+      const targetUrl = sheetUrl || sheetParam || formInput;
+      await batchAppendRows({
+        sheet_url: targetUrl,
+        worksheet_name: loaded.worksheet_name,
+        rows: [newRowValues],
+      });
+
+      const nextIdx = loaded.rows.length > 0
+        ? (Number(loaded.rows[loaded.rows.length - 1]._row_index) || loaded.rows.length + 1) + 1
+        : 2;
+      const addedRow = { ...newRowValues, _row_index: String(nextIdx) };
+
+      setLoaded((prev) => {
+        if (!prev) return prev;
+        return { ...prev, rows: [...prev.rows, addedRow] };
+      });
+
+      setIsAddingNewRow(false);
+      setRowSaveSuccess("✓ New row appended successfully to Google Sheet!");
+      setTimeout(() => setRowSaveSuccess(null), 4000);
+    } catch (err: any) {
+      setRowSaveError(err.message || "Failed to add row to Google Sheet");
+    } finally {
+      setIsSavingNewRow(false);
+    }
+  };
+
+  const handleDeleteRow = async () => {
+    if (!selectedRow || !loaded) return;
+    const rowIndex = Number(selectedRow._row_index);
+    if (!rowIndex || rowIndex < 2) {
+      setRowSaveError("Cannot determine row index in Google Sheet");
+      return;
+    }
+    if (!window.confirm(`Are you sure you want to delete Row #${rowIndex} from Google Sheet?\nThis action cannot be undone.`)) {
+      return;
+    }
+    setIsDeletingRow(true);
+    setRowSaveError(null);
+    try {
+      const targetUrl = sheetUrl || sheetParam || formInput;
+      await batchDeleteRows(targetUrl, loaded.worksheet_name, [rowIndex]);
+
+      setLoaded((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          rows: prev.rows.filter((r) => r._row_index !== selectedRow._row_index),
+        };
+      });
+
+      setSelectedRow(null);
+      setRowSaveSuccess(`✓ Row #${rowIndex} deleted from Google Sheet!`);
+      setTimeout(() => setRowSaveSuccess(null), 4000);
+    } catch (err: any) {
+      setRowSaveError(err.message || "Failed to delete row from Google Sheet");
+    } finally {
+      setIsDeletingRow(false);
+    }
+  };
+
+  const handleDuplicateRow = () => {
+    if (!selectedRow || !loaded) return;
+    const duplicateData: Record<string, string> = {};
+    loaded.fields.forEach((f) => {
+      duplicateData[f.key] = rowEditValues[f.key] ?? selectedRow[f.key] ?? "";
+    });
+    setNewRowValues(duplicateData);
+    setIsAddingNewRow(true);
+    setSelectedRow(null);
+    setFieldSearch("");
+  };
+
+  // Keyboard navigation & shortcuts for Row Form and Add Row
+  useEffect(() => {
+    if (!selectedRow && !isAddingNewRow) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      const isInput = tag === "input" || tag === "textarea" || tag === "select";
+
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        if (isAddingNewRow) handleSaveNewRow();
+        else handleSaveRow();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        setSelectedRow(null);
+        setIsAddingNewRow(false);
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d" && selectedRow) {
+        e.preventDefault();
+        handleDuplicateRow();
+      } else if (!isInput && selectedRow) {
+        if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          const currentIdx = matches.findIndex((r) => r === selectedRow);
+          if (currentIdx > 0) handleOpenRowForm(matches[currentIdx - 1]);
+        } else if (e.key === "ArrowRight") {
+          e.preventDefault();
+          const currentIdx = matches.findIndex((r) => r === selectedRow);
+          if (currentIdx >= 0 && currentIdx < matches.length - 1) handleOpenRowForm(matches[currentIdx + 1]);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRow, isAddingNewRow, loaded, matches, rowEditValues, newRowValues, isRowDirty]);
+
+  // ═══════════════════════ Add New Row Form View ═══════════════════════
+  if (isAddingNewRow && loaded) {
+    const sortedFields = [...loaded.fields].sort((a, b) => a.order - b.order);
+    const displayFields = fieldSearch.trim()
+      ? sortedFields.filter(
+          (f) =>
+            f.label.toLowerCase().includes(fieldSearch.toLowerCase().trim()) ||
+            f.key.toLowerCase().includes(fieldSearch.toLowerCase().trim())
+        )
+      : sortedFields;
+
+    return (
+      <div className="flex flex-col min-h-screen" style={{ background: "var(--cream)" }}>
+        <AppHeader title="New Entry Form" showBack onBack={() => setIsAddingNewRow(false)} />
+        {isSavingNewRow && <LoadingOverlay message="Appending new row to Google Sheet..." />}
+
+        <div className="flex-1 w-full max-w-[620px] mx-auto px-4 sm:px-6 pt-6 pb-28">
+          {/* Header card */}
+          <div style={{
+            background: "var(--paper)",
+            border: "1px solid var(--rule)",
+            borderRadius: 8,
+            padding: "16px 18px",
+            marginBottom: 16,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 12,
+          }}>
+            <div>
+              <span style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                padding: "2px 8px",
+                borderRadius: 4,
+                background: "var(--clay)",
+                color: "var(--on-clay)",
+                fontFamily: "var(--font-plex-mono), monospace",
+                fontSize: 10,
+                fontWeight: 600,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+              }}>
+                + New Entry
+              </span>
+              <h2 style={{
+                fontFamily: "var(--font-newsreader), Georgia, serif",
+                fontWeight: 400,
+                fontSize: 18,
+                color: "var(--ink)",
+                margin: "4px 0 0 0",
+              }}>
+                {loaded.worksheet_name}
+              </h2>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsAddingNewRow(false)}
+              style={{
+                fontFamily: "var(--font-plex-mono), monospace",
+                fontSize: 11,
+                color: "var(--stone)",
+                background: "transparent",
+                border: "1px solid var(--rule)",
+                borderRadius: 6,
+                padding: "6px 12px",
+                cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+
+          {/* Field search input */}
+          {sortedFields.length > 4 && (
+            <div style={{ marginBottom: 12, position: "relative" }}>
+              <input
+                type="text"
+                placeholder="🔍 Filter fields by name..."
+                value={fieldSearch}
+                onChange={(e) => setFieldSearch(e.target.value)}
+                style={{
+                  width: "100%",
+                  fontFamily: "var(--font-plex-mono), monospace",
+                  fontSize: 11,
+                  padding: "8px 12px",
+                  background: "var(--paper)",
+                  border: "1px solid var(--rule)",
+                  borderRadius: 6,
+                  color: "var(--ink)",
+                  outline: "none",
+                }}
+              />
+              {fieldSearch && (
+                <button
+                  type="button"
+                  onClick={() => setFieldSearch("")}
+                  style={{
+                    position: "absolute",
+                    right: 8,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: 0,
+                    color: "var(--stone)",
+                    cursor: "pointer",
+                    fontSize: 12,
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Error alert */}
+          {rowSaveError && (
+            <div style={{
+              background: "#fef2f2",
+              border: "1px solid #fecaca",
+              color: "#991b1b",
+              padding: "10px 14px",
+              borderRadius: 6,
+              fontSize: 12,
+              fontFamily: "var(--font-plex-mono), monospace",
+              marginBottom: 14,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}>
+              <span>✕</span>
+              <span>{rowSaveError}</span>
+            </div>
+          )}
+
+          {/* Form fields */}
+          <div style={{
+            background: "var(--paper)",
+            border: "1px solid var(--rule)",
+            borderRadius: 8,
+            padding: "20px 20px 8px 20px",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+          }}>
+            {displayFields.map((field) => (
+              <FieldRenderer
+                key={field.key}
+                field={field}
+                value={newRowValues[field.key] ?? ""}
+                onChange={(key, val) => {
+                  setNewRowValues((prev) => ({ ...prev, [key]: val }));
+                }}
+              />
+            ))}
+            {displayFields.length === 0 && (
+              <p style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 12, color: "var(--stone)", textAlign: "center", padding: "20px 0" }}>
+                No fields match &quot;{fieldSearch}&quot;
+              </p>
+            )}
+          </div>
+
+          {/* Floating bottom action bar */}
+          <div style={{
+            position: "sticky",
+            bottom: 16,
+            marginTop: 20,
+            background: "var(--paper)",
+            border: "1px solid var(--rule)",
+            borderRadius: 10,
+            padding: "12px 16px",
+            boxShadow: "0 6px 20px rgba(0,0,0,0.08)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 12,
+            zIndex: 10,
+          }}>
+            <button
+              type="button"
+              onClick={() => setIsAddingNewRow(false)}
+              style={{
+                fontFamily: "var(--font-plex-mono), monospace",
+                fontSize: 11,
+                fontWeight: 500,
+                color: "var(--stone)",
+                background: "transparent",
+                border: "1px solid var(--rule)",
+                borderRadius: 6,
+                padding: "8px 14px",
+                cursor: "pointer",
+              }}
+            >
+              ← Cancel
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSaveNewRow}
+              disabled={isSavingNewRow}
+              style={{
+                fontFamily: "var(--font-plex-mono), monospace",
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                padding: "9px 18px",
+                borderRadius: 6,
+                background: "var(--ink)",
+                color: "var(--on-ink)",
+                border: 0,
+                cursor: isSavingNewRow ? "not-allowed" : "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              {isSavingNewRow ? "Appending..." : "+ Append to Sheet"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════════════════════ Row Form View ═══════════════════════
   if (selectedRow && loaded) {
-    // Find current row index in the filtered matches list for prev/next navigation
     const currentIdx = matches.findIndex((r) => r === selectedRow);
     const hasPrev = currentIdx > 0;
     const hasNext = currentIdx >= 0 && currentIdx < matches.length - 1;
 
     const goToPrev = () => {
-      if (hasPrev) setSelectedRow(matches[currentIdx - 1]);
+      if (hasPrev) handleOpenRowForm(matches[currentIdx - 1]);
     };
     const goToNext = () => {
-      if (hasNext) setSelectedRow(matches[currentIdx + 1]);
+      if (hasNext) handleOpenRowForm(matches[currentIdx + 1]);
     };
+
+    const sortedFields = [...loaded.fields].sort((a, b) => a.order - b.order);
+    const displayFields = fieldSearch.trim()
+      ? sortedFields.filter(
+          (f) =>
+            f.label.toLowerCase().includes(fieldSearch.toLowerCase().trim()) ||
+            f.key.toLowerCase().includes(fieldSearch.toLowerCase().trim())
+        )
+      : sortedFields;
+    const rowNum = selectedRow._row_index || (currentIdx >= 0 ? currentIdx + 2 : "—");
 
     return (
       <div className="flex flex-col min-h-screen" style={{ background: "var(--cream)" }}>
-        <AppHeader title="Entry details" showBack onBack={() => window.history.back()} />
-        <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-10">
-          <div style={{ marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <AppHeader title="Row Form" showBack onBack={() => window.history.back()} />
+        {(savingRow || isDeletingRow) && (
+          <LoadingOverlay message={isDeletingRow ? "Deleting row from Google Sheet..." : "Updating Google Sheet..."} />
+        )}
+
+        <div className="flex-1 w-full max-w-[620px] mx-auto px-4 sm:px-6 pt-6 pb-28">
+          {/* Top navigation & info card */}
+          <div style={{
+            background: "var(--paper)",
+            border: "1px solid var(--rule)",
+            borderRadius: 8,
+            padding: "14px 16px",
+            marginBottom: 16,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 12,
+          }}>
             <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  padding: "2px 8px",
+                  borderRadius: 4,
+                  background: "var(--ink)",
+                  color: "var(--on-ink)",
+                  fontFamily: "var(--font-plex-mono), monospace",
+                  fontSize: 10,
+                  fontWeight: 600,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                }}>
+                  Row #{rowNum}
+                </span>
+                <span style={{
+                  fontFamily: "var(--font-plex-mono), monospace",
+                  fontSize: 11,
+                  color: "var(--stone)",
+                }}>
+                  {currentIdx >= 0 ? `${currentIdx + 1} of ${matches.length} entries` : ""}
+                </span>
+                {!hasEditPermission && (
+                  <span style={{
+                    padding: "2px 6px",
+                    borderRadius: 4,
+                    background: "#fef3c7",
+                    color: "#92400e",
+                    fontFamily: "var(--font-plex-mono), monospace",
+                    fontSize: 9,
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                  }}>
+                    Read-Only
+                  </span>
+                )}
+              </div>
               <h2 style={{
                 fontFamily: "var(--font-newsreader), Georgia, serif",
                 fontWeight: 400,
-                fontSize: 16,
+                fontSize: 18,
                 color: "var(--ink)",
-                margin: 0,
+                margin: "4px 0 0 0",
               }}>
                 {loaded.worksheet_name}
               </h2>
-              <p style={{
-                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                fontWeight: 300,
-                fontSize: 10,
-                letterSpacing: "0.04em",
-                color: "var(--stone)",
-                margin: "2px 0 0 0",
-              }}>
-                Row {selectedRow._row_index || "—"} · full entry
-              </p>
             </div>
-            {/* Prev / Next navigation arrows */}
+
+            {/* Prev / Next navigation buttons */}
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <button
                 type="button"
                 onClick={goToPrev}
-                disabled={!hasPrev}
+                disabled={!hasPrev || savingRow}
                 aria-label="Previous row"
-                title="Previous row"
+                title="Previous row (← arrow)"
                 style={{
-                  width: 32,
                   height: 32,
+                  padding: "0 10px",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
+                  gap: 4,
                   borderRadius: 6,
                   border: "1px solid var(--rule)",
-                  background: hasPrev ? "var(--paper)" : "transparent",
-                  cursor: hasPrev ? "pointer" : "not-allowed",
-                  opacity: hasPrev ? 1 : 0.3,
+                  background: hasPrev ? "var(--cream)" : "transparent",
+                  cursor: hasPrev && !savingRow ? "pointer" : "not-allowed",
+                  opacity: hasPrev && !savingRow ? 1 : 0.35,
                   transition: "opacity 0.15s",
+                  fontFamily: "var(--font-plex-mono), monospace",
+                  fontSize: 11,
+                  color: "var(--ink)",
                 }}
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--ink)" }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="15 18 9 12 15 6" />
                 </svg>
+                Prev
               </button>
               <button
                 type="button"
                 onClick={goToNext}
-                disabled={!hasNext}
+                disabled={!hasNext || savingRow}
                 aria-label="Next row"
-                title="Next row"
+                title="Next row (→ arrow)"
                 style={{
-                  width: 32,
                   height: 32,
+                  padding: "0 10px",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
+                  gap: 4,
                   borderRadius: 6,
                   border: "1px solid var(--rule)",
-                  background: hasNext ? "var(--paper)" : "transparent",
-                  cursor: hasNext ? "pointer" : "not-allowed",
-                  opacity: hasNext ? 1 : 0.3,
+                  background: hasNext ? "var(--cream)" : "transparent",
+                  cursor: hasNext && !savingRow ? "pointer" : "not-allowed",
+                  opacity: hasNext && !savingRow ? 1 : 0.35,
                   transition: "opacity 0.15s",
+                  fontFamily: "var(--font-plex-mono), monospace",
+                  fontSize: 11,
+                  color: "var(--ink)",
                 }}
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--ink)" }}>
+                Next
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="9 18 15 12 9 6" />
                 </svg>
               </button>
             </div>
           </div>
-          <div style={{ border: "1px solid var(--rule)", overflow: "hidden" }} className="desktop-detail-fields">
-            {[...loaded.fields]
-              .sort((a, b) => a.order - b.order)
-              .map((field, idx) => {
-                const val = selectedRow[field.key] ?? "";
+
+          {/* Mode switch, search & quick actions */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <button
+                type="button"
+                onClick={() => setFormViewMode("form")}
+                style={{
+                  fontFamily: "var(--font-plex-mono), monospace",
+                  fontSize: 11,
+                  fontWeight: 500,
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  border: formViewMode === "form" ? "1px solid var(--ink)" : "1px solid var(--rule)",
+                  background: formViewMode === "form" ? "var(--ink)" : "var(--paper)",
+                  color: formViewMode === "form" ? "var(--on-ink)" : "var(--stone)",
+                  cursor: "pointer",
+                }}
+              >
+                ◫ Form (Edit)
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormViewMode("summary")}
+                style={{
+                  fontFamily: "var(--font-plex-mono), monospace",
+                  fontSize: 11,
+                  fontWeight: 500,
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  border: formViewMode === "summary" ? "1px solid var(--ink)" : "1px solid var(--rule)",
+                  background: formViewMode === "summary" ? "var(--ink)" : "var(--paper)",
+                  color: formViewMode === "summary" ? "var(--on-ink)" : "var(--stone)",
+                  cursor: "pointer",
+                }}
+              >
+                📄 Summary View
+              </button>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {isRowDirty && (
+                <span style={{
+                  fontFamily: "var(--font-plex-mono), monospace",
+                  fontSize: 10,
+                  color: "var(--clay)",
+                  fontWeight: 600,
+                  letterSpacing: "0.04em",
+                  textTransform: "uppercase",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}>
+                  ● Unsaved changes
+                </span>
+              )}
+              {hasEditPermission && (
+                <button
+                  type="button"
+                  onClick={handleDuplicateRow}
+                  style={{
+                    fontFamily: "var(--font-plex-mono), monospace",
+                    fontSize: 10,
+                    fontWeight: 500,
+                    padding: "5px 10px",
+                    borderRadius: 4,
+                    background: "var(--paper)",
+                    border: "1px solid var(--rule)",
+                    color: "var(--ink)",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                  title="Clone this row into a new entry (⌘+D)"
+                >
+                  <span>⧉</span> Duplicate
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Field search input */}
+          {sortedFields.length > 4 && (
+            <div style={{ marginBottom: 12, position: "relative" }}>
+              <input
+                type="text"
+                placeholder="🔍 Filter fields by name..."
+                value={fieldSearch}
+                onChange={(e) => setFieldSearch(e.target.value)}
+                style={{
+                  width: "100%",
+                  fontFamily: "var(--font-plex-mono), monospace",
+                  fontSize: 11,
+                  padding: "8px 12px",
+                  background: "var(--paper)",
+                  border: "1px solid var(--rule)",
+                  borderRadius: 6,
+                  color: "var(--ink)",
+                  outline: "none",
+                }}
+              />
+              {fieldSearch && (
+                <button
+                  type="button"
+                  onClick={() => setFieldSearch("")}
+                  style={{
+                    position: "absolute",
+                    right: 8,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: 0,
+                    color: "var(--stone)",
+                    cursor: "pointer",
+                    fontSize: 12,
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Success / Error alerts */}
+          {rowSaveSuccess && (
+            <div style={{
+              background: "#ecfdf5",
+              border: "1px solid #a7f3d0",
+              color: "#065f46",
+              padding: "10px 14px",
+              borderRadius: 6,
+              fontSize: 12,
+              fontFamily: "var(--font-plex-mono), monospace",
+              marginBottom: 14,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}>
+              <span>✓</span>
+              <span>{rowSaveSuccess}</span>
+            </div>
+          )}
+          {rowSaveError && (
+            <div style={{
+              background: "#fef2f2",
+              border: "1px solid #fecaca",
+              color: "#991b1b",
+              padding: "10px 14px",
+              borderRadius: 6,
+              fontSize: 12,
+              fontFamily: "var(--font-plex-mono), monospace",
+              marginBottom: 14,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}>
+              <span>✕</span>
+              <span>{rowSaveError}</span>
+            </div>
+          )}
+
+          {/* Form container */}
+          {formViewMode === "form" ? (
+            <div style={{
+              background: "var(--paper)",
+              border: "1px solid var(--rule)",
+              borderRadius: 8,
+              padding: "20px 20px 8px 20px",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+            }}>
+              {displayFields.map((field) => (
+                <FieldRenderer
+                  key={field.key}
+                  field={field}
+                  value={rowEditValues[field.key] ?? ""}
+                  onChange={(key, val) => {
+                    setRowEditValues((prev) => ({ ...prev, [key]: val }));
+                    setRowSaveSuccess(null);
+                    setRowSaveError(null);
+                  }}
+                />
+              ))}
+              {displayFields.length === 0 && (
+                <p style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 12, color: "var(--stone)", textAlign: "center", padding: "20px 0" }}>
+                  No fields match &quot;{fieldSearch}&quot;
+                </p>
+              )}
+            </div>
+          ) : (
+            <div style={{
+              border: "1px solid var(--rule)",
+              background: "var(--paper)",
+              borderRadius: 8,
+              overflow: "hidden",
+            }} className="desktop-detail-fields">
+              {displayFields.map((field, idx) => {
+                const val = (rowEditValues[field.key] ?? selectedRow[field.key] ?? "").trim();
                 return (
-                  <div key={field.key} style={{ padding: "12px 16px", borderBottom: idx < loaded.fields.length - 1 ? "1px solid var(--rule)" : "none" }}>
+                  <div
+                    key={field.key}
+                    style={{
+                      padding: "12px 16px",
+                      borderBottom: idx < displayFields.length - 1 ? "1px solid var(--rule)" : "none",
+                    }}
+                  >
                     <p style={{
                       fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
                       fontWeight: 500,
@@ -595,6 +1297,127 @@ function HistoryPageInner() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* Bottom Floating Action Bar */}
+          <div style={{
+            position: "sticky",
+            bottom: 16,
+            marginTop: 20,
+            background: "var(--paper)",
+            border: "1px solid var(--rule)",
+            borderRadius: 10,
+            padding: "12px 16px",
+            boxShadow: "0 6px 20px rgba(0,0,0,0.08)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 12,
+            zIndex: 10,
+          }}>
+            <button
+              type="button"
+              onClick={() => setSelectedRow(null)}
+              style={{
+                fontFamily: "var(--font-plex-mono), monospace",
+                fontSize: 11,
+                fontWeight: 500,
+                color: "var(--stone)",
+                background: "transparent",
+                border: "1px solid var(--rule)",
+                borderRadius: 6,
+                padding: "8px 14px",
+                cursor: "pointer",
+              }}
+            >
+              ← Back to Table
+            </button>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {hasEditPermission && (
+                <button
+                  type="button"
+                  onClick={handleDeleteRow}
+                  disabled={isDeletingRow || savingRow}
+                  style={{
+                    fontFamily: "var(--font-plex-mono), monospace",
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: "#dc2626",
+                    background: "transparent",
+                    border: "1px solid rgba(220, 38, 38, 0.3)",
+                    borderRadius: 6,
+                    padding: "8px 12px",
+                    cursor: isDeletingRow ? "not-allowed" : "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                  title="Delete this row from Google Sheet"
+                >
+                  <span>🗑</span>
+                  <span>{isDeletingRow ? "Deleting..." : "Delete"}</span>
+                </button>
+              )}
+
+              {isRowDirty && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const orig: Record<string, string> = {};
+                    loaded.fields.forEach((f) => {
+                      orig[f.key] = selectedRow[f.key] ?? "";
+                    });
+                    setRowEditValues(orig);
+                    setRowSaveSuccess(null);
+                    setRowSaveError(null);
+                  }}
+                  disabled={savingRow}
+                  style={{
+                    fontFamily: "var(--font-plex-mono), monospace",
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: "var(--stone)",
+                    background: "transparent",
+                    border: 0,
+                    padding: "8px 10px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Reset
+                </button>
+              )}
+
+              {hasEditPermission && (
+                <button
+                  type="button"
+                  onClick={handleSaveRow}
+                  disabled={savingRow || (!isRowDirty && !rowSaveError)}
+                  style={{
+                    fontFamily: "var(--font-plex-mono), monospace",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    padding: "9px 18px",
+                    borderRadius: 6,
+                    background: isRowDirty ? "var(--clay)" : "var(--ink)",
+                    color: isRowDirty ? "var(--on-clay)" : "var(--on-ink)",
+                    border: 0,
+                    cursor: savingRow || (!isRowDirty && !rowSaveError) ? "not-allowed" : "pointer",
+                    opacity: !isRowDirty && !rowSaveError ? 0.45 : 1,
+                    transition: "all 0.15s ease",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  {savingRow ? "Saving..." : isRowDirty ? "Save to Sheet" : "Saved ✓"}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -626,6 +1449,69 @@ function HistoryPageInner() {
       <div className="flex flex-col min-h-screen" style={{ background: "var(--cream)" }}>
         <AppHeader title="Quick View" showBack onBack={() => window.history.back()} />
         {loading && <LoadingOverlay message="Loading entries..." />}
+
+        {/* Multi-Header auto-detected alert banner */}
+        {showMultiHeaderAlert && detectedSectionsCount && detectedSectionsCount > 1 && (
+          <div style={{
+            background: "linear-gradient(90deg, rgba(200, 98, 58, 0.12), rgba(200, 98, 58, 0.05))",
+            borderBottom: "1px solid rgba(200, 98, 58, 0.25)",
+            padding: "10px 16px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 16 }}>📑</span>
+              <span style={{
+                fontFamily: "var(--font-plex-mono), monospace",
+                fontSize: 11,
+                color: "var(--ink)",
+                fontWeight: 500,
+              }}>
+                <strong>Multi-Header Sheet Detected:</strong> Found {detectedSectionsCount} sections with repeated headers.
+              </span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const url = sheetUrl || sheetParam || formInput;
+                  router.push(`/multi-header-filter?sheet=${encodeURIComponent(url)}`);
+                }}
+                style={{
+                  fontFamily: "var(--font-plex-mono), monospace",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  background: "var(--clay)",
+                  color: "var(--on-clay)",
+                  border: 0,
+                  cursor: "pointer",
+                }}
+              >
+                Switch to Multi-Header View ↗
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowMultiHeaderAlert(false)}
+                style={{
+                  background: "transparent",
+                  border: 0,
+                  color: "var(--stone)",
+                  cursor: "pointer",
+                  fontSize: 14,
+                  padding: "4px 8px",
+                }}
+                title="Dismiss"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Top bar: sheet info + search */}
         <div style={{ borderBottom: "1px solid var(--rule)", padding: "12px 16px" }}>
@@ -798,6 +1684,65 @@ function HistoryPageInner() {
                 {matches.length.toLocaleString()} {matches.length === 1 ? "match" : "matches"}
               </span>
             )}
+
+            {/* Add New Row button */}
+            {hasEditPermission && (
+              <button
+                type="button"
+                onClick={() => {
+                  const initial: Record<string, string> = {};
+                  loaded.fields.forEach((f) => { initial[f.key] = ""; });
+                  setNewRowValues(initial);
+                  setIsAddingNewRow(true);
+                  setSelectedRow(null);
+                  setFieldSearch("");
+                }}
+                style={{
+                  fontFamily: "var(--font-plex-mono), monospace",
+                  fontSize: 10,
+                  fontWeight: 600,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  color: "var(--on-ink)",
+                  background: "var(--ink)",
+                  border: 0,
+                  borderRadius: 4,
+                  padding: "6px 12px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+                title="Add a new row to this Google Sheet via form"
+              >
+                <span style={{ fontSize: 13, lineHeight: 1 }}>+</span>
+                <span>Add Row</span>
+              </button>
+            )}
+
+            {/* Click row to open Form indicator */}
+            <div
+              style={{
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontSize: 10,
+                fontWeight: 500,
+                letterSpacing: "0.04em",
+                color: "var(--clay)",
+                background: "rgba(200, 98, 58, 0.08)",
+                border: "1px solid rgba(200, 98, 58, 0.25)",
+                borderRadius: 4,
+                padding: "6px 10px",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                whiteSpace: "nowrap",
+              }}
+              title="Click on any row to open and edit it as a form"
+            >
+              <span style={{ fontSize: 12 }}>◫</span>
+              <span>Click row to open as Form</span>
+            </div>
 
             {/* Filter button */}
             <button
@@ -1026,6 +1971,25 @@ function HistoryPageInner() {
                     }}>
                       #
                     </th>
+                    {/* Open Form column */}
+                    <th style={{
+                      position: "sticky",
+                      top: 0,
+                      zIndex: 20,
+                      background: "var(--ink)",
+                      color: "var(--on-ink)",
+                      fontWeight: 500,
+                      fontSize: 10,
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                      padding: "10px 8px",
+                      textAlign: "center",
+                      borderRight: "1px solid rgba(255,255,255,0.1)",
+                      width: 76,
+                      minWidth: 76,
+                    }}>
+                      Form
+                    </th>
                     {sortedFields.map((field, colIdx) => (
                       <th
                         key={field.key}
@@ -1056,7 +2020,8 @@ function HistoryPageInner() {
                   {visibleMatches.map((row, rowIdx) => (
                     <tr
                       key={rowIdx}
-                      onClick={() => setSelectedRow(row)}
+                      onClick={() => handleOpenRowForm(row)}
+                      title={`Click row to open as form (Row #${row._row_index || rowIdx + 1})`}
                       style={{
                         cursor: "pointer",
                         borderBottom: "1px solid var(--rule)",
@@ -1077,6 +2042,39 @@ function HistoryPageInner() {
                         minWidth: 44,
                       }}>
                         {rowIdx + 1}
+                      </td>
+                      {/* Form action button */}
+                      <td style={{
+                        padding: "6px 8px",
+                        textAlign: "center",
+                        borderRight: "1px solid var(--rule)",
+                        width: 76,
+                        minWidth: 76,
+                      }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenRowForm(row);
+                          }}
+                          style={{
+                            fontFamily: "var(--font-plex-mono), monospace",
+                            fontSize: 10,
+                            fontWeight: 500,
+                            padding: "3px 8px",
+                            borderRadius: 4,
+                            background: "var(--cream)",
+                            border: "1px solid var(--rule)",
+                            color: "var(--clay)",
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 3,
+                          }}
+                          title="Open this row as a form"
+                        >
+                          <span>◫</span> Edit
+                        </button>
                       </td>
                       {sortedFields.map((field, colIdx) => {
                         const val = row[field.key] ?? "";

@@ -28,6 +28,7 @@ import {
   deleteForm,
   deleteAllForms,
   listSavedSheets,
+  getSheetSections,
   type SavedSheetItem,
 } from "@/lib/api";
 import type {
@@ -946,16 +947,63 @@ export default function Dashboard() {
 
               {/* Inline preview trigger — sits right under the URL input so
                   users don't have to scroll past the library to generate. */}
-              <div style={{ paddingTop: 4 }}>
-                <SubmitButton
-                  label={copy.submit_label ?? "Open this sheet"}
-                  submitting={loadingPreview}
+              {/* Inline preview trigger — Auto-detects header structure and opens */}
+              <div style={{ paddingTop: 6, display: "flex", gap: 8, alignItems: "stretch" }}>
+                <div style={{ flex: 1 }}>
+                  <SubmitButton
+                    label="⚡ Auto-Detect & Open"
+                    submitting={loadingPreview}
+                    onClick={async () => {
+                      if (!validateUrl(sheetUrl)) return;
+                      setLoadingPreview(true);
+                      try {
+                        const secData = await getSheetSections(sheetUrl, null);
+                        const encodedUrl = encodeURIComponent(sheetUrl);
+                        if (secData && secData.sections && secData.sections.length > 1) {
+                          // Multi-header detected! Auto-route to multi-header filter
+                          router.push(`/multi-header-filter?sheet=${encodedUrl}`);
+                        } else {
+                          // Standard sheet — open Quick View with Row Form
+                          router.push(`/history?sheet=${encodedUrl}`);
+                        }
+                      } catch {
+                        // Fallback to OpenInModal on error
+                        setShowOpenIn(true);
+                      } finally {
+                        setLoadingPreview(false);
+                      }
+                    }}
+                    disabled={!sheetUrl.trim() || accessStatus === "checking"}
+                  />
+                </div>
+                <button
+                  type="button"
                   onClick={() => {
                     if (!validateUrl(sheetUrl)) return;
                     setShowOpenIn(true);
                   }}
                   disabled={!sheetUrl.trim() || accessStatus === "checking"}
-                />
+                  style={{
+                    fontFamily: "var(--font-plex-mono), monospace",
+                    fontSize: 11,
+                    fontWeight: 500,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    padding: "0 16px",
+                    background: "var(--paper)",
+                    color: "var(--charcoal)",
+                    border: "1px solid var(--rule)",
+                    cursor: !sheetUrl.trim() || accessStatus === "checking" ? "not-allowed" : "pointer",
+                    opacity: !sheetUrl.trim() || accessStatus === "checking" ? 0.4 : 1,
+                    whiteSpace: "nowrap",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                  title="Choose a specific tool"
+                >
+                  Options ▾
+                </button>
               </div>
             </div>
           )}
@@ -1219,6 +1267,7 @@ export default function Dashboard() {
           {showOpenIn && (
             <OpenInModal
               sheetTitle={sheetUrl.length > 50 ? "Your Sheet" : sheetUrl}
+              sheetUrl={sheetUrl}
               onSelect={(optionId) => {
                 setShowOpenIn(false);
                 const encodedUrl = encodeURIComponent(sheetUrl);
@@ -1254,6 +1303,7 @@ export default function Dashboard() {
           {openInSavedSheet && (
             <OpenInModal
               sheetTitle={openInSavedSheet.title}
+              sheetUrl={openInSavedSheet.sheet_url}
               onSelect={(optionId) => {
                 const encodedUrl = encodeURIComponent(openInSavedSheet.sheet_url);
                 setOpenInSavedSheet(null);
