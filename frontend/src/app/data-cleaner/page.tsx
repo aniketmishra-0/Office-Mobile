@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import SubmitButton from "@/components/SubmitButton";
+import SubsheetSearchModal from "@/components/SubsheetSearchModal";
 import { getSheetHistory, previewSheet, batchDeleteRows, batchUpdateRows } from "@/lib/api";
 import type { FieldSchema } from "@/types/field";
 
@@ -32,6 +33,7 @@ function DataCleanerInner() {
   
   const [actionLoading, setActionLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [showSubsheetModal, setShowSubsheetModal] = useState(false);
 
   // Load Sheet Data
   const loadSheetData = useCallback(async (url: string, ws: string) => {
@@ -206,6 +208,60 @@ function DataCleanerInner() {
 
         {sheetReady && rows.length > 0 && (
           <>
+            {/* Active Subsheet Banner with Switch Button */}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "14px 18px",
+              background: "var(--paper)",
+              border: "1px solid var(--rule)",
+              marginBottom: 20,
+              flexWrap: "wrap",
+              gap: 12,
+            }}>
+              <div>
+                <span style={{ fontSize: 9, fontFamily: "var(--font-plex-mono), monospace", color: "var(--stone)", textTransform: "uppercase", letterSpacing: "0.06em", display: "block" }}>
+                  Active Subsheet
+                </span>
+                <span style={{ fontSize: 16, fontFamily: "var(--font-newsreader), Georgia, serif", color: "var(--ink)", fontWeight: 400 }}>
+                  {worksheetName || "Default Sheet"}
+                </span>
+                <span style={{ fontSize: 11, fontFamily: "var(--font-plex-mono), monospace", color: "var(--stone)", marginLeft: 8 }}>
+                  ({rows.length.toLocaleString()} rows · {sheetHeaders.length} columns)
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSubsheetModal(true)}
+                title="Search & switch subsheets"
+                style={{
+                  fontFamily: "var(--font-plex-mono), monospace",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: "0.04em",
+                  padding: "6px 12px",
+                  background: "var(--cream)",
+                  border: "1px solid var(--rule)",
+                  borderRadius: 4,
+                  cursor: "pointer",
+                  color: "var(--ink)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  transition: "all 150ms ease-out",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = "var(--stone)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "var(--rule)";
+                }}
+              >
+                <span>Switch Subsheet ▾</span>
+              </button>
+            </div>
+
             <div style={{ display: "flex", gap: 24, marginBottom: 24, flexWrap: "wrap" }}>
               {/* Find & Replace Tool */}
               <section style={{ flex: "1 1 400px", padding: 24, background: "var(--paper)", border: "1px solid var(--rule)" }}>
@@ -313,6 +369,17 @@ function DataCleanerInner() {
             </section>
           </>
         )}
+
+        <SubsheetSearchModal
+          isOpen={showSubsheetModal}
+          onClose={() => setShowSubsheetModal(false)}
+          sheetUrl={sheetUrl}
+          currentWorksheet={worksheetName}
+          onSelectWorksheet={(ws) => {
+            setWorksheetName(ws);
+            loadSheetData(sheetUrl, ws);
+          }}
+        />
       </div>
     </div>
   );
