@@ -418,26 +418,96 @@ function SelectControl({
   placeholder?: string;
   required?: boolean;
 }) {
+  const [isCustom, setIsCustom] = useState(false);
+
+  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    if (val === "__om_custom__") {
+      setIsCustom(true);
+      return;
+    }
+    onChange(val);
+  };
+
+  if (isCustom) {
+    return (
+      <div className="om-custom-input-wrap">
+        <div style={{ position: "relative", width: "100%" }}>
+          <input
+            id={id}
+            type="text"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onFocus={onFocus}
+            onBlur={onBlur}
+            placeholder={placeholder || "Type custom value…"}
+            required={required}
+            className="om-input"
+            autoFocus
+          />
+          {value && (
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-label="Clear"
+              className="om-input-clear"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onChange("");
+              }}
+            >
+              ×
+            </button>
+          )}
+        </div>
+        <div style={{ marginTop: 4 }}>
+          <button
+            type="button"
+            onClick={() => setIsCustom(false)}
+            style={{
+              fontFamily: "var(--font-plex-mono), monospace",
+              fontSize: 10,
+              color: "var(--clay)",
+              background: "transparent",
+              border: 0,
+              padding: "2px 0",
+              cursor: "pointer",
+              textDecoration: "underline",
+            }}
+          >
+            ← Pick from options
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="om-select-wrap">
         <select
           id={id}
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={handleSelectChange}
           onFocus={onFocus}
           onBlur={onBlur}
           required={required}
           className={`om-select ${!value ? "is-empty" : ""}`}
         >
-          <option value="" disabled hidden>
+          <option value="">
             {placeholder || "Select an option…"}
           </option>
+          {value && !options.includes(value) && (
+            <option key={value} value={value}>
+              {value} (Current)
+            </option>
+          )}
           {options.map((opt) => (
             <option key={opt} value={opt}>
               {opt}
             </option>
           ))}
+          <option value="__om_custom__">+ Type custom value…</option>
         </select>
         <span className="om-select-arrow" aria-hidden="true">
           ▾
@@ -458,23 +528,43 @@ function SelectControl({
         )}
       </div>
 
-      {options.length > 0 && options.length <= 8 && (
-        <div className="om-quick-chips">
-          {options.map((opt) => {
-            const isSelected = value === opt;
-            return (
-              <button
-                key={opt}
-                type="button"
-                className={`om-quick-chip ${isSelected ? "is-selected" : ""}`}
-                onClick={() => onChange(isSelected ? "" : opt)}
-              >
-                {opt}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+        {options.length > 0 && options.length <= 8 ? (
+          <div className="om-quick-chips">
+            {options.map((opt) => {
+              const isSelected = value === opt;
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  className={`om-quick-chip ${isSelected ? "is-selected" : ""}`}
+                  onClick={() => onChange(isSelected ? "" : opt)}
+                >
+                  {opt}
+                </button>
+              );
+            })}
+          </div>
+        ) : <div />}
+
+        <button
+          type="button"
+          onClick={() => setIsCustom(true)}
+          style={{
+            fontFamily: "var(--font-plex-mono), monospace",
+            fontSize: 10,
+            color: "var(--stone)",
+            background: "transparent",
+            border: 0,
+            padding: "2px 0",
+            cursor: "pointer",
+            textDecoration: "underline",
+          }}
+          title="Type a custom value not in the dropdown"
+        >
+          + Type custom
+        </button>
+      </div>
 
       <style jsx>{`
         .om-select-wrap {
@@ -556,7 +646,7 @@ function SelectControl({
           font-family: var(--font-plex-mono), ui-monospace, monospace;
           font-size: 11px;
           padding: 4px 10px;
-          border-radius: 9999px;
+          border-radius: 0;
           border: 1px solid var(--rule);
           background: transparent;
           color: var(--ink);

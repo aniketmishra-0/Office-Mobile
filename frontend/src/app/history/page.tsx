@@ -548,6 +548,50 @@ function HistoryPageInner() {
     return result;
   }, [loaded]);
 
+  // Fields enriched with unique sheet values for select dropdowns
+  const enrichedFields = useMemo(() => {
+    if (!loaded) return [];
+    return [...loaded.fields]
+      .sort((a, b) => a.order - b.order)
+      .map((field) => {
+        // If field already has options, ensure it renders as select (unless date/time/checkbox/file)
+        if (field.options && field.options.length > 0) {
+          return {
+            ...field,
+            type:
+              field.type === "checkbox" ||
+              field.type === "date" ||
+              field.type === "time" ||
+              field.type === "file"
+                ? field.type
+                : ("select" as const),
+          };
+        }
+
+        // Never convert date, time, checkbox, or file fields into selects
+        if (
+          field.type === "date" ||
+          field.type === "time" ||
+          field.type === "checkbox" ||
+          field.type === "file"
+        ) {
+          return field;
+        }
+
+        // Auto-promote column to select if it has unique values in the sheet
+        const uniqueVals = columnUniqueValues[field.key];
+        if (uniqueVals && uniqueVals.length > 0 && uniqueVals.length <= 250) {
+          return {
+            ...field,
+            type: "select" as const,
+            options: uniqueVals,
+          };
+        }
+
+        return field;
+      });
+  }, [loaded, columnUniqueValues]);
+
   // Virtualized view: only render a page at a time so 10k+ rows don't choke the DOM
   const ROWS_PER_PAGE = 200;
   const [visibleCount, setVisibleCount] = useState(ROWS_PER_PAGE);
@@ -840,14 +884,13 @@ function HistoryPageInner() {
 
   // ═══════════════════════ Add New Row Form View ═══════════════════════
   if (isAddingNewRow && loaded) {
-    const sortedFields = [...loaded.fields].sort((a, b) => a.order - b.order);
     const displayFields = fieldSearch.trim()
-      ? sortedFields.filter(
+      ? enrichedFields.filter(
           (f) =>
             f.label.toLowerCase().includes(fieldSearch.toLowerCase().trim()) ||
             f.key.toLowerCase().includes(fieldSearch.toLowerCase().trim())
         )
-      : sortedFields;
+      : enrichedFields;
 
     return (
       <div className="flex flex-col min-h-screen" style={{ background: "var(--cream)" }}>
@@ -859,7 +902,7 @@ function HistoryPageInner() {
           <div style={{
             background: "var(--paper)",
             border: "1px solid var(--rule)",
-            borderRadius: 8,
+            borderRadius: 0,
             padding: "16px 18px",
             marginBottom: 16,
             display: "flex",
@@ -874,7 +917,7 @@ function HistoryPageInner() {
                 alignItems: "center",
                 gap: 4,
                 padding: "2px 8px",
-                borderRadius: 4,
+                borderRadius: 0,
                 background: "var(--clay)",
                 color: "var(--on-clay)",
                 fontFamily: "var(--font-plex-mono), monospace",
@@ -905,7 +948,7 @@ function HistoryPageInner() {
                 color: "var(--stone)",
                 background: "transparent",
                 border: "1px solid var(--rule)",
-                borderRadius: 6,
+                borderRadius: 0,
                 padding: "6px 12px",
                 cursor: "pointer",
               }}
@@ -915,7 +958,7 @@ function HistoryPageInner() {
           </div>
 
           {/* Field search input */}
-          {sortedFields.length > 4 && (
+          {enrichedFields.length > 4 && (
             <div style={{ marginBottom: 12, position: "relative" }}>
               <input
                 type="text"
@@ -929,7 +972,7 @@ function HistoryPageInner() {
                   padding: "8px 12px",
                   background: "var(--paper)",
                   border: "1px solid var(--rule)",
-                  borderRadius: 6,
+                  borderRadius: 0,
                   color: "var(--ink)",
                   outline: "none",
                 }}
@@ -963,7 +1006,7 @@ function HistoryPageInner() {
               border: "1px solid #fecaca",
               color: "#991b1b",
               padding: "10px 14px",
-              borderRadius: 6,
+              borderRadius: 0,
               fontSize: 12,
               fontFamily: "var(--font-plex-mono), monospace",
               marginBottom: 14,
@@ -980,7 +1023,7 @@ function HistoryPageInner() {
           <div style={{
             background: "var(--paper)",
             border: "1px solid var(--rule)",
-            borderRadius: 8,
+            borderRadius: 0,
             padding: "20px 20px 8px 20px",
             boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
           }}>
@@ -1008,9 +1051,9 @@ function HistoryPageInner() {
             marginTop: 20,
             background: "var(--paper)",
             border: "1px solid var(--rule)",
-            borderRadius: 10,
+            borderRadius: 0,
             padding: "12px 16px",
-            boxShadow: "0 6px 20px rgba(0,0,0,0.08)",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -1028,7 +1071,7 @@ function HistoryPageInner() {
                 color: "var(--stone)",
                 background: "transparent",
                 border: "1px solid var(--rule)",
-                borderRadius: 6,
+                borderRadius: 0,
                 padding: "8px 14px",
                 cursor: "pointer",
               }}
@@ -1047,7 +1090,7 @@ function HistoryPageInner() {
                 letterSpacing: "0.06em",
                 textTransform: "uppercase",
                 padding: "9px 18px",
-                borderRadius: 6,
+                borderRadius: 0,
                 background: "var(--ink)",
                 color: "var(--on-ink)",
                 border: 0,
@@ -1078,14 +1121,13 @@ function HistoryPageInner() {
       if (hasNext) handleOpenRowForm(matches[currentIdx + 1]);
     };
 
-    const sortedFields = [...loaded.fields].sort((a, b) => a.order - b.order);
     const displayFields = fieldSearch.trim()
-      ? sortedFields.filter(
+      ? enrichedFields.filter(
           (f) =>
             f.label.toLowerCase().includes(fieldSearch.toLowerCase().trim()) ||
             f.key.toLowerCase().includes(fieldSearch.toLowerCase().trim())
         )
-      : sortedFields;
+      : enrichedFields;
     const rowNum = selectedRow._row_index || (currentIdx >= 0 ? currentIdx + 2 : "—");
 
     return (
@@ -1100,7 +1142,7 @@ function HistoryPageInner() {
           <div style={{
             background: "var(--paper)",
             border: "1px solid var(--rule)",
-            borderRadius: 8,
+            borderRadius: 0,
             padding: "14px 16px",
             marginBottom: 16,
             display: "flex",
@@ -1116,7 +1158,7 @@ function HistoryPageInner() {
                   alignItems: "center",
                   gap: 4,
                   padding: "2px 8px",
-                  borderRadius: 4,
+                  borderRadius: 0,
                   background: "var(--ink)",
                   color: "var(--on-ink)",
                   fontFamily: "var(--font-plex-mono), monospace",
@@ -1137,7 +1179,7 @@ function HistoryPageInner() {
                 {!hasEditPermission && (
                   <span style={{
                     padding: "2px 6px",
-                    borderRadius: 4,
+                    borderRadius: 0,
                     background: "#fef3c7",
                     color: "#92400e",
                     fontFamily: "var(--font-plex-mono), monospace",
@@ -1174,7 +1216,7 @@ function HistoryPageInner() {
                   display: "flex",
                   alignItems: "center",
                   gap: 4,
-                  borderRadius: 6,
+                  borderRadius: 0,
                   border: "1px solid var(--rule)",
                   background: hasPrev ? "var(--cream)" : "transparent",
                   cursor: hasPrev && !savingRow ? "pointer" : "not-allowed",
@@ -1202,7 +1244,7 @@ function HistoryPageInner() {
                   display: "flex",
                   alignItems: "center",
                   gap: 4,
-                  borderRadius: 6,
+                  borderRadius: 0,
                   border: "1px solid var(--rule)",
                   background: hasNext ? "var(--cream)" : "transparent",
                   cursor: hasNext && !savingRow ? "pointer" : "not-allowed",
@@ -1232,7 +1274,7 @@ function HistoryPageInner() {
                   fontSize: 11,
                   fontWeight: 500,
                   padding: "6px 12px",
-                  borderRadius: 6,
+                  borderRadius: 0,
                   border: formViewMode === "form" ? "1px solid var(--ink)" : "1px solid var(--rule)",
                   background: formViewMode === "form" ? "var(--ink)" : "var(--paper)",
                   color: formViewMode === "form" ? "var(--on-ink)" : "var(--stone)",
@@ -1249,7 +1291,7 @@ function HistoryPageInner() {
                   fontSize: 11,
                   fontWeight: 500,
                   padding: "6px 12px",
-                  borderRadius: 6,
+                  borderRadius: 0,
                   border: formViewMode === "summary" ? "1px solid var(--ink)" : "1px solid var(--rule)",
                   background: formViewMode === "summary" ? "var(--ink)" : "var(--paper)",
                   color: formViewMode === "summary" ? "var(--on-ink)" : "var(--stone)",
@@ -1285,7 +1327,7 @@ function HistoryPageInner() {
                     fontSize: 10,
                     fontWeight: 500,
                     padding: "5px 10px",
-                    borderRadius: 4,
+                    borderRadius: 0,
                     background: "var(--paper)",
                     border: "1px solid var(--rule)",
                     color: "var(--ink)",
@@ -1303,7 +1345,7 @@ function HistoryPageInner() {
           </div>
 
           {/* Field search input */}
-          {sortedFields.length > 4 && (
+          {enrichedFields.length > 4 && (
             <div style={{ marginBottom: 12, position: "relative" }}>
               <input
                 type="text"
@@ -1317,7 +1359,7 @@ function HistoryPageInner() {
                   padding: "8px 12px",
                   background: "var(--paper)",
                   border: "1px solid var(--rule)",
-                  borderRadius: 6,
+                  borderRadius: 0,
                   color: "var(--ink)",
                   outline: "none",
                 }}
@@ -1351,7 +1393,7 @@ function HistoryPageInner() {
               border: "1px solid #a7f3d0",
               color: "#065f46",
               padding: "10px 14px",
-              borderRadius: 6,
+              borderRadius: 0,
               fontSize: 12,
               fontFamily: "var(--font-plex-mono), monospace",
               marginBottom: 14,
@@ -1369,7 +1411,7 @@ function HistoryPageInner() {
               border: "1px solid #fecaca",
               color: "#991b1b",
               padding: "10px 14px",
-              borderRadius: 6,
+              borderRadius: 0,
               fontSize: 12,
               fontFamily: "var(--font-plex-mono), monospace",
               marginBottom: 14,
@@ -1387,7 +1429,7 @@ function HistoryPageInner() {
             <div style={{
               background: "var(--paper)",
               border: "1px solid var(--rule)",
-              borderRadius: 8,
+              borderRadius: 0,
               padding: "20px 20px 8px 20px",
               boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
             }}>
@@ -1413,7 +1455,7 @@ function HistoryPageInner() {
             <div style={{
               border: "1px solid var(--rule)",
               background: "var(--paper)",
-              borderRadius: 8,
+              borderRadius: 0,
               overflow: "hidden",
             }} className="desktop-detail-fields">
               {displayFields.map((field, idx) => {
@@ -1461,9 +1503,9 @@ function HistoryPageInner() {
             marginTop: 20,
             background: "var(--paper)",
             border: "1px solid var(--rule)",
-            borderRadius: 10,
+            borderRadius: 0,
             padding: "12px 16px",
-            boxShadow: "0 6px 20px rgba(0,0,0,0.08)",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -1481,7 +1523,7 @@ function HistoryPageInner() {
                 color: "var(--stone)",
                 background: "transparent",
                 border: "1px solid var(--rule)",
-                borderRadius: 6,
+                borderRadius: 0,
                 padding: "8px 14px",
                 cursor: "pointer",
               }}
@@ -1502,7 +1544,7 @@ function HistoryPageInner() {
                     color: "#dc2626",
                     background: "transparent",
                     border: "1px solid rgba(220, 38, 38, 0.3)",
-                    borderRadius: 6,
+                    borderRadius: 0,
                     padding: "8px 12px",
                     cursor: isDeletingRow ? "not-allowed" : "pointer",
                     display: "inline-flex",
@@ -1556,7 +1598,7 @@ function HistoryPageInner() {
                     letterSpacing: "0.06em",
                     textTransform: "uppercase",
                     padding: "9px 18px",
-                    borderRadius: 6,
+                    borderRadius: 0,
                     background: isRowDirty ? "var(--clay)" : "var(--ink)",
                     color: isRowDirty ? "var(--on-clay)" : "var(--on-ink)",
                     border: 0,
@@ -1893,7 +1935,7 @@ function HistoryPageInner() {
                   color: "var(--on-ink)",
                   background: "var(--ink)",
                   border: 0,
-                  borderRadius: 4,
+                  borderRadius: 0,
                   padding: "6px 12px",
                   display: "inline-flex",
                   alignItems: "center",
@@ -1918,7 +1960,7 @@ function HistoryPageInner() {
                 color: "var(--clay)",
                 background: "rgba(200, 98, 58, 0.08)",
                 border: "1px solid rgba(200, 98, 58, 0.25)",
-                borderRadius: 4,
+                borderRadius: 0,
                 padding: "6px 10px",
                 display: "inline-flex",
                 alignItems: "center",
@@ -2249,7 +2291,7 @@ function HistoryPageInner() {
                             fontSize: 10,
                             fontWeight: 500,
                             padding: "3px 8px",
-                            borderRadius: 4,
+                            borderRadius: 0,
                             background: "var(--cream)",
                             border: "1px solid var(--rule)",
                             color: "var(--clay)",
