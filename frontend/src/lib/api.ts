@@ -158,9 +158,11 @@ export async function listWorksheets(
  */
 export async function checkSheetAccess(
   sheetUrl: string,
+  forceRefresh: boolean = false,
 ): Promise<{ read: boolean; edit: boolean }> {
+  const refreshParam = forceRefresh ? "&force_refresh=true" : "";
   return jsonGet<{ read: boolean; edit: boolean }>(
-    `/sheet/access?sheet_url=${encodeURIComponent(sheetUrl)}`,
+    `/sheet/access?sheet_url=${encodeURIComponent(sheetUrl)}${refreshParam}`,
   );
 }
 

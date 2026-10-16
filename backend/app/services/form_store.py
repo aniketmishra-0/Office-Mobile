@@ -68,11 +68,24 @@ CREATE TABLE IF NOT EXISTS user_preferences (
 )
 """
 
+CREATE_SHEET_ACCESS_CACHE_SQL = """
+CREATE TABLE IF NOT EXISTS sheet_access_cache (
+    spreadsheet_id  TEXT NOT NULL,
+    session_key     TEXT NOT NULL DEFAULT '',
+    can_read        BOOLEAN NOT NULL DEFAULT FALSE,
+    can_edit        BOOLEAN NOT NULL DEFAULT FALSE,
+    checked_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (spreadsheet_id, session_key)
+)
+"""
+
 CREATE_INDEXES_SQL = [
     "CREATE INDEX IF NOT EXISTS idx_forms_spreadsheet_id ON forms(spreadsheet_id)",
     "CREATE INDEX IF NOT EXISTS idx_forms_updated_at ON forms(updated_at DESC)",
     "CREATE INDEX IF NOT EXISTS idx_submissions_form_id_time "
     "ON submissions(form_id, submitted_at DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_sheet_access_cache "
+    "ON sheet_access_cache(spreadsheet_id, session_key)",
 ]
 
 
@@ -84,6 +97,7 @@ def init_db() -> None:
             cur.execute(CREATE_SUBMISSIONS_SQL)
             cur.execute(CREATE_OAUTH_TOKENS_SQL)
             cur.execute(CREATE_USER_PREFERENCES_SQL)
+            cur.execute(CREATE_SHEET_ACCESS_CACHE_SQL)
             for stmt in CREATE_INDEXES_SQL:
                 cur.execute(stmt)
             # Safe migration
@@ -461,6 +475,23 @@ def migrate_session_key(old_key: str, new_key: str) -> None:
             "UPDATE oauth_tokens SET key = %s WHERE key = %s",
             (new_key, old_key),
         )
+    # Migrate sheet access cache
+    try:
+        execute(
+            """
+            UPDATE sheet_access_cache
+            SET session_key = %s
+            WHERE session_key = %s
+            AND NOT EXISTS (
+                SELECT 1 FROM sheet_access_cache sac2
+                WHERE sac2.spreadsheet_id = sheet_access_cache.spreadsheet_id
+                AND sac2.session_key = %s
+            )
+            """,
+            (new_key, old_key, new_key),
+        )
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -498,6 +529,58 @@ def set_user_preferences(session_key: str, prefs: dict[str, Any]) -> dict[str, A
         (session_key, Jsonb(prefs)),
     )
     return prefs
+
+
+# ---------------------------------------------------------------------------
+# Sheet Access Cache
+# ---------------------------------------------------------------------------
+
+
+def get_cached_sheet_access(
+    spreadsheet_id: str, session_key: str
+) -> dict[str, Any] | None:
+    """Fetch cached sheet access from DB if available."""
+    try:
+        row = fetchone(
+            """
+            SELECT can_read, can_edit, checked_at
+            FROM sheet_access_cache
+            WHERE spreadsheet_id = %s AND session_key = %s
+            """,
+            (spreadsheet_id, session_key or ""),
+        )
+        if row:
+            return {
+                "read": bool(row.get("can_read")),
+                "edit": bool(row.get("can_edit")),
+                "checked_at": row.get("checked_at"),
+            }
+        return None
+    except Exception as exc:
+        logger.debug("get_cached_sheet_access db read failed: %s", exc)
+        return None
+
+
+def set_cached_sheet_access(
+    spreadsheet_id: str, session_key: str, read: bool, edit: bool
+) -> None:
+    """Store or update sheet access in DB using UPSERT."""
+    try:
+        execute(
+            """
+            INSERT INTO sheet_access_cache (spreadsheet_id, session_key, can_read, can_edit, checked_at)
+            VALUES (%s, %s, %s, %s, now())
+            ON CONFLICT (spreadsheet_id, session_key)
+            DO UPDATE SET
+                can_read = EXCLUDED.can_read,
+                can_edit = EXCLUDED.can_edit,
+                checked_at = now()
+            """,
+            (spreadsheet_id, session_key or "", read, edit),
+        )
+    except Exception as exc:
+        logger.debug("set_cached_sheet_access db write failed: %s", exc)
+
 
 
 

@@ -261,7 +261,7 @@ async def list_form_library(limit: int = Query(50, ge=1, le=200)) -> dict:
 
 
 @router.get("/sheet/access")
-async def get_sheet_access(sheet_url: str) -> dict:
+async def get_sheet_access(sheet_url: str, force_refresh: bool = False) -> dict:
     try:
         spreadsheet_id = extract_spreadsheet_id(sheet_url)
     except InvalidGoogleSheetUrl as exc:
@@ -276,7 +276,7 @@ async def get_sheet_access(sheet_url: str) -> dict:
 
     def _check():
         with oauth_session_context(_session_key):
-            return check_sheet_access(spreadsheet_id)
+            return check_sheet_access(spreadsheet_id, force_refresh=force_refresh)
 
     return await asyncio.to_thread(_check)
 

@@ -525,34 +525,51 @@ _ACCESS_CACHE: dict[tuple[str, str | None], tuple[float, dict[str, bool]]] = {}
 _ACCESS_CACHE_TTL = 120  # seconds
 
 
-def check_sheet_access(spreadsheet_id: str) -> dict[str, bool]:
+def check_sheet_access(spreadsheet_id: str, force_refresh: bool = False) -> dict[str, bool]:
     """Check if we have read/edit access to the spreadsheet.
 
-    Optimisations vs. the previous sequential implementation:
-      1. Results are cached for 2 minutes per (spreadsheet_id, session_key).
-      2. Public-read probe and authenticated-edit probe run in parallel
-         (concurrent.futures) instead of sequentially, cutting wall-clock
-         time from ~5-8 s to ~2-3 s on a cold call.
+    Optimisations:
+      1. Memory cache (_ACCESS_CACHE): Fast in-process hit.
+      2. Database cache (sheet_access_cache): Checks Neon Postgres. If edit access
+         was previously verified, returns immediately without calling Google API.
+      3. Parallel probes: If a check is needed, public-read and authenticated-edit
+         run concurrently in a thread pool.
+      4. Database persistence: Results are saved to Neon Postgres via UPSERT.
     """
     import concurrent.futures as _cf
     from app.services.session_context import get_oauth_session_key_raw, oauth_session_context, UNSET
 
     # Capture the current session key so we can restore it in inner threads.
-    # ThreadPoolExecutor threads do NOT inherit ContextVars, so without this
-    # the inner _probe_auth thread can't find the user's OAuth token and
-    # falls back to the service account (which usually has no access).
     _raw_session_key = get_oauth_session_key_raw()
     _session_key = None if _raw_session_key is UNSET else _raw_session_key
+    _effective_key = str(_session_key) if _session_key else ("service_account" if _has_credentials() else "public")
 
-    # ── Cache hit ──────────────────────────────────────────────────────
-    # Key includes the session so different users (or re-logins) don't get
-    # stale access results from another identity.
     _cache_key = (spreadsheet_id, _session_key if isinstance(_session_key, str) else None)
-    cached = _ACCESS_CACHE.get(_cache_key)
-    if cached:
-        ts, result = cached
-        if time.time() - ts < _ACCESS_CACHE_TTL:
-            return result
+
+    if not force_refresh:
+        # 1. In-memory cache
+        cached = _ACCESS_CACHE.get(_cache_key)
+        if cached:
+            ts, result = cached
+            if time.time() - ts < _ACCESS_CACHE_TTL:
+                return result
+
+        # 2. Database cache (Neon Postgres)
+        try:
+            db_cached = form_store.get_cached_sheet_access(spreadsheet_id, _effective_key)
+            if db_cached is not None:
+                # If edit access is already verified in DB, we NEVER need to re-check Google API!
+                if db_cached.get("edit"):
+                    res = {"read": True, "edit": True}
+                    _ACCESS_CACHE[_cache_key] = (time.time(), res)
+                    return res
+                # If read access is confirmed in DB, use it to avoid redundant API hits
+                if db_cached.get("read"):
+                    res = {"read": True, "edit": False}
+                    _ACCESS_CACHE[_cache_key] = (time.time(), res)
+                    return res
+        except Exception as exc:
+            logger.debug("check_sheet_access db cache lookup skipped: %s", exc)
 
     # ── Parallel probes ────────────────────────────────────────────────
     has_creds = _has_credentials()
@@ -561,7 +578,7 @@ def check_sheet_access(spreadsheet_id: str) -> dict[str, bool]:
         try:
             _fetch_gviz_json(spreadsheet_id, None)
             return True
-        except PublicSheetError:
+        except Exception:
             return False
 
     def _probe_auth() -> dict[str, bool]:
@@ -588,6 +605,18 @@ def check_sheet_access(spreadsheet_id: str) -> dict[str, bool]:
         result = {"read": False, "edit": False}
 
     _ACCESS_CACHE[_cache_key] = (time.time(), result)
+
+    # Persist in Neon Postgres so subsequent checks never hit Google API
+    try:
+        form_store.set_cached_sheet_access(
+            spreadsheet_id=spreadsheet_id,
+            session_key=_effective_key,
+            read=result["read"],
+            edit=result["edit"],
+        )
+    except Exception as exc:
+        logger.debug("check_sheet_access db cache save skipped: %s", exc)
+
     return result
 
 

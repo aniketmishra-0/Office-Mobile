@@ -43,19 +43,71 @@ def test_list_worksheet_names_prefers_public_export(monkeypatch):
 
 
 def test_check_sheet_access_keeps_public_read_even_without_auth(monkeypatch):
-    monkeypatch.setattr(sheets_client, "_read_public_sheet_names", lambda _sid: ["Sheet1"])
+    sheets_client._ACCESS_CACHE.clear()
+    monkeypatch.setattr(sheets_client, "_fetch_gviz_json", lambda _sid, _ws: {"table": {"cols": []}})
     monkeypatch.setattr(sheets_client, "_has_credentials", lambda: False)
+    monkeypatch.setattr(sheets_client.form_store, "get_cached_sheet_access", lambda _sid, _sk: None)
+    monkeypatch.setattr(sheets_client.form_store, "set_cached_sheet_access", lambda *a, **kw: None)
 
     assert sheets_client.check_sheet_access("spreadsheet-id") == {"read": True, "edit": False}
 
 
 def test_check_sheet_access_reports_authenticated_edit_when_public_read_exists(monkeypatch):
-    monkeypatch.setattr(sheets_client, "_read_public_sheet_names", lambda _sid: ["Sheet1"])
+    sheets_client._ACCESS_CACHE.clear()
+    monkeypatch.setattr(sheets_client, "_fetch_gviz_json", lambda _sid, _ws: {"table": {"cols": []}})
     monkeypatch.setattr(sheets_client, "_has_credentials", lambda: True)
     monkeypatch.setattr(
         sheets_client,
         "_authenticated_sheet_access",
         lambda _sid: {"read": True, "edit": True},
     )
+    monkeypatch.setattr(sheets_client.form_store, "get_cached_sheet_access", lambda _sid, _sk: None)
+    monkeypatch.setattr(sheets_client.form_store, "set_cached_sheet_access", lambda *a, **kw: None)
 
     assert sheets_client.check_sheet_access("spreadsheet-id") == {"read": True, "edit": True}
+
+
+def test_check_sheet_access_uses_db_cache_without_calling_google(monkeypatch):
+    sheets_client._ACCESS_CACHE.clear()
+    # Mock DB returning cached edit access
+    monkeypatch.setattr(
+        sheets_client.form_store,
+        "get_cached_sheet_access",
+        lambda _sid, _sk: {"read": True, "edit": True},
+    )
+    # If Google API were called, this would raise
+    monkeypatch.setattr(
+        sheets_client,
+        "_fetch_gviz_json",
+        Mock(side_effect=AssertionError("Google API should not be called when DB cached")),
+    )
+    monkeypatch.setattr(
+        sheets_client,
+        "_authenticated_sheet_access",
+        Mock(side_effect=AssertionError("Google API should not be called when DB cached")),
+    )
+
+    result = sheets_client.check_sheet_access("cached-sheet-id")
+    assert result == {"read": True, "edit": True}
+
+
+def test_check_sheet_access_force_refresh_bypasses_db_cache(monkeypatch):
+    sheets_client._ACCESS_CACHE.clear()
+    monkeypatch.setattr(
+        sheets_client.form_store,
+        "get_cached_sheet_access",
+        lambda _sid, _sk: {"read": True, "edit": False},
+    )
+    monkeypatch.setattr(sheets_client, "_fetch_gviz_json", lambda _sid, _ws: {"table": {"cols": []}})
+    monkeypatch.setattr(sheets_client, "_has_credentials", lambda: True)
+    monkeypatch.setattr(
+        sheets_client,
+        "_authenticated_sheet_access",
+        lambda _sid: {"read": True, "edit": True},
+    )
+    saved_mock = Mock()
+    monkeypatch.setattr(sheets_client.form_store, "set_cached_sheet_access", saved_mock)
+
+    result = sheets_client.check_sheet_access("cached-sheet-id", force_refresh=True)
+    assert result == {"read": True, "edit": True}
+    assert saved_mock.call_count == 1
