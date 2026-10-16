@@ -13,6 +13,8 @@ try {
 const connectSrc = [
   "'self'",
   apiOrigin,
+  "https://api.officemobile.org",
+  "https://34.24.168.162.nip.io",
   "https://accounts.google.com",
   "https://oauth2.googleapis.com",
   "https://cdn.jsdelivr.net",
