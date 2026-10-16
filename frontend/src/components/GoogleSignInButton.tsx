@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { getApiBase } from "@/lib/api";
 
 interface Props {
   onClick: () => void;
@@ -9,7 +10,7 @@ interface Props {
   compact?: boolean;
 }
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+const API_BASE = getApiBase();
 
 export default function GoogleSignInButton({ onClick, loading, connected, compact }: Props) {
   if (connected) {

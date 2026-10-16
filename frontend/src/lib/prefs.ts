@@ -240,11 +240,9 @@ export function subscribePrefs(listener: () => void): () => void {
 
 /* ----------------------- backend sync helpers ---------------------- */
 
-const API_BASE = (
-  typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL
-    ? process.env.NEXT_PUBLIC_API_URL
-    : "http://localhost:8000"
-).replace(/\/$/, "");
+import { getApiBase } from "@/lib/api";
+
+const API_BASE = getApiBase();
 
 function _sessionHeaders(): Record<string, string> {
   if (typeof window === "undefined") return {};

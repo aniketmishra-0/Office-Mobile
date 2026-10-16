@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { listFormLibrary, deleteForm, unauthorizeForm } from "@/lib/api";
+import { listFormLibrary, deleteForm, unauthorizeForm, getApiBase } from "@/lib/api";
 import type { FormLibraryItem } from "@/types/field";
 import ClearButton from "@/components/ClearButton";
 import {
@@ -69,7 +69,7 @@ export default function SettingsPanel({ onClose }: Props) {
           if (sk) headers["X-Session-Key"] = sk;
         } catch {}
         const res = await fetch(
-          (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "") + "/api/auth/status",
+          `${getApiBase()}/api/auth/status`,
           { credentials: "include", headers, cache: "no-store" },
         );
         const data = await res.json();
@@ -131,7 +131,7 @@ export default function SettingsPanel({ onClose }: Props) {
         if (sk) headers["X-Session-Key"] = sk;
       } catch {}
       await fetch(
-        (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "") + "/api/auth/logout",
+        `${getApiBase()}/api/auth/logout`,
         { method: "POST", credentials: "include", headers, cache: "no-store" },
       );
     } catch {}

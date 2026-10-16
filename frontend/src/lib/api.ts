@@ -24,9 +24,22 @@ import type {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-const BASE_URL = (
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
-).replace(/\/$/, "");
+export function getApiBase(): string {
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host === "localhost" || host === "127.0.0.1") {
+      return (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+    }
+    if (host.endsWith("officemobile.org") || host.endsWith("vercel.app")) {
+      return "https://api.officemobile.org";
+    }
+  }
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (envUrl && !envUrl.includes("34.24.168.162")) {
+    return envUrl.replace(/\/$/, "");
+  }
+  return "https://api.officemobile.org";
+}
 
 const SESSION_STORAGE_KEY = "om_session";
 
@@ -39,7 +52,7 @@ function sessionHeaders(): Record<string, string> {
 
 /** Build a full API URL from a path (always prefixed with /api). */
 function url(path: string): string {
-  return `${BASE_URL}/api${path}`;
+  return `${getApiBase()}/api${path}`;
 }
 
 /** Retry a fetch call up to `maxRetries` times on network errors or 5xx. */

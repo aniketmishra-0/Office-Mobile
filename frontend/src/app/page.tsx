@@ -5,8 +5,7 @@ import WelcomeScreen from "@/components/WelcomeScreen";
 import Dashboard from "@/components/Dashboard";
 import SplashScreen from "@/components/SplashScreen";
 import { syncPrefsFromBackend } from "@/lib/prefs";
-
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+import { getApiBase } from "@/lib/api";
 
 export default function HomePage() {
   const [connected, setConnected] = useState<boolean | null>(null);
@@ -20,11 +19,16 @@ export default function HomePage() {
         if (sessionKey) headers["X-Session-Key"] = sessionKey;
       } catch {}
 
-      const res = await fetch(`${API_BASE}/api/auth/status`, {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 5000);
+
+      const res = await fetch(`${getApiBase()}/api/auth/status`, {
         credentials: "include",
         headers,
         cache: "no-store",
+        signal: controller.signal,
       });
+      clearTimeout(timer);
       const data = await res.json();
       if (data.session_key) {
         try {

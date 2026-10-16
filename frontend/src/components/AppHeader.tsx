@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Logo from "@/components/Logo";
 import SettingsPanel from "@/components/SettingsPanel";
-import { logout as apiLogout } from "@/lib/api";
+import { logout as apiLogout, getApiBase } from "@/lib/api";
 import { getStoredTheme, setTheme, syncPrefsToBackend } from "@/lib/prefs";
 import { usePrefs } from "@/lib/usePrefs";
 
@@ -81,8 +81,7 @@ export default function AppHeader({
           if (sk) headers["X-Session-Key"] = sk;
         } catch {}
         const res = await fetch(
-          (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "") +
-            "/api/auth/status",
+          `${getApiBase()}/api/auth/status`,
           { credentials: "include", headers, cache: "no-store" },
         );
         const data = await res.json();

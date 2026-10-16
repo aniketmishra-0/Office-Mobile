@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { usePrefs } from "@/lib/usePrefs";
+import { getApiBase } from "@/lib/api";
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+const API_BASE = getApiBase();
 
 interface Props {
   onAuthenticated: () => void;

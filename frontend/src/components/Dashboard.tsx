@@ -39,7 +39,9 @@ import type {
   CreateFormResponse,
 } from "@/types/field";
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+import { getApiBase } from "@/lib/api";
+
+const API_BASE = getApiBase();
 
 type Step = "input" | "preview" | "done";
 
