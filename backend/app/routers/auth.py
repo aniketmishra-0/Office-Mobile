@@ -32,6 +32,7 @@ SCOPES = [
 # Cookie used to carry the OAuth state value between the redirect and the
 # callback. Short-lived; HttpOnly so it cannot be read from JS.
 _STATE_COOKIE_NAME = "oauth_state"
+_ORIGIN_COOKIE_NAME = "oauth_origin"
 _STATE_COOKIE_MAX_AGE = 600  # 10 minutes is plenty for an OAuth round trip
 
 
@@ -98,13 +99,47 @@ def _require_oauth_config() -> tuple[str, str, str]:
     )
 
 
-def _frontend_origin() -> str:
-    """Return a single frontend origin used for postMessage targetOrigin.
-    We never use '*' so that a malicious opener cannot receive this message."""
+def _resolve_frontend_origin(
+    request: Request | None = None,
+    candidate: str | None = None,
+) -> str:
+    """Resolve and validate the frontend origin against allowed_origins.
+    Prefers https://officemobile.org as the primary production domain."""
     settings = get_settings()
-    if settings.allowed_origins:
-        return settings.allowed_origins[0]
+    allowed = settings.allowed_origins
+
+    if candidate:
+        clean = candidate.strip().rstrip("/")
+        if clean in allowed:
+            return clean
+
+    if request:
+        origin_header = request.headers.get("origin")
+        if origin_header and origin_header.strip().rstrip("/") in allowed:
+            return origin_header.strip().rstrip("/")
+
+        referer = request.headers.get("referer")
+        if referer:
+            try:
+                from urllib.parse import urlparse
+                p = urlparse(referer)
+                if p.scheme and p.netloc:
+                    ref_origin = f"{p.scheme}://{p.netloc}".rstrip("/")
+                    if ref_origin in allowed:
+                        return ref_origin
+            except Exception:
+                pass
+
+    if "https://officemobile.org" in allowed:
+        return "https://officemobile.org"
+    if allowed:
+        return allowed[0]
     return "http://localhost:3000"
+
+
+def _frontend_origin() -> str:
+    """Return a default frontend origin."""
+    return _resolve_frontend_origin()
 
 
 @router.get("/status")
@@ -227,22 +262,43 @@ def _set_state_cookie(response: Response, request: Request, state: str) -> None:
     )
 
 
+def _set_origin_cookie(response: Response, request: Request, origin: str) -> None:
+    local = _is_local_request(request)
+    response.set_cookie(
+        key=_ORIGIN_COOKIE_NAME,
+        value=origin,
+        max_age=_STATE_COOKIE_MAX_AGE,
+        httponly=True,
+        secure=not local,
+        samesite="lax" if local else "none",
+        path="/api/auth",
+    )
+
+
 @router.get("/google/start")
-def google_start(request: Request) -> RedirectResponse:
+def google_start(request: Request, origin: str | None = None) -> RedirectResponse:
     client_id, _secret, redirect_uri = _require_oauth_config()
-    state = secrets.token_urlsafe(32)
+    target_origin = _resolve_frontend_origin(request, origin)
+    nonce = secrets.token_urlsafe(32)
+    origin_b64 = base64.urlsafe_b64encode(target_origin.encode()).decode().rstrip("=")
+    state = f"{nonce}.{origin_b64}"
     response = RedirectResponse(_build_auth_url(client_id, redirect_uri, state))
-    _set_state_cookie(response, request, state)
+    _set_state_cookie(response, request, nonce)
+    _set_origin_cookie(response, request, target_origin)
     _ensure_session_key(request, response)
     return response
 
 
 @router.get("/google/url")
-def google_url(request: Request, response: Response) -> dict:
+def google_url(request: Request, response: Response, origin: str | None = None) -> dict:
     """Return the OAuth URL so the frontend can open it directly in the browser."""
     client_id, _secret, redirect_uri = _require_oauth_config()
-    state = secrets.token_urlsafe(32)
-    _set_state_cookie(response, request, state)
+    target_origin = _resolve_frontend_origin(request, origin)
+    nonce = secrets.token_urlsafe(32)
+    origin_b64 = base64.urlsafe_b64encode(target_origin.encode()).decode().rstrip("=")
+    state = f"{nonce}.{origin_b64}"
+    _set_state_cookie(response, request, nonce)
+    _set_origin_cookie(response, request, target_origin)
     _ensure_session_key(request, response)
     return {"url": _build_auth_url(client_id, redirect_uri, state)}
 
@@ -258,13 +314,40 @@ def google_callback(
         raise HTTPException(status_code=400, detail=f"OAuth error: {error}")
     if not code:
         raise HTTPException(status_code=400, detail="Missing OAuth code")
+    if not state:
+        raise HTTPException(status_code=400, detail="Missing OAuth state")
+
+    settings = get_settings()
+
+    state_nonce = state
+    target_origin_from_state: str | None = None
+    if "." in state:
+        parts = state.split(".", 1)
+        state_nonce = parts[0]
+        try:
+            b64 = parts[1]
+            rem = len(b64) % 4
+            if rem:
+                b64 += "=" * (4 - rem)
+            decoded = base64.urlsafe_b64decode(b64.encode()).decode()
+            if decoded in settings.allowed_origins:
+                target_origin_from_state = decoded
+        except Exception:
+            target_origin_from_state = None
 
     # Verify state matches the cookie we issued in /google/start.
     # This blocks OAuth CSRF where an attacker tricks the victim into logging
     # in with the attacker's authorization code.
     expected_state = request.cookies.get(_STATE_COOKIE_NAME)
-    if not expected_state or not state or not secrets.compare_digest(expected_state, state):
+    if not expected_state or not state_nonce or not secrets.compare_digest(expected_state, state_nonce):
         raise HTTPException(status_code=400, detail="Invalid OAuth state")
+
+    target_origin_cookie = request.cookies.get(_ORIGIN_COOKIE_NAME)
+    frontend_origin = (
+        target_origin_from_state
+        or (target_origin_cookie if target_origin_cookie in settings.allowed_origins else None)
+        or _resolve_frontend_origin(request)
+    )
 
     client_id, client_secret, redirect_uri = _require_oauth_config()
 
@@ -329,7 +412,7 @@ def google_callback(
             "create or write to your sheets.</p>"
             "<p><strong>Close this tab, click Sign in again, and make sure both "
             "checkboxes stay checked on the Google consent screen.</strong></p>"
-            f"<p><a href='{_frontend_origin()}' "
+            f"<p><a href='{frontend_origin}' "
             "style='color:#2563eb'>Back to the app</a></p>"
             "</body></html>",
             status_code=400,
@@ -381,7 +464,6 @@ def google_callback(
     # forwards it as `X-Session-Key` on every request — bypassing the cookie
     # block. The key stays in the URL fragment (not the query), so it is
     # never sent to the server and never logged.
-    frontend_origin = _frontend_origin()
     # JS-safe literal for the session key (secrets.token_urlsafe → [A-Za-z0-9_-]).
     session_key_js = json.dumps(session_key)
 
@@ -410,6 +492,7 @@ def google_callback(
 
     response = HTMLResponse(html)
     _set_session_cookie(response, request, session_key)
-    # Clear the state cookie now that the flow is complete.
+    # Clear the state and origin cookies now that the flow is complete.
     response.delete_cookie(_STATE_COOKIE_NAME, path="/api/auth")
+    response.delete_cookie(_ORIGIN_COOKIE_NAME, path="/api/auth")
     return response

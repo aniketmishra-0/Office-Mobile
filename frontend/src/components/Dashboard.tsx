@@ -1572,10 +1572,11 @@ export default function Dashboard() {
           {worksheets.length > 1 && (
             <div>
               <label className="block text-[13px] font-semibold text-zinc-800 mb-2">
-                Sub Sheets
+                Sub Sheets ({worksheets.length})
               </label>
               <MobileDropdown
                 value={selectedWorksheet ?? ""}
+                placeholder="Select or search subsheet..."
                 options={worksheets.map(name => ({ value: name, label: name }))}
                 onChange={async (val) => {
                   const next = val || null;

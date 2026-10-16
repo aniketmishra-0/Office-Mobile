@@ -1,12 +1,13 @@
 "use client";
 
-import React, { Suspense, useEffect, useState, useRef, useCallback } from "react";
+import React, { Suspense, useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import ErrorToast from "@/components/ErrorToast";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import MobileDropdown from "@/components/MobileDropdown";
 import SubmitButton from "@/components/SubmitButton";
+import SubsheetSearchModal from "@/components/SubsheetSearchModal";
 import type { FieldSchema } from "@/types/field";
 import { lookupFormsBySheet, getSheetSections, updateSheetRow, checkSheetAccess } from "@/lib/api";
 import { safeBack } from "@/lib/navigation";
@@ -154,6 +155,18 @@ function MultiHeaderFilterInner() {
   const [error, setError] = useState<string | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
   const calBtnRef = useRef<HTMLButtonElement | null>(null);
+  const [tabSearch, setTabSearch] = useState("");
+  const [showSubsheetModal, setShowSubsheetModal] = useState(false);
+  const [allDiscoveredTabs, setAllDiscoveredTabs] = useState<TabOption[]>([]);
+
+  const filteredTabs = useMemo(() => {
+    if (!availableTabs) return [];
+    const q = tabSearch.trim().toLowerCase();
+    if (!q) return availableTabs;
+    return availableTabs.filter((t) =>
+      (t.worksheet_name || t.form_title || "").toLowerCase().includes(q)
+    );
+  }, [availableTabs, tabSearch]);
 
   const [selectedSections, setSelectedSections] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -247,10 +260,32 @@ function MultiHeaderFilterInner() {
         form_title: item.form_title, fields: item.fields, has_form: item.has_form,
       }));
       if (!tabs.length) { setError("No tabs found"); return; }
+      setAllDiscoveredTabs(tabs);
       if (tabs.length === 1) { await selectTab(tabs[0], url); }
       else { setAvailableTabs(tabs); }
     } catch (e: any) { setError(e.message ?? "Failed to load sheet"); }
     finally { setLoading(false); }
+  }
+
+  async function handleSwitchWorksheet(wsName: string) {
+    const url = sheetUrl || sheetParam || "";
+    if (!url) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getSheetSections(url, wsName);
+      setLoaded({ worksheet_name: data.worksheet_name, fields: data.fields, sections: data.sections });
+      if (data.sections.length > 0) setSelectedSections([0]);
+      setSelectedRow(null);
+      setSearchQuery("");
+      checkSheetAccess(url)
+        .then((access) => setHasEditAccess(access.edit))
+        .catch(() => setHasEditAccess(false));
+    } catch (e: any) {
+      setError(e.message ?? "Failed to switch subsheet");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function selectTab(tab: TabOption, sheet_url?: string) {
@@ -375,14 +410,91 @@ function MultiHeaderFilterInner() {
         <AppHeader title="Multi-Header Filtering" showBack onBack={() => safeBack(router)} />
         {loading && <LoadingOverlay message="Loading..." />}
         <div style={{ flex: 1, padding: 24 }}>
-          <h3 style={{ fontFamily: "var(--font-newsreader), Georgia, serif", fontWeight: 400, fontSize: 18, color: "var(--ink)", marginBottom: 16, textAlign: "center" }}>Select a tab</h3>
-          <div style={{ maxWidth: 400, margin: "0 auto", display: "flex", flexDirection: "column", gap: 8 }}>
-            {availableTabs.map((tab, i) => (
-              <button key={i} onClick={() => selectTab(tab)}
-                style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 13, color: "var(--ink)", background: "var(--paper)", border: "1px solid var(--rule)", borderRadius: 6, padding: "12px 16px", cursor: "pointer", textAlign: "left" }}>
-                {tab.worksheet_name || tab.form_title}
-              </button>
-            ))}
+          <div style={{ maxWidth: 440, margin: "0 auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+              <h3 style={{ fontFamily: "var(--font-newsreader), Georgia, serif", fontWeight: 400, fontSize: 18, color: "var(--ink)", margin: 0 }}>
+                Select a tab ({availableTabs.length})
+              </h3>
+              {availableTabs.length > 3 && (
+                <span style={{ fontSize: 10, fontFamily: "var(--font-plex-mono), monospace", color: "var(--stone)" }}>
+                  {filteredTabs.length} of {availableTabs.length}
+                </span>
+              )}
+            </div>
+
+            {availableTabs.length > 2 && (
+              <div style={{ position: "relative", marginBottom: 12 }}>
+                <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: "var(--stone)", pointerEvents: "none" }}>
+                  🔍
+                </span>
+                <input
+                  type="text"
+                  value={tabSearch}
+                  onChange={(e) => setTabSearch(e.target.value)}
+                  placeholder={`Search ${availableTabs.length} subsheets...`}
+                  style={{
+                    width: "100%",
+                    padding: "8px 28px 8px 30px",
+                    background: "var(--paper)",
+                    border: "1px solid var(--rule)",
+                    borderRadius: 4,
+                    fontSize: 12,
+                    fontFamily: "var(--font-plex-mono), monospace",
+                    color: "var(--ink)",
+                    outline: "none",
+                  }}
+                />
+                {tabSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setTabSearch("")}
+                    aria-label="Clear subsheet search"
+                    style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: 0, color: "var(--stone)", cursor: "pointer", fontSize: 12, padding: 2 }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            )}
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {filteredTabs.map((tab, i) => (
+                <button
+                  key={i}
+                  onClick={() => selectTab(tab)}
+                  style={{
+                    fontFamily: "var(--font-plex-mono), monospace",
+                    fontSize: 13,
+                    color: "var(--ink)",
+                    background: "var(--paper)",
+                    border: "1px solid var(--rule)",
+                    borderRadius: 6,
+                    padding: "12px 16px",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <span>{tab.worksheet_name || tab.form_title}</span>
+                  <span style={{ color: "var(--stone)" }}>→</span>
+                </button>
+              ))}
+
+              {filteredTabs.length === 0 && (
+                <div style={{ padding: "24px 16px", textAlign: "center", fontFamily: "var(--font-plex-mono), monospace", fontSize: 12, color: "var(--stone)", background: "var(--paper)", border: "1px solid var(--rule)", borderRadius: 6 }}>
+                  <p style={{ margin: "0 0 8px" }}>No subsheets match &quot;{tabSearch}&quot;</p>
+                  <button
+                    type="button"
+                    onClick={() => setTabSearch("")}
+                    style={{ fontSize: 11, color: "var(--clay)", textDecoration: "underline", background: "none", border: 0, cursor: "pointer" }}
+                  >
+                    Clear filter
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         {error && <ErrorToast message={error} onDismiss={() => setError(null)} />}
@@ -601,7 +713,40 @@ function MultiHeaderFilterInner() {
           {/* Title row with calendar */}
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 10 }}>
             <div>
-              <h2 style={{ fontFamily: "var(--font-newsreader), Georgia, serif", fontWeight: 400, fontSize: 18, color: "var(--ink)", margin: 0 }}>{loaded.worksheet_name}</h2>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <h2 style={{ fontFamily: "var(--font-newsreader), Georgia, serif", fontWeight: 400, fontSize: 18, color: "var(--ink)", margin: 0 }}>{loaded.worksheet_name}</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowSubsheetModal(true)}
+                  title="Search & switch subsheets"
+                  style={{
+                    fontFamily: "var(--font-plex-mono), monospace",
+                    fontSize: 10,
+                    fontWeight: 600,
+                    letterSpacing: "0.04em",
+                    padding: "2px 8px",
+                    background: "rgba(0,0,0,0.05)",
+                    border: "1px solid var(--rule)",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    color: "var(--stone)",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    transition: "all 150ms ease-out",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = "var(--ink)";
+                    e.currentTarget.style.borderColor = "var(--stone)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = "var(--stone)";
+                    e.currentTarget.style.borderColor = "var(--rule)";
+                  }}
+                >
+                  <span>Subsheets ▾</span>
+                </button>
+              </div>
               <p style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: 10, color: "var(--stone)", margin: "2px 0 0" }}>
                 {loaded.sections.length} sections · {totalRows.toLocaleString()} rows
               </p>
@@ -803,6 +948,16 @@ function MultiHeaderFilterInner() {
 
       {/* Calendar popup — fixed overlay */}
       {showCalendar && <CalendarPopup anchorRef={calBtnRef} onClose={closeCalendar} />}
+
+      <SubsheetSearchModal
+        isOpen={showSubsheetModal}
+        onClose={() => setShowSubsheetModal(false)}
+        sheetUrl={sheetUrl || sheetParam || ""}
+        currentWorksheet={loaded?.worksheet_name}
+        preloadedWorksheets={allDiscoveredTabs.map((t) => t.worksheet_name || t.form_title).filter(Boolean)}
+        onSelectWorksheet={handleSwitchWorksheet}
+      />
+
       {error && <ErrorToast message={error} onDismiss={() => setError(null)} />}
     </div>
   );

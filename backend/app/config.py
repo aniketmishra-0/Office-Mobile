@@ -29,10 +29,25 @@ class Settings(BaseModel):
     database_url: str | None = None
 
 
+DEFAULT_ALLOWED_ORIGINS: List[str] = [
+    "https://officemobile.org",
+    "https://www.officemobile.org",
+    "https://officemobile.vercel.app",
+    "https://34.24.168.162.nip.io",
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:5173",
+]
+
+
 def _split_origins(raw: str | None) -> List[str]:
-    if not raw:
-        return ["http://localhost:5173"]
-    return [origin.strip() for origin in raw.split(",") if origin.strip()]
+    origins = [o.rstrip("/") for o in DEFAULT_ALLOWED_ORIGINS]
+    if raw:
+        for origin in raw.split(","):
+            cleaned = origin.strip().rstrip("/")
+            if cleaned and cleaned not in origins:
+                origins.append(cleaned)
+    return origins
 
 
 @lru_cache

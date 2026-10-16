@@ -469,14 +469,34 @@ async def get_sheet_history(
     except InvalidGoogleSheetUrl as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    # Use authenticated header reading when credentials are available to ensure
-    # consistency with the PATCH /sheet/row endpoint. The public gviz endpoint
-    # can return different column labels than the actual row 1 values, causing
-    # field key mismatches between load and save operations.
-    from app.services.sheets_client import read_headers_authenticated, _has_credentials as has_creds
+    from app.services.sheets_client import (
+        read_headers_authenticated,
+        read_sheet_history_authenticated,
+        _has_credentials as has_creds,
+    )
 
     # Capture session key before entering thread (ContextVars don't propagate)
     _history_session_key = get_current_oauth_session_key()
+
+    # Fast path: single-pass fetch (1 Google API call instead of 6-8)
+    if has_creds():
+        try:
+            def _fast_history():
+                with oauth_session_context(_history_session_key):
+                    return read_sheet_history_authenticated(
+                        spreadsheet_id=spreadsheet_id,
+                        worksheet_name=worksheet_name,
+                        max_rows=limit,
+                    )
+
+            _stitle, actual_worksheet, fields, rows = await asyncio.to_thread(_fast_history)
+            return {
+                "worksheet_name": actual_worksheet,
+                "fields": [f.model_dump() for f in fields],
+                "rows": rows,
+            }
+        except Exception as exc:
+            logger.warning("Fast history read failed, falling back to legacy: %s", exc)
 
     def _read_history_headers():
         with oauth_session_context(_history_session_key):
