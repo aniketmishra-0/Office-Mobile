@@ -48,6 +48,14 @@ _HEADERS_CACHE: dict[tuple[str, str], tuple[float, list[str]]] = {}
 # Cache for the detected header row number (1-based). Same TTL as headers cache.
 _HEADER_ROW_CACHE: dict[tuple[str, str], tuple[float, int]] = {}
 
+# In-process cache for tab/worksheet names (60s TTL)
+_TABS_CACHE_TTL_SECONDS = 60.0
+_TABS_CACHE: dict[tuple[str, str | None], tuple[float, list[str]]] = {}
+
+# In-process cache for single-pass sheet history (60s TTL)
+_HISTORY_CACHE_TTL_SECONDS = 60.0
+_HISTORY_CACHE: dict[tuple[str, str, int, str | None], tuple[float, Any]] = {}
+
 
 def _headers_cache_key(spreadsheet_id: str, worksheet_name: str | None) -> tuple[str, str]:
     return (spreadsheet_id, worksheet_name or "")
@@ -116,6 +124,12 @@ def _invalidate_rows_cache(spreadsheet_id: str, worksheet_name: str | None) -> N
     for key in list(_ROWS_CACHE.keys()):
         if key[:2] == prefix:
             _ROWS_CACHE.pop(key, None)
+    for key in list(_HISTORY_CACHE.keys()):
+        if key[0] == spreadsheet_id and (not worksheet_name or key[1] == (worksheet_name or "")):
+            _HISTORY_CACHE.pop(key, None)
+    for key in list(_TABS_CACHE.keys()):
+        if key[0] == spreadsheet_id:
+            _TABS_CACHE.pop(key, None)
 
 
 class GoogleSheetsConfigurationError(RuntimeError):
@@ -428,26 +442,41 @@ def _fetch_gviz_json(spreadsheet_id: str, worksheet_name: str | None) -> dict:
 
 def list_worksheet_names(spreadsheet_id: str) -> list[str]:
     """List worksheet/tab names for a spreadsheet."""
-    try:
-        return _read_public_sheet_names(spreadsheet_id)
-    except Exception as exc:
-        logger.debug("list_worksheet_names public xlsx failed: %s", exc)
+    _session_key = session_context.get_current_oauth_session_key()
+    cache_key = (spreadsheet_id, _session_key if isinstance(_session_key, str) else None)
+    cached = _TABS_CACHE.get(cache_key)
+    if cached is not None:
+        ts, names = cached
+        if time.time() - ts < _TABS_CACHE_TTL_SECONDS:
+            return names
+
+    # If we have credentials, try authenticated open_by_key first!
+    # Private sheets will fail public xlsx export and waste 2+ seconds.
+    if _has_credentials():
+        try:
+            client = get_client()
+            spreadsheet = client.open_by_key(spreadsheet_id)
+            names = [ws.title for ws in spreadsheet.worksheets()]
+            if names:
+                _TABS_CACHE[cache_key] = (time.time(), names)
+                return names
+        except Exception as exc:
+            logger.debug("list_worksheet_names direct authenticated check: %s", exc)
 
     try:
-        if _has_credentials():
-            try:
-                client = get_client()
-                spreadsheet = client.open_by_key(spreadsheet_id)
-                return [ws.title for ws in spreadsheet.worksheets()]
-            except Exception as exc:
-                logger.warning("list_worksheet_names authenticated fallback failed: %s", exc)
+        names = _read_public_sheet_names(spreadsheet_id)
+        if names:
+            _TABS_CACHE[cache_key] = (time.time(), names)
+            return names
     except Exception as exc:
-        logger.warning("list_worksheet_names credentials check failed: %s", exc)
+        logger.debug("list_worksheet_names public xlsx failed: %s", exc)
 
     # Last resort: if the gviz endpoint works, we know at least one sheet exists
     try:
         _fetch_gviz_json(spreadsheet_id, None)
-        return ["Sheet1"]
+        names = ["Sheet1"]
+        _TABS_CACHE[cache_key] = (time.time(), names)
+        return names
     except Exception:
         pass
 
@@ -616,22 +645,15 @@ def _is_likely_header_row(row: list[str], min_headers: int = 3) -> bool:
     return label_like >= min_headers and label_like / max(len(non_empty), 1) >= 0.6
 
 
-def _find_header_row(worksheet: Any, spreadsheet_id: str, worksheet_name: str | None) -> tuple[list[str], int]:
+def _find_header_row_from_rows(
+    first_rows: list[list[str]],
+    spreadsheet_id: str = "",
+    worksheet_name: str | None = None,
+) -> tuple[list[str], int]:
     """
-    Find the actual header row in a worksheet. Scans rows 1-10 and returns
-    the best candidate header row along with its 1-based row index.
-
+    Find the actual header row from in-memory rows 1-10.
     Returns (headers, header_row_number) where header_row_number is 1-based.
     """
-    try:
-        total_cols = worksheet.col_count
-        end_col = _col_index_to_letter(min(total_cols - 1, 51))  # Cap at AZ
-        first_rows = worksheet.get(f"A1:{end_col}10")
-    except Exception:
-        # Fallback: just read row 1
-        headers = worksheet.row_values(1)
-        return headers, 1
-
     if not first_rows:
         return [], 1
 
@@ -641,7 +663,6 @@ def _find_header_row(worksheet: Any, spreadsheet_id: str, worksheet_name: str | 
         return row1, 1
 
     # Row 1 doesn't look like headers — scan rows 2-10
-    # Use a lower threshold (min 2 headers) for the scan to catch smaller sheets
     best_row_idx = 0
     best_score = 0
 
@@ -649,7 +670,6 @@ def _find_header_row(worksheet: Any, spreadsheet_id: str, worksheet_name: str | 
         non_empty = [cell.strip() for cell in row if cell.strip()]
         if len(non_empty) < 2:
             continue
-        # Use min_headers=2 for scanning to catch smaller sheets too
         if _is_likely_header_row(row, min_headers=2):
             score = len(non_empty)
             if score > best_score:
@@ -681,6 +701,25 @@ def _find_header_row(worksheet: Any, spreadsheet_id: str, worksheet_name: str | 
 
     # Fallback: use row 1
     return row1, 1
+
+
+def _find_header_row(worksheet: Any, spreadsheet_id: str, worksheet_name: str | None) -> tuple[list[str], int]:
+    """
+    Find the actual header row in a worksheet. Scans rows 1-10 and returns
+    the best candidate header row along with its 1-based row index.
+
+    Returns (headers, header_row_number) where header_row_number is 1-based.
+    """
+    try:
+        total_cols = worksheet.col_count
+        end_col = _col_index_to_letter(min(total_cols - 1, 51))  # Cap at AZ
+        first_rows = worksheet.get(f"A1:{end_col}10")
+    except Exception:
+        # Fallback: just read row 1
+        headers = worksheet.row_values(1)
+        return headers, 1
+
+    return _find_header_row_from_rows(first_rows, spreadsheet_id, worksheet_name)
 
 
 def read_headers_authenticated(
@@ -1363,6 +1402,121 @@ def read_sheet_rows(
     except Exception as e:
         logger.exception(f"Failed to read sheet rows: {type(e).__name__}: {e}")
         return []
+
+
+def read_sheet_history_authenticated(
+    spreadsheet_id: str,
+    worksheet_name: str | None = None,
+    max_rows: int = 100000,
+) -> tuple[str, str, list[FieldSchema], list[dict[str, str]]]:
+    """
+    Ultra-fast single-pass history reader:
+    Fetches the entire worksheet values in ONE single Google Sheets API call,
+    extracts headers, derives field schema, maps rows, and detects checkboxes
+    in memory without redundant round-trips.
+    """
+    _session_key = session_context.get_current_oauth_session_key()
+    cache_key = (
+        spreadsheet_id,
+        worksheet_name or "",
+        max_rows,
+        _session_key if isinstance(_session_key, str) else None,
+    )
+    cached = _HISTORY_CACHE.get(cache_key)
+    if cached is not None:
+        ts, data = cached
+        if time.time() - ts < _HISTORY_CACHE_TTL_SECONDS:
+            logger.debug("read_sheet_history_authenticated cache hit for %s", cache_key[:2])
+            return data
+
+    from app.utils.sanitizer import headers_to_fields
+
+    client = get_client()
+    spreadsheet = client.open_by_key(spreadsheet_id)
+    worksheet = _select_worksheet(spreadsheet, worksheet_name)
+
+    all_values = worksheet.get_all_values()
+    if not all_values:
+        res = (spreadsheet.title, worksheet.title, [], [])
+        _HISTORY_CACHE[cache_key] = (time.time(), res)
+        return res
+
+    first_10 = all_values[:10]
+    headers, header_row_num = _find_header_row_from_rows(
+        first_10, spreadsheet_id, worksheet_name
+    )
+    if not headers:
+        res = (spreadsheet.title, worksheet.title, [], [])
+        _HISTORY_CACHE[cache_key] = (time.time(), res)
+        return res
+
+    fields, _warnings = headers_to_fields(headers, custom_keywords=[])
+    if not fields:
+        res = (spreadsheet.title, worksheet.title, [], [])
+        _HISTORY_CACHE[cache_key] = (time.time(), res)
+        return res
+
+    # Map headers to column index
+    header_to_col: dict[str, int] = {}
+    for idx, header in enumerate(headers):
+        normalized = header.strip()
+        if normalized and normalized not in header_to_col:
+            header_to_col[normalized] = idx
+
+    field_col_map: dict[str, int] = {}
+    for field in fields:
+        col_idx = header_to_col.get(field.source_header.strip())
+        if col_idx is None:
+            source_lower = field.source_header.strip().lower()
+            for h, idx in header_to_col.items():
+                if h.lower() == source_lower:
+                    col_idx = idx
+                    break
+        if col_idx is None:
+            col_idx = field.column_index
+        field_col_map[field.key] = col_idx
+
+    data_start_row = header_row_num + 1
+    raw_data_rows = all_values[header_row_num:]
+    if max_rows and len(raw_data_rows) > max_rows:
+        raw_data_rows = raw_data_rows[:max_rows]
+
+    total_columns = len(headers)
+    rows: list[dict[str, str]] = []
+    for data_idx, row_data in enumerate(raw_data_rows):
+        if _is_header_or_title_row(row_data, headers, total_columns):
+            continue
+
+        row_dict: dict[str, str] = {}
+        has_data = False
+        for field in fields:
+            col_idx = field_col_map[field.key]
+            value = row_data[col_idx] if col_idx < len(row_data) else ""
+            row_dict[field.key] = value
+            if value.strip():
+                has_data = True
+        if has_data:
+            row_dict["_row_index"] = str(data_start_row + data_idx)
+            rows.append(row_dict)
+
+    # Detect checkbox columns
+    _BOOLEAN_VALUES = {"true", "false", ""}
+    for field in fields:
+        if field.type != "text":
+            continue
+        col_values = [row.get(field.key, "").strip().lower() for row in rows]
+        non_empty = [v for v in col_values if v]
+        if non_empty and all(v in _BOOLEAN_VALUES for v in col_values):
+            field.type = "checkbox"
+
+    result = (spreadsheet.title, worksheet.title, fields, rows)
+    _HISTORY_CACHE[cache_key] = (time.time(), result)
+
+    # Also prime _ROWS_CACHE so suggestions/autofill hit cache
+    rows_cache_key = _rows_cache_key(spreadsheet_id, worksheet_name, fields)
+    _ROWS_CACHE[rows_cache_key] = (time.time(), rows)
+
+    return result
 
 
 # ---------------------------------------------------------------------------

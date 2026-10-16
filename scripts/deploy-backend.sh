@@ -48,7 +48,7 @@ if [ -f "$ENV_FILE" ]; then
   echo "Updating backend environment file..."
 
   # Ensure production CORS origins are set
-  upsert_env_value "ALLOWED_ORIGINS" "https://officemobile.vercel.app,https://34.24.168.162.nip.io,http://localhost:3000"
+  upsert_env_value "ALLOWED_ORIGINS" "https://officemobile.org,https://www.officemobile.org,https://officemobile.vercel.app,https://34.24.168.162.nip.io,http://localhost:3000"
   upsert_env_value "GOOGLE_OAUTH_REDIRECT_URI" "https://34.24.168.162.nip.io/api/auth/google/callback"
 
   # Handle base64-encoded JSON (from GitHub Actions)

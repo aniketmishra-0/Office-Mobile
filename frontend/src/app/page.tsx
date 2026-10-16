@@ -82,7 +82,13 @@ export default function HomePage() {
     // window.close() failed in the backend callback HTML), notify the opener
     // and try to close. Don't render the full Dashboard in the popup.
     try {
-      if (window.opener && !window.opener.closed) {
+      let isOpenerClosed = true;
+      try {
+        isOpenerClosed = Boolean(!window.opener || window.opener.closed);
+      } catch {
+        isOpenerClosed = false;
+      }
+      if (window.opener && !isOpenerClosed) {
         setIsPopup(true);
         const sk = sessionKeyFromHash || window.localStorage.getItem("om_session");
         window.opener.postMessage(

@@ -38,6 +38,40 @@ interface LoadedTab {
   rows: Record<string, string>[];
 }
 
+const HIST_CACHE_TTL = 180_000; // 3 minutes
+
+function getCachedHistory(url: string, wsName?: string | null): LoadedTab | null {
+  try {
+    const raw = sessionStorage.getItem(`om_hist_${url}_${wsName || ""}`);
+    if (!raw) return null;
+    const { data, ts } = JSON.parse(raw);
+    if (Date.now() - ts < HIST_CACHE_TTL) return data;
+  } catch {}
+  return null;
+}
+
+function setCachedHistory(url: string, wsName: string | null | undefined, data: LoadedTab) {
+  try {
+    sessionStorage.setItem(`om_hist_${url}_${wsName || ""}`, JSON.stringify({ data, ts: Date.now() }));
+  } catch {}
+}
+
+function getCachedTabs(url: string): TabOption[] | null {
+  try {
+    const raw = sessionStorage.getItem(`om_tabs_${url}`);
+    if (!raw) return null;
+    const { data, ts } = JSON.parse(raw);
+    if (Date.now() - ts < HIST_CACHE_TTL) return data;
+  } catch {}
+  return null;
+}
+
+function setCachedTabs(url: string, data: TabOption[]) {
+  try {
+    sessionStorage.setItem(`om_tabs_${url}`, JSON.stringify({ data, ts: Date.now() }));
+  } catch {}
+}
+
 export default function HistoryPage() {
   return (
     <Suspense fallback={<LoadingOverlay message="Loading..." />}>
@@ -105,6 +139,14 @@ function HistoryPageInner() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sheetParam]);
+
+  // Synchronize loaded state with sessionStorage cache
+  useEffect(() => {
+    if (loaded && (sheetUrl || sheetParam)) {
+      const url = sheetUrl || sheetParam || "";
+      setCachedHistory(url, loaded.worksheet_name, loaded);
+    }
+  }, [loaded, sheetUrl, sheetParam]);
 
   // Fetch service account email on mount
   useEffect(() => {
@@ -193,16 +235,36 @@ function HistoryPageInner() {
   }
 
   async function loadSheetFromUrl(url: string) {
-    setLoading(true);
     setError(null);
-    setAvailableTabs(null);
-    setLoaded(null);
     setSearchQuery("");
     setColumnFilters({});
     setSelectedMonth("");
     setDateFrom("");
     setDateTo("");
     setSelectedRow(null);
+
+    // SWR Fast Path: Instant render from cache if available
+    const cachedTabs = getCachedTabs(url);
+    if (cachedTabs && cachedTabs.length > 0) {
+      setSheetUrl(url);
+      setAllDiscoveredTabs(cachedTabs);
+      if (cachedTabs.length === 1) {
+        const cachedData = getCachedHistory(url, cachedTabs[0].worksheet_name);
+        if (cachedData) {
+          setLoaded(cachedData);
+          setLoading(false);
+        } else {
+          setLoading(true);
+        }
+      } else {
+        setAvailableTabs(cachedTabs);
+        setLoading(false);
+      }
+    } else {
+      setLoading(true);
+      setAvailableTabs(null);
+      setLoaded(null);
+    }
 
     try {
       const result = await lookupFormsBySheet(url);
@@ -217,10 +279,11 @@ function HistoryPageInner() {
       }));
 
       if (!tabs.length) {
-        setError("No tabs found in this sheet");
+        if (!cachedTabs) setError("No tabs found in this sheet");
         return;
       }
 
+      setCachedTabs(url, tabs);
       setAllDiscoveredTabs(tabs);
 
       // If only one tab, auto-select it
@@ -228,9 +291,12 @@ function HistoryPageInner() {
         await selectTab(tabs[0], url);
       } else {
         setAvailableTabs(tabs);
+        setLoading(false);
       }
     } catch (e: any) {
-      setError(e.message ?? "Failed to load sheet");
+      if (!cachedTabs) {
+        setError(e.message ?? "Failed to load sheet");
+      }
     } finally {
       setLoading(false);
     }
@@ -239,8 +305,16 @@ function HistoryPageInner() {
   async function handleSwitchWorksheet(wsName: string) {
     const url = sheetUrl || sheetParam || "";
     if (!url) return;
-    setLoading(true);
     setError(null);
+
+    const cachedData = getCachedHistory(url, wsName);
+    if (cachedData) {
+      setLoaded(cachedData);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     try {
       const matchingTab = allDiscoveredTabs.find(
         (t) => (t.worksheet_name || t.form_title) === wsName
@@ -251,11 +325,13 @@ function HistoryPageInner() {
       }
 
       const data = await getSheetHistory(url, wsName);
-      setLoaded({
+      const freshData = {
         worksheet_name: data.worksheet_name,
         fields: data.fields,
         rows: data.rows,
-      });
+      };
+      setLoaded(freshData);
+      setCachedHistory(url, wsName, freshData);
       setSelectedRow(null);
       setIsAddingNewRow(false);
       setFieldSearch("");
@@ -277,35 +353,49 @@ function HistoryPageInner() {
         })
         .catch(() => {});
     } catch (e: any) {
-      setError(e.message ?? "Failed to switch subsheet");
+      if (!cachedData) {
+        setError(e.message ?? "Failed to switch subsheet");
+      }
     } finally {
       setLoading(false);
     }
   }
 
   async function selectTab(tab: TabOption, sheet_url?: string) {
+    const url = sheet_url ?? sheetUrl;
     setAvailableTabs(null);
-    setLoading(true);
     setError(null);
+
+    // Instant load from cache if available
+    const cachedData = getCachedHistory(url, tab.worksheet_name);
+    if (cachedData) {
+      setLoaded(cachedData);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
 
     try {
       if (tab.has_form && tab.id) {
         // Load via form suggestions (uses the form's saved schema)
         const data = await getFormSuggestions(tab.id);
-        setLoaded({
+        const freshData = {
           worksheet_name: tab.worksheet_name || tab.form_title,
           fields: tab.fields,
           rows: data.rows ?? [],
-        });
+        };
+        setLoaded(freshData);
+        setCachedHistory(url, tab.worksheet_name, freshData);
       } else {
         // Load directly from the sheet tab (no form exists)
-        const url = sheet_url ?? sheetUrl;
         const data = await getSheetHistory(url, tab.worksheet_name);
-        setLoaded({
+        const freshData = {
           worksheet_name: data.worksheet_name,
           fields: data.fields,
           rows: data.rows,
-        });
+        };
+        setLoaded(freshData);
+        setCachedHistory(url, tab.worksheet_name, freshData);
 
         // Auto-detect multi-header / section structure
         const targetUrl = sheet_url ?? sheetUrl;
@@ -322,11 +412,13 @@ function HistoryPageInner() {
           .catch(() => {});
       }
     } catch (e: any) {
-      setError(e.message ?? "Failed to load entries");
-      // Re-show the tab picker so user can try another
-      if (availableTabs === null) {
-        // already cleared — bring user back to URL step
-        handleReset();
+      if (!cachedData) {
+        setError(e.message ?? "Failed to load entries");
+        // Re-show the tab picker so user can try another
+        if (availableTabs === null) {
+          // already cleared — bring user back to URL step
+          handleReset();
+        }
       }
     } finally {
       setLoading(false);

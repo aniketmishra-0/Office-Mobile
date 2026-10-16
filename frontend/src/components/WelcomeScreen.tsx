@@ -33,8 +33,10 @@ export default function WelcomeScreen({ onAuthenticated }: Props) {
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
       ("ontouchstart" in window && window.innerWidth < 1024);
 
+    const startUrl = `${API_BASE}/api/auth/google/start?origin=${encodeURIComponent(window.location.origin)}`;
+
     if (isMobile) {
-      window.location.href = `${API_BASE}/api/auth/google/start`;
+      window.location.href = startUrl;
       return;
     }
 
@@ -69,23 +71,40 @@ export default function WelcomeScreen({ onAuthenticated }: Props) {
     ].join(",");
 
     const popup = window.open(
-      `${API_BASE}/api/auth/google/start`,
+      startUrl,
       "google-oauth",
       features,
     );
 
     // Popup blocked — fall back to same-tab redirect.
-    if (!popup || popup.closed || typeof popup.closed === "undefined") {
-      window.location.href = `${API_BASE}/api/auth/google/start`;
+    let isBlocked = false;
+    try {
+      isBlocked = !popup || Boolean(popup.closed);
+    } catch {
+      isBlocked = false;
+    }
+
+    if (isBlocked) {
+      window.location.href = startUrl;
       return;
     }
 
     try {
-      popup.focus();
+      popup?.focus();
     } catch {}
+
+    let isFinished = false;
+
+    function cleanup() {
+      if (isFinished) return;
+      isFinished = true;
+      clearInterval(interval);
+      window.removeEventListener("message", handleMessage);
+    }
 
     function handleMessage(event: MessageEvent) {
       if (event.data?.type === "oauth-success") {
+        cleanup();
         // Persist the session key the backend handed back so the next
         // request can send it via `X-Session-Key`. Safari drops our
         // cross-site session cookie under ITP, so this header path is what
@@ -96,47 +115,53 @@ export default function WelcomeScreen({ onAuthenticated }: Props) {
           } catch {}
         }
         setAuthState("success");
-        window.removeEventListener("message", handleMessage);
         setTimeout(() => onAuthenticated(), 700);
       }
     }
     window.addEventListener("message", handleMessage);
 
     const interval = setInterval(async () => {
-      if (!popup || popup.closed) {
-        clearInterval(interval);
-        try {
-          // Send any locally-stored session key so Safari's ITP-dropped
-          // cookie does not make us wrongly conclude the user isn't
-          // signed in. The postMessage listener above already wrote the
-          // freshly-minted key to localStorage on success.
-          const headers: Record<string, string> = {};
-          try {
-            const sk = window.localStorage.getItem("om_session");
-            if (sk) headers["X-Session-Key"] = sk;
-          } catch {}
-          const res = await fetch(`${API_BASE}/api/auth/status`, {
-            credentials: "include",
-            headers,
-            cache: "no-store",
-          });
-          const data = await res.json();
-          if (data.session_key) {
-            try {
-              window.localStorage.setItem("om_session", data.session_key);
-            } catch {}
-          }
-          if (data.connected) {
-            setAuthState("success");
-            setTimeout(() => onAuthenticated(), 700);
-          } else {
-            setAuthState("idle");
-          }
-        } catch {
-          setAuthState("idle");
-        }
+      if (isFinished) return;
+
+      let isClosed = false;
+      try {
+        isClosed = Boolean(popup?.closed);
+      } catch {
+        // Cross-Origin-Opener-Policy (COOP) restricts accessing window properties
+        // while the popup is navigating Google OAuth pages. Ignore and continue waiting.
+        return;
       }
-    }, 500);
+
+      if (isClosed) {
+        cleanup();
+        setTimeout(async () => {
+          try {
+            const headers: Record<string, string> = {};
+            try {
+              const sk = window.localStorage.getItem("om_session");
+              if (sk) headers["X-Session-Key"] = sk;
+            } catch {}
+            const res = await fetch(`${API_BASE}/api/auth/status`, {
+              credentials: "include",
+              headers,
+              cache: "no-store",
+            });
+            const data = await res.json();
+            if (data.session_key) {
+              try {
+                window.localStorage.setItem("om_session", data.session_key);
+              } catch {}
+            }
+            if (data.connected) {
+              setAuthState("success");
+              setTimeout(() => onAuthenticated(), 700);
+              return;
+            }
+          } catch {}
+          setAuthState("idle");
+        }, 300);
+      }
+    }, 1000);
   }
 
   const buttonDisabled = authState === "loading" || authState === "success";
