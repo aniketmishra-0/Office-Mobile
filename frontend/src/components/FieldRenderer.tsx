@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useId, useRef, useState } from "react";
+import React, { useId, useRef, useState, useMemo, useEffect } from "react";
 import type { FieldSchema } from "@/types/field";
 import { getApiBase } from "@/lib/api";
 
@@ -150,7 +150,7 @@ function FieldControl({
 
   if (isSelect) {
     return (
-      <SelectControl
+      <ComboboxControl
         id={id}
         value={value}
         options={field.options || []}
@@ -208,9 +208,8 @@ function FieldControl({
       );
     case "time":
       return (
-        <TextInput
+        <TimeControl
           id={id}
-          type="time"
           value={value}
           onChange={set}
           onFocus={onFocus}
@@ -399,7 +398,18 @@ function TextInput({
    Select/Dropdown — mobile-friendly dropdown with quick chip pills.
    ──────────────────────────────────────────────────────────────────── */
 
-function SelectControl({
+function isFormulaError(val: string): boolean {
+  if (!val) return false;
+  const s = val.trim().toUpperCase();
+  return (
+    s.startsWith("#") ||
+    s === "NULL" ||
+    s === "UNDEFINED" ||
+    s === "NAN"
+  );
+}
+
+function ComboboxControl({
   id,
   value,
   options,
@@ -418,160 +428,164 @@ function SelectControl({
   placeholder?: string;
   required?: boolean;
 }) {
-  const [isCustom, setIsCustom] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value;
-    if (val === "__om_custom__") {
-      setIsCustom(true);
-      return;
+  // Clean options: omit sheet formula errors like #REF!, #N/A, #VALUE!
+  const cleanOptions = useMemo(() => {
+    const list: string[] = [];
+    for (const opt of options) {
+      const trimmed = opt ? opt.trim() : "";
+      if (trimmed && !isFormulaError(trimmed) && !list.includes(trimmed)) {
+        list.push(trimmed);
+      }
     }
-    onChange(val);
-  };
+    return list;
+  }, [options]);
 
-  if (isCustom) {
-    return (
-      <div className="om-custom-input-wrap">
-        <div style={{ position: "relative", width: "100%" }}>
-          <input
-            id={id}
-            type="text"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onFocus={onFocus}
-            onBlur={onBlur}
-            placeholder={placeholder || "Type custom value…"}
-            required={required}
-            className="om-input"
-            autoFocus
-          />
+  // Filter options as user types
+  const filteredOptions = useMemo(() => {
+    if (!value.trim()) return cleanOptions;
+    const q = value.trim().toLowerCase();
+    const matches = cleanOptions.filter((opt) => opt.toLowerCase().includes(q));
+    return matches.length > 0 ? matches : cleanOptions;
+  }, [cleanOptions, value]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [isOpen]);
+
+  const listId = `dl-${id}`;
+
+  return (
+    <div ref={containerRef} className="om-combobox-wrap">
+      <div className="om-combobox-input-row">
+        <input
+          ref={inputRef}
+          id={id}
+          type="text"
+          list={listId}
+          value={value}
+          onChange={(e) => {
+            onChange(e.target.value);
+            if (!isOpen && cleanOptions.length > 0) setIsOpen(true);
+          }}
+          onFocus={() => {
+            onFocus();
+          }}
+          onBlur={onBlur}
+          placeholder={placeholder || (cleanOptions.length > 0 ? "Select or type…" : "Enter text…")}
+          required={required}
+          className="om-combobox-input"
+          autoComplete="off"
+        />
+
+        {/* Native datalist fallback */}
+        <datalist id={listId}>
+          {cleanOptions.map((opt) => (
+            <option key={opt} value={opt} />
+          ))}
+        </datalist>
+
+        <div className="om-combobox-actions">
           {value && (
             <button
               type="button"
               tabIndex={-1}
               aria-label="Clear"
-              className="om-input-clear"
+              className="om-combobox-btn"
               onMouseDown={(e) => {
                 e.preventDefault();
                 onChange("");
+                inputRef.current?.focus();
               }}
             >
               ×
             </button>
           )}
-        </div>
-        <div style={{ marginTop: 4 }}>
-          <button
-            type="button"
-            onClick={() => setIsCustom(false)}
-            style={{
-              fontFamily: "var(--font-plex-mono), monospace",
-              fontSize: 10,
-              color: "var(--clay)",
-              background: "transparent",
-              border: 0,
-              padding: "2px 0",
-              cursor: "pointer",
-              textDecoration: "underline",
-            }}
-          >
-            ← Pick from options
-          </button>
-        </div>
-      </div>
-    );
-  }
 
-  return (
-    <>
-      <div className="om-select-wrap">
-        <select
-          id={id}
-          value={value}
-          onChange={handleSelectChange}
-          onFocus={onFocus}
-          onBlur={onBlur}
-          required={required}
-          className={`om-select ${!value ? "is-empty" : ""}`}
-        >
-          <option value="">
-            {placeholder || "Select an option…"}
-          </option>
-          {value && !options.includes(value) && (
-            <option key={value} value={value}>
-              {value} (Current)
-            </option>
+          {cleanOptions.length > 0 && (
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-label="Toggle options"
+              className="om-combobox-btn om-combobox-arrow"
+              onClick={() => {
+                setIsOpen((prev) => !prev);
+                inputRef.current?.focus();
+              }}
+            >
+              <span style={{ transform: isOpen ? "rotate(180deg)" : "none", display: "inline-block", transition: "transform 150ms" }}>
+                ▾
+              </span>
+            </button>
           )}
-          {options.map((opt) => (
-            <option key={opt} value={opt}>
-              {opt}
-            </option>
-          ))}
-          <option value="__om_custom__">+ Type custom value…</option>
-        </select>
-        <span className="om-select-arrow" aria-hidden="true">
-          ▾
-        </span>
-        {value && (
-          <button
-            type="button"
-            tabIndex={-1}
-            aria-label="Clear selection"
-            className="om-select-clear"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              onChange("");
-            }}
-          >
-            ×
-          </button>
-        )}
+        </div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
-        {options.length > 0 && options.length <= 8 ? (
-          <div className="om-quick-chips">
-            {options.map((opt) => {
-              const isSelected = value === opt;
-              return (
-                <button
-                  key={opt}
-                  type="button"
-                  className={`om-quick-chip ${isSelected ? "is-selected" : ""}`}
-                  onClick={() => onChange(isSelected ? "" : opt)}
-                >
-                  {opt}
-                </button>
-              );
-            })}
-          </div>
-        ) : <div />}
+      {/* Floating Options Dropdown Menu */}
+      {isOpen && cleanOptions.length > 0 && (
+        <div className="om-combobox-dropdown">
+          {filteredOptions.map((opt) => {
+            const isSelected = value.trim() === opt.trim();
+            return (
+              <div
+                key={opt}
+                className={`om-combobox-option ${isSelected ? "is-selected" : ""}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onChange(opt);
+                  setIsOpen(false);
+                }}
+              >
+                <span>{opt}</span>
+                {isSelected && <span style={{ color: "var(--clay)", fontSize: 12 }}>✓</span>}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-        <button
-          type="button"
-          onClick={() => setIsCustom(true)}
-          style={{
-            fontFamily: "var(--font-plex-mono), monospace",
-            fontSize: 10,
-            color: "var(--stone)",
-            background: "transparent",
-            border: 0,
-            padding: "2px 0",
-            cursor: "pointer",
-            textDecoration: "underline",
-          }}
-          title="Type a custom value not in the dropdown"
-        >
-          + Type custom
-        </button>
-      </div>
+      {/* Quick chips below for up to 8 options */}
+      {cleanOptions.length > 0 && cleanOptions.length <= 8 && (
+        <div className="om-quick-chips">
+          {cleanOptions.map((opt) => {
+            const isSelected = value.trim() === opt.trim();
+            return (
+              <button
+                key={opt}
+                type="button"
+                className={`om-quick-chip ${isSelected ? "is-selected" : ""}`}
+                onClick={() => onChange(isSelected ? "" : opt)}
+              >
+                {opt}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <style jsx>{`
-        .om-select-wrap {
+        .om-combobox-wrap {
           position: relative;
           width: 100%;
         }
-        .om-select {
+        .om-combobox-input-row {
+          position: relative;
+          width: 100%;
+          display: flex;
+          align-items: center;
+        }
+        .om-combobox-input {
           width: 100%;
           font-family: var(--font-plex-mono), ui-monospace, monospace;
           font-weight: 400;
@@ -582,59 +596,87 @@ function SelectControl({
           border: 0;
           border-bottom: 1px solid var(--rule);
           border-radius: 0;
-          padding: 6px 48px 6px 0;
+          padding: 6px 52px 6px 0;
           outline: none;
-          appearance: none;
-          -webkit-appearance: none;
-          cursor: pointer;
           transition: border-color 200ms ease-out, padding 200ms ease-out;
         }
-        .om-select.is-empty {
-          color: var(--stone);
-        }
-        .om-select:focus {
+        .om-combobox-input:focus {
           border-bottom: 2px solid var(--clay);
           padding-bottom: 5px;
         }
-        :global(.om-field.has-error) .om-select {
+        :global(.om-field.has-error) .om-combobox-input {
           border-bottom-color: var(--error) !important;
         }
-        .om-select option {
-          background: #ffffff;
-          color: #18181b;
-        }
-        :global(.dark) .om-select option {
-          background: #18181b;
-          color: #fafafa;
-        }
-        .om-select-arrow {
+        .om-combobox-actions {
           position: absolute;
-          top: 50%;
           right: 0;
-          transform: translateY(-50%);
-          font-size: 14px;
-          color: var(--stone);
-          pointer-events: none;
-        }
-        .om-select-clear {
-          position: absolute;
           top: 50%;
-          right: 20px;
           transform: translateY(-50%);
-          width: 20px;
-          height: 20px;
+          display: flex;
+          align-items: center;
+          gap: 2px;
+        }
+        .om-combobox-btn {
+          width: 24px;
+          height: 24px;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 16px;
-          line-height: 1;
-          color: var(--stone);
           background: transparent;
           border: 0;
+          color: var(--stone);
           cursor: pointer;
+          font-size: 15px;
+          line-height: 1;
+          padding: 0;
+          border-radius: 0;
+          transition: color 150ms ease;
         }
-        .om-select-clear:hover {
+        .om-combobox-btn:hover {
           color: var(--ink);
+        }
+        .om-combobox-arrow {
+          font-size: 14px;
+        }
+        .om-combobox-dropdown {
+          position: absolute;
+          top: calc(100% + 4px);
+          left: 0;
+          right: 0;
+          max-height: 220px;
+          overflow-y: auto;
+          background: var(--paper, #ffffff);
+          border: 1px solid var(--rule, #e4e4e7);
+          border-radius: 0;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+          z-index: 50;
+        }
+        :global(.dark) .om-combobox-dropdown {
+          background: #18181b;
+          border-color: #27272a;
+        }
+        .om-combobox-option {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 8px 12px;
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-size: 12px;
+          color: var(--ink);
+          cursor: pointer;
+          border-bottom: 1px solid var(--rule, #e4e4e7);
+          transition: background 120ms ease;
+        }
+        .om-combobox-option:last-child {
+          border-bottom: 0;
+        }
+        .om-combobox-option:hover {
+          background: rgba(200, 98, 58, 0.08);
+          color: var(--clay);
+        }
+        .om-combobox-option.is-selected {
+          background: rgba(200, 98, 58, 0.12);
+          font-weight: 600;
         }
         .om-quick-chips {
           display: flex;
@@ -662,7 +704,66 @@ function SelectControl({
           border-color: var(--ink);
         }
       `}</style>
-    </>
+    </div>
+  );
+}
+
+function TimeControl({
+  id,
+  value,
+  onChange,
+  onFocus,
+  onBlur,
+  placeholder,
+  required,
+}: {
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+  onFocus: () => void;
+  onBlur: () => void;
+  placeholder?: string;
+  required?: boolean;
+}) {
+  const handleNow = () => {
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mm = String(now.getMinutes()).padStart(2, "0");
+    onChange(`${hh}:${mm}`);
+  };
+
+  return (
+    <div>
+      <TextInput
+        id={id}
+        type="time"
+        value={value}
+        onChange={onChange}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        placeholder={placeholder}
+        required={required}
+      />
+      <div style={{ marginTop: 4 }}>
+        <button
+          type="button"
+          onClick={handleNow}
+          style={{
+            fontFamily: "var(--font-plex-mono), monospace",
+            fontSize: 10,
+            color: "var(--clay)",
+            background: "transparent",
+            border: 0,
+            padding: "2px 0",
+            cursor: "pointer",
+            textDecoration: "underline",
+          }}
+          title="Fill current time"
+        >
+          [Fill Current Time]
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -977,7 +1078,20 @@ function DateTriple({
           }}
         />
       </div>
-      <span className="om-date__hint">today is {today}</span>
+      <button
+        type="button"
+        className="om-date__hint"
+        onClick={() => {
+          const now = new Date();
+          const dd = String(now.getDate()).padStart(2, "0");
+          const mm = String(now.getMonth() + 1).padStart(2, "0");
+          const yyyy = String(now.getFullYear());
+          onChange(`${yyyy}-${mm}-${dd}`);
+        }}
+        title="Click to set today's date"
+      >
+        today is {today} <span style={{ textDecoration: "underline", color: "var(--clay)", marginLeft: 6 }}>[Fill Today]</span>
+      </button>
 
       <style jsx>{`
         .om-date {

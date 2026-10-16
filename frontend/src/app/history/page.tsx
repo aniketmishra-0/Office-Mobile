@@ -538,7 +538,14 @@ function HistoryPageInner() {
       const valSet = new Set<string>();
       for (const row of loaded.rows) {
         const v = (row[field.key] ?? "").trim();
-        if (v) valSet.add(v);
+        if (
+          v &&
+          !v.startsWith("#") &&
+          v.toUpperCase() !== "NULL" &&
+          v.toUpperCase() !== "UNDEFINED"
+        ) {
+          valSet.add(v);
+        }
       }
       // Only show filter if column has reasonable number of unique values (< 500)
       if (valSet.size > 0 && valSet.size < 500) {
