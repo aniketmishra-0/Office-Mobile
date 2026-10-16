@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { getSheetSections } from "@/lib/api";
 
 export interface OpenInOption {
   id: string;
   label: string;
   icon: string;
   description: string;
-  badge?: "coming-soon" | "new";
+  badge?: "coming-soon" | "new" | "recommended";
 }
 
 /**
@@ -19,7 +20,7 @@ export const OPEN_IN_OPTIONS: OpenInOption[] = [
     id: "quick-view",
     label: "Quick View",
     icon: "⊞",
-    description: "View all data like a spreadsheet",
+    description: "Spreadsheet view — click any row to open as form",
   },
   {
     id: "data-correction",
@@ -37,7 +38,7 @@ export const OPEN_IN_OPTIONS: OpenInOption[] = [
     id: "multi-header",
     label: "Multi-Header Filtering",
     icon: "⊟",
-    description: "Filter across multiple columns",
+    description: "Filter across multiple columns & section headers",
   },
   {
     id: "data-cleaner",
@@ -58,6 +59,8 @@ export const OPEN_IN_OPTIONS: OpenInOption[] = [
 interface Props {
   /** The sheet title to display in the modal header */
   sheetTitle: string;
+  /** Sheet URL for auto-header analysis */
+  sheetUrl?: string;
   /** Called when user picks an option */
   onSelect: (optionId: string) => void;
   /** Called when user dismisses the modal */
@@ -70,8 +73,26 @@ interface Props {
  * Appears as a centered card overlay when a user taps a saved sheet.
  * Lists all available modes the sheet can be opened in.
  */
-export default function OpenInModal({ sheetTitle, onSelect, onClose }: Props) {
+export default function OpenInModal({ sheetTitle, sheetUrl, onSelect, onClose }: Props) {
   const backdropRef = useRef<HTMLDivElement>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [detectedMulti, setDetectedMulti] = useState<{ isMulti: boolean; count: number } | null>(null);
+
+  // Check header structure in background
+  useEffect(() => {
+    if (!sheetUrl) return;
+    setAnalyzing(true);
+    getSheetSections(sheetUrl, null)
+      .then((data) => {
+        if (data && data.sections && data.sections.length > 1) {
+          setDetectedMulti({ isMulti: true, count: data.sections.length });
+        } else {
+          setDetectedMulti({ isMulti: false, count: 1 });
+        }
+      })
+      .catch(() => setDetectedMulti(null))
+      .finally(() => setAnalyzing(false));
+  }, [sheetUrl]);
 
   // Close on Escape
   useEffect(() => {
@@ -149,98 +170,186 @@ export default function OpenInModal({ sheetTitle, onSelect, onClose }: Props) {
           </p>
         </div>
 
+        {/* Analyzing or Auto-detected header alert */}
+        {analyzing && (
+          <div style={{
+            padding: "8px 16px",
+            background: "rgba(0,0,0,0.03)",
+            borderBottom: "1px solid var(--rule)",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 10,
+            fontFamily: "var(--font-plex-mono), monospace",
+            color: "var(--stone)",
+          }}>
+            <span>⏳</span> Analyzing sheet header structure...
+          </div>
+        )}
+
+        {detectedMulti?.isMulti && (
+          <div style={{
+            padding: "10px 16px",
+            background: "rgba(200, 98, 58, 0.08)",
+            borderBottom: "1px solid rgba(200, 98, 58, 0.25)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 13 }}>✨</span>
+              <span style={{
+                fontFamily: "var(--font-plex-mono), monospace",
+                fontSize: 10,
+                fontWeight: 600,
+                color: "var(--clay)",
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+              }}>
+                Multi-Header Detected ({detectedMulti.count} Sections)
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => onSelect("multi-header")}
+              style={{
+                padding: "6px 12px",
+                background: "var(--clay)",
+                color: "var(--on-clay)",
+                border: 0,
+                borderRadius: 4,
+                fontSize: 11,
+                fontFamily: "var(--font-plex-mono), monospace",
+                fontWeight: 600,
+                cursor: "pointer",
+                textAlign: "center",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+              }}
+            >
+              Open in Multi-Header Filter →
+            </button>
+          </div>
+        )}
+
         {/* Options */}
         <div>
-          {OPEN_IN_OPTIONS.map((option, idx) => (
-            <button
-              key={option.id}
-              type="button"
-              onClick={() => { if (option.badge !== "coming-soon") onSelect(option.id); }}
-              disabled={option.badge === "coming-soon"}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 14,
-                width: "100%",
-                padding: "14px 20px",
-                background: "transparent",
-                border: 0,
-                borderBottom: idx < OPEN_IN_OPTIONS.length - 1 ? "1px solid var(--rule)" : "none",
-                textAlign: "left",
-                cursor: option.badge === "coming-soon" ? "default" : "pointer",
-                opacity: option.badge === "coming-soon" ? 0.55 : 1,
-                transition: "background-color 180ms ease-out",
-              }}
-              onMouseEnter={(e) => { if (option.badge !== "coming-soon") e.currentTarget.style.background = "var(--paper)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-            >
-              <span
+          {OPEN_IN_OPTIONS.map((option, idx) => {
+            const isRecommended =
+              (option.id === "multi-header" && detectedMulti?.isMulti) ||
+              (option.id === "quick-view" && detectedMulti && !detectedMulti.isMulti);
+
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => { if (option.badge !== "coming-soon") onSelect(option.id); }}
+                disabled={option.badge === "coming-soon"}
                 style={{
-                  width: 24,
-                  height: 24,
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 15,
-                  color: "var(--charcoal)",
-                  flexShrink: 0,
+                  gap: 14,
+                  width: "100%",
+                  padding: "14px 20px",
+                  background: isRecommended ? "rgba(200, 98, 58, 0.04)" : "transparent",
+                  border: 0,
+                  borderBottom: idx < OPEN_IN_OPTIONS.length - 1 ? "1px solid var(--rule)" : "none",
+                  textAlign: "left",
+                  cursor: option.badge === "coming-soon" ? "default" : "pointer",
+                  opacity: option.badge === "coming-soon" ? 0.55 : 1,
+                  transition: "background-color 180ms ease-out",
                 }}
-                aria-hidden
+                onMouseEnter={(e) => { if (option.badge !== "coming-soon") e.currentTarget.style.background = "var(--paper)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = isRecommended ? "rgba(200, 98, 58, 0.04)" : "transparent"; }}
               >
-                {option.icon}
-              </span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p
+                <span
                   style={{
-                    fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                    fontWeight: 500,
-                    fontSize: 12,
-                    letterSpacing: "0.04em",
-                    color: "var(--ink)",
-                    margin: 0,
+                    width: 24,
+                    height: 24,
                     display: "flex",
                     alignItems: "center",
-                    gap: 8,
+                    justifyContent: "center",
+                    fontSize: 15,
+                    color: "var(--charcoal)",
+                    flexShrink: 0,
                   }}
+                  aria-hidden
                 >
-                  {option.label}
-                  {option.badge === "coming-soon" && (
-                    <span
-                      style={{
-                        fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                        fontWeight: 600,
-                        fontSize: 8,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        color: "var(--stone)",
-                        background: "var(--rule)",
-                        padding: "2px 6px",
-                        borderRadius: 3,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      Coming Soon
-                    </span>
-                  )}
-                  {option.badge === "new" && (
-                    <span
-                      style={{
-                        fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-                        fontWeight: 600,
-                        fontSize: 8,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        color: "#fff",
-                        background: "#22c55e",
-                        padding: "2px 6px",
-                        borderRadius: 3,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      New
-                    </span>
-                  )}
-                </p>
+                  {option.icon}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p
+                    style={{
+                      fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                      fontWeight: 500,
+                      fontSize: 12,
+                      letterSpacing: "0.04em",
+                      color: "var(--ink)",
+                      margin: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    {option.label}
+                    {isRecommended && (
+                      <span
+                        style={{
+                          fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                          fontWeight: 600,
+                          fontSize: 8,
+                          letterSpacing: "0.08em",
+                          textTransform: "uppercase",
+                          color: "var(--clay)",
+                          background: "rgba(200, 98, 58, 0.12)",
+                          border: "1px solid rgba(200, 98, 58, 0.3)",
+                          padding: "2px 6px",
+                          borderRadius: 3,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        ✨ Recommended
+                      </span>
+                    )}
+                    {!isRecommended && option.badge === "coming-soon" && (
+                      <span
+                        style={{
+                          fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                          fontWeight: 600,
+                          fontSize: 8,
+                          letterSpacing: "0.08em",
+                          textTransform: "uppercase",
+                          color: "var(--stone)",
+                          background: "var(--rule)",
+                          padding: "2px 6px",
+                          borderRadius: 3,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Coming Soon
+                      </span>
+                    )}
+                    {!isRecommended && option.badge === "new" && (
+                      <span
+                        style={{
+                          fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                          fontWeight: 600,
+                          fontSize: 8,
+                          letterSpacing: "0.08em",
+                          textTransform: "uppercase",
+                          color: "#fff",
+                          background: "#22c55e",
+                          padding: "2px 6px",
+                          borderRadius: 3,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        New
+                      </span>
+                    )}
+                  </p>
                 <p
                   style={{
                     fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
@@ -258,7 +367,8 @@ export default function OpenInModal({ sheetTitle, onSelect, onClose }: Props) {
                 →
               </span>
             </button>
-          ))}
+          );
+        })}
         </div>
 
         {/* Cancel */}
