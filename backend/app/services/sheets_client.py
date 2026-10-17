@@ -2408,30 +2408,25 @@ def batch_update_rows(
         if row_idx < 2:
             continue
             
-        values_dict = update["values"]
-        row_values = []
+        values_dict = update.get("values", {})
         for i, header in enumerate(headers):
-            matched = False
-            for f in fields:
-                if f.source_header == header:
-                    val = values_dict.get(f.key)
-                    if val is None:
-                        val = values_dict.get(f.source_header, "")
-                    row_values.append(_sanitize_cell(val))
-                    matched = True
-                    break
-            if not matched:
-                row_values.append("")
-                
-        # Only add unprotected cells to batch
-        for i, val in enumerate(row_values):
             if i in protected_cols:
                 continue
-            col_letter = _col_index_to_letter(i)
-            batch_data.append({
-                "range": f"{sheet_title}!{col_letter}{row_idx}",
-                "values": [[val]]
-            })
+            for f in fields:
+                if f.source_header == header:
+                    val = None
+                    if f.key in values_dict:
+                        val = values_dict[f.key]
+                    elif f.source_header in values_dict:
+                        val = values_dict[f.source_header]
+                    
+                    if val is not None:
+                        col_letter = _col_index_to_letter(i)
+                        batch_data.append({
+                            "range": f"{sheet_title}!{col_letter}{row_idx}",
+                            "values": [[_sanitize_cell(val)]]
+                        })
+                    break
             
     if not batch_data:
         return 0

@@ -15,6 +15,7 @@ import {
   getSheetHistory,
   lookupFormsBySheet,
   updateSheetRow,
+  batchUpdateRows,
   checkSheetAccess,
   getProtectedColumns,
 } from "@/lib/api";
@@ -116,6 +117,16 @@ function DataFillPageInner() {
   const [editValues, setEditValues] = useState<Record<string, string>>({});
   const [editMode, setEditMode] = useState(false);
 
+  // Batch & Multi-row update state
+  const [pendingUpdates, setPendingUpdates] = useState<Record<number, Record<string, string>>>({});
+  const [isBatchSaving, setIsBatchSaving] = useState(false);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedRowIndices, setSelectedRowIndices] = useState<Set<number>>(new Set());
+  const [showBulkEditModal, setShowBulkEditModal] = useState(false);
+  const [bulkFieldKey, setBulkFieldKey] = useState<string>("");
+  const [bulkValue, setBulkValue] = useState<string>("");
+  const [bulkIsSubmitting, setBulkIsSubmitting] = useState(false);
+
   // Pagination
   const ROWS_PER_PAGE = 100;
   const [visibleCount, setVisibleCount] = useState(ROWS_PER_PAGE);
@@ -215,6 +226,9 @@ function DataFillPageInner() {
 
   async function selectTab(tab: TabOption, sheet_url?: string) {
     setAvailableTabs(null); setLoading(true); setError(null);
+    setPendingUpdates({});
+    setSelectedRowIndices(new Set());
+    setIsSelectionMode(false);
     try {
       const u = sheet_url ?? sheetUrl;
       // Always read directly from the sheet to get live headers.
@@ -282,44 +296,158 @@ function DataFillPageInner() {
   const visibleRows = useMemo(() => filteredAndSortedRows.slice(0, visibleCount), [filteredAndSortedRows, visibleCount]);
 
   // ---------------------------------------------------------------------------
-  // Row helpers
+  // Row helpers & Batch operations
   // ---------------------------------------------------------------------------
-  function getSheetRowIndex(filteredIdx: number): number {
-    if (!loaded) return -1;
-    const row = filteredAndSortedRows[filteredIdx];
-    // Use the actual sheet row index stored in the row data (set by backend).
-    // Falls back to array-index-based calculation for backward compatibility.
+  const pendingCount = useMemo(() => Object.keys(pendingUpdates).length, [pendingUpdates]);
+
+  function getRowSheetIndex(row: Record<string, string>): number {
     if (row["_row_index"]) {
       return parseInt(row["_row_index"], 10);
     }
-    const originalIdx = loaded.rows.indexOf(row);
-    return originalIdx + 2;
+    if (loaded) {
+      const originalIdx = loaded.rows.indexOf(row);
+      if (originalIdx >= 0) return originalIdx + 2;
+    }
+    return -1;
   }
+
+  function getSheetRowIndex(filteredIdx: number): number {
+    if (!loaded) return -1;
+    const row = filteredAndSortedRows[filteredIdx];
+    return getRowSheetIndex(row);
+  }
+
+  const isCurrentRowDirty = useMemo(() => {
+    if (selectedRowIdx === null || !filteredAndSortedRows[selectedRowIdx]) return false;
+    const row = filteredAndSortedRows[selectedRowIdx];
+    return Object.entries(editValues).some(([k, v]) => (v ?? "").trim() !== (row[k] ?? "").trim());
+  }, [selectedRowIdx, filteredAndSortedRows, editValues]);
 
   function handleSelectRow(filteredIdx: number) {
     const row = filteredAndSortedRows[filteredIdx];
     setSelectedRowIdx(filteredIdx);
-    // Exclude internal metadata keys (like _row_index) from edit values
     const { _row_index, ...editableValues } = row;
     setEditValues({ ...editableValues });
     setEditMode(false);
     setSuccessMsg(null);
   }
 
+  function toggleRowSelection(rowIndex: number) {
+    setSelectedRowIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowIndex)) next.delete(rowIndex);
+      else next.add(rowIndex);
+      return next;
+    });
+  }
+
+  function handleSelectAllVisible() {
+    const visibleSheetIndices = visibleRows.map((r) => getRowSheetIndex(r)).filter((idx) => idx >= 2);
+    const allSelected = visibleSheetIndices.length > 0 && visibleSheetIndices.every((idx) => selectedRowIndices.has(idx));
+    if (allSelected) {
+      setSelectedRowIndices(new Set());
+    } else {
+      setSelectedRowIndices(new Set(visibleSheetIndices));
+    }
+  }
+
+  function stageCurrentRow() {
+    if (selectedRowIdx === null || !loaded) return;
+    const rowIndex = getSheetRowIndex(selectedRowIdx);
+    if (rowIndex < 2) return;
+
+    setPendingUpdates((prev) => ({
+      ...prev,
+      [rowIndex]: { ...editValues },
+    }));
+
+    const updatedRows = [...loaded.rows];
+    const originalIdx = loaded.rows.indexOf(filteredAndSortedRows[selectedRowIdx]);
+    if (originalIdx >= 0) {
+      updatedRows[originalIdx] = { ...editValues, _row_index: String(rowIndex) };
+      setLoaded({ ...loaded, rows: updatedRows });
+    }
+
+    setEditMode(false);
+    setSuccessMsg(`Row ${rowIndex} changes staged!`);
+    setTimeout(() => setSuccessMsg(null), 2500);
+  }
+
+  function stageCurrentAndNext() {
+    if (selectedRowIdx === null || !loaded) return;
+    const rowIndex = getSheetRowIndex(selectedRowIdx);
+    if (rowIndex < 2) return;
+
+    setPendingUpdates((prev) => ({
+      ...prev,
+      [rowIndex]: { ...editValues },
+    }));
+
+    const updatedRows = [...loaded.rows];
+    const originalIdx = loaded.rows.indexOf(filteredAndSortedRows[selectedRowIdx]);
+    if (originalIdx >= 0) {
+      updatedRows[originalIdx] = { ...editValues, _row_index: String(rowIndex) };
+      setLoaded({ ...loaded, rows: updatedRows });
+    }
+
+    setSuccessMsg(`Row ${rowIndex} staged!`);
+    setTimeout(() => setSuccessMsg(null), 2000);
+
+    if (selectedRowIdx < filteredAndSortedRows.length - 1) {
+      const next = selectedRowIdx + 1;
+      const nextRow = filteredAndSortedRows[next];
+      setSelectedRowIdx(next);
+      const { _row_index, ...nextEditable } = nextRow;
+      setEditValues({ ...nextEditable });
+      setEditMode(true);
+    } else {
+      setEditMode(false);
+    }
+  }
+
+  function handleDiscardRow(rowIndex: number) {
+    if (!pendingUpdates[rowIndex]) return;
+    setPendingUpdates((prev) => {
+      const next = { ...prev };
+      delete next[rowIndex];
+      return next;
+    });
+    if (sheetUrl && loaded) {
+      getSheetHistory(sheetUrl, loaded.worksheet_name)
+        .then((data) => {
+          setLoaded(data);
+          const row = data.rows.find((r) => r._row_index === String(rowIndex));
+          if (row && selectedRowIdx !== null) {
+            const { _row_index, ...ev } = row;
+            setEditValues(ev);
+          }
+        })
+        .catch(() => {});
+    }
+    setSuccessMsg(`Row ${rowIndex} changes reverted.`);
+    setTimeout(() => setSuccessMsg(null), 2000);
+  }
+
   function goToNextRow() {
     if (selectedRowIdx === null) return;
+    if (isCurrentRowDirty && editMode) {
+      stageCurrentRow();
+    }
     const next = selectedRowIdx + 1;
     if (next < filteredAndSortedRows.length) { handleSelectRow(next); }
   }
 
   function goToPrevRow() {
     if (selectedRowIdx === null) return;
+    if (isCurrentRowDirty && editMode) {
+      stageCurrentRow();
+    }
     const prev = selectedRowIdx - 1;
     if (prev >= 0) { handleSelectRow(prev); }
   }
 
   // ---------------------------------------------------------------------------
-  // Save row
+  // Save row & Batch Save
   // ---------------------------------------------------------------------------
   async function handleSave() {
     if (selectedRowIdx === null || !loaded) return;
@@ -336,6 +464,12 @@ function DataFillPageInner() {
       if (originalIdx >= 0) { updatedRows[originalIdx] = { ...editValues, _row_index: String(rowIndex) }; }
       setLoaded({ ...loaded, rows: updatedRows });
       setEditMode(false);
+      setPendingUpdates((prev) => {
+        if (!prev[rowIndex]) return prev;
+        const next = { ...prev };
+        delete next[rowIndex];
+        return next;
+      });
       setSuccessMsg("Row updated successfully!");
       setTimeout(() => setSuccessMsg(null), 3000);
     } catch (e: any) {
@@ -346,10 +480,8 @@ function DataFillPageInner() {
         try {
           const freshData = await getSheetHistory(sheetUrl, loaded.worksheet_name);
           // Remap editValues: match old values to new field keys by label (case-insensitive)
-          const oldFieldsByKey = Object.fromEntries(loaded.fields.map((f) => [f.key, f]));
           const remapped: Record<string, string> = {};
           for (const newField of freshData.fields) {
-            // Try to find the matching old field by label
             const oldField = loaded.fields.find(
               (of) => of.label.toLowerCase().trim() === newField.label.toLowerCase().trim()
             );
@@ -361,12 +493,10 @@ function DataFillPageInner() {
               remapped[newField.key] = "";
             }
           }
-          // Retry with remapped values
           await updateSheetRow({
             sheet_url: sheetUrl, worksheet_name: freshData.worksheet_name,
             row_index: rowIndex, values: remapped,
           });
-          // Update local state with fresh field structure
           const updatedRows = [...freshData.rows];
           const matchingRow = updatedRows.find((r) => r._row_index === String(rowIndex));
           if (matchingRow) {
@@ -375,6 +505,12 @@ function DataFillPageInner() {
           setLoaded({ worksheet_name: freshData.worksheet_name, fields: freshData.fields, rows: updatedRows });
           setEditValues(remapped);
           setEditMode(false);
+          setPendingUpdates((prev) => {
+            if (!prev[rowIndex]) return prev;
+            const next = { ...prev };
+            delete next[rowIndex];
+            return next;
+          });
           setSuccessMsg("Row updated successfully (headers refreshed)!");
           setTimeout(() => setSuccessMsg(null), 3000);
         } catch (retryErr: any) {
@@ -385,6 +521,123 @@ function DataFillPageInner() {
       }
     }
     finally { setSaving(false); }
+  }
+
+  async function handleSaveAllPending() {
+    if (!loaded || Object.keys(pendingUpdates).length === 0) return;
+    setIsBatchSaving(true);
+    setError(null);
+    setSuccessMsg(null);
+
+    const updates = Object.entries(pendingUpdates).map(([rIdx, vals]) => ({
+      row_index: Number(rIdx),
+      values: vals,
+    }));
+
+    try {
+      const res = await batchUpdateRows(sheetUrl, loaded.worksheet_name, updates);
+      const count = res.updated_count || updates.length;
+      setPendingUpdates({});
+      setSuccessMsg(`⚡ Successfully updated ${count} row${count > 1 ? "s" : ""} in Google Sheet!`);
+      setTimeout(() => setSuccessMsg(null), 4000);
+    } catch (e: any) {
+      const msg = typeof e?.message === "string" ? e.message : typeof e === "string" ? e : "Failed to save batch updates to Google Sheet";
+      setError(msg);
+    } finally {
+      setIsBatchSaving(false);
+    }
+  }
+
+  async function handleDiscardPending() {
+    if (!confirm("Are you sure you want to discard all staged changes?")) return;
+    setPendingUpdates({});
+    if (sheetUrl && loaded) {
+      try {
+        setLoading(true);
+        const data = await getSheetHistory(sheetUrl, loaded.worksheet_name);
+        setLoaded({ worksheet_name: data.worksheet_name, fields: data.fields, rows: data.rows });
+        setSuccessMsg("All staged changes discarded.");
+        setTimeout(() => setSuccessMsg(null), 2500);
+      } catch {
+        setError("Failed to refresh sheet after discarding");
+      } finally {
+        setLoading(false);
+      }
+    }
+  }
+
+  async function handleApplyBulkEdit(saveImmediately: boolean) {
+    if (!loaded || !bulkFieldKey || selectedRowIndices.size === 0) return;
+    const targetField = loaded.fields.find((f) => f.key === bulkFieldKey);
+    if (!targetField) return;
+
+    const rowIndicesArray = Array.from(selectedRowIndices);
+
+    if (saveImmediately) {
+      setBulkIsSubmitting(true);
+      setError(null);
+      try {
+        const updates = rowIndicesArray.map((rIdx) => ({
+          row_index: rIdx,
+          values: { [bulkFieldKey]: bulkValue },
+        }));
+
+        const res = await batchUpdateRows(sheetUrl, loaded.worksheet_name, updates);
+        const count = res.updated_count || rowIndicesArray.length;
+
+        const updatedRows = loaded.rows.map((r) => {
+          const sIdx = getRowSheetIndex(r);
+          if (selectedRowIndices.has(sIdx)) {
+            return { ...r, [bulkFieldKey]: bulkValue };
+          }
+          return r;
+        });
+
+        setPendingUpdates((prev) => {
+          const next = { ...prev };
+          for (const idx of rowIndicesArray) {
+            if (next[idx]) {
+              next[idx] = { ...next[idx], [bulkFieldKey]: bulkValue };
+            }
+          }
+          return next;
+        });
+
+        setLoaded({ ...loaded, rows: updatedRows });
+        setShowBulkEditModal(false);
+        setSelectedRowIndices(new Set());
+        setIsSelectionMode(false);
+        setSuccessMsg(`⚡ Successfully updated ${count} row${count > 1 ? "s" : ""} in Google Sheet!`);
+        setTimeout(() => setSuccessMsg(null), 4000);
+      } catch (e: any) {
+        setError(typeof e?.message === "string" ? e.message : "Failed to update rows");
+      } finally {
+        setBulkIsSubmitting(false);
+      }
+    } else {
+      setPendingUpdates((prev) => {
+        const next = { ...prev };
+        for (const rIdx of rowIndicesArray) {
+          next[rIdx] = { ...(next[rIdx] || {}), [bulkFieldKey]: bulkValue };
+        }
+        return next;
+      });
+
+      const updatedRows = loaded.rows.map((r) => {
+        const sIdx = getRowSheetIndex(r);
+        if (selectedRowIndices.has(sIdx)) {
+          return { ...r, [bulkFieldKey]: bulkValue };
+        }
+        return r;
+      });
+
+      setLoaded({ ...loaded, rows: updatedRows });
+      setShowBulkEditModal(false);
+      setSelectedRowIndices(new Set());
+      setIsSelectionMode(false);
+      setSuccessMsg(`Staged "${targetField.label}" for ${rowIndicesArray.length} rows! Click "Save All to Sheet" when ready.`);
+      setTimeout(() => setSuccessMsg(null), 4000);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -413,6 +666,14 @@ function DataFillPageInner() {
   }
 
   const handleReset = useCallback(() => {
+    if (Object.keys(pendingUpdates).length > 0) {
+      if (!window.confirm("You have staged changes that are not saved to Google Sheets yet. Discard them?")) {
+        return;
+      }
+    }
+    setPendingUpdates({});
+    setSelectedRowIndices(new Set());
+    setIsSelectionMode(false);
     // If there were multiple tabs, go back to the tab picker (state change only)
     // instead of navigating away. This prevents skipping the tab picker step.
     if (allTabs && allTabs.length > 1) {
@@ -427,7 +688,7 @@ function DataFillPageInner() {
       // Single tab or no tabs — go back in browser history
       router.back();
     }
-  }, [router, allTabs]);
+  }, [router, allTabs, pendingUpdates]);
 
   // ─── Back-gesture wiring ────────────────────────────────────────────
   // Translate the multi-state flow (input → tabs → loaded → detail) into
@@ -566,9 +827,29 @@ function DataFillPageInner() {
             </button>
           </div>
 
+          {/* Staged sync notice */}
+          {pendingCount > 0 && (
+            <div className="mb-4 px-3.5 py-2.5 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-3 animate-fade-in shadow-xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse flex-shrink-0" />
+                <span className="text-[12px] font-semibold text-amber-900 truncate">
+                  {pendingCount} row{pendingCount > 1 ? "s" : ""} staged for sheet sync
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveAllPending}
+                disabled={isBatchSaving}
+                className="px-3 py-1.5 text-[11px] font-semibold bg-zinc-950 text-white rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-50 flex items-center gap-1.5 flex-shrink-0 shadow-xs"
+              >
+                {isBatchSaving ? "Syncing..." : `Save All (${pendingCount})`}
+              </button>
+            </div>
+          )}
+
           {/* Badges + Edit toggle */}
           <div className="mb-3 flex items-center justify-between">
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center flex-wrap">
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700">
                 <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
                 {filledCount} Filled
@@ -577,6 +858,12 @@ function DataFillPageInner() {
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-red-100 text-red-700">
                   <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
                   {missingCount} Missing
+                </span>
+              )}
+              {pendingUpdates[getSheetRowIndex(selectedRowIdx)] && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                  Staged Draft
                 </span>
               )}
             </div>
@@ -739,12 +1026,44 @@ function DataFillPageInner() {
         </div>
 
         {editMode && (
-          <div className="w-full max-w-[560px] mx-auto px-5 mt-6 mb-4">
-            <SubmitButton
-              label="Save Changes to Sheet"
-              submitting={saving}
-              onClick={handleSave}
-            />
+          <div className="w-full max-w-[560px] mx-auto px-5 mt-6 mb-8 space-y-2.5">
+            {hasNext && (
+              <button
+                type="button"
+                onClick={stageCurrentAndNext}
+                className="w-full py-3 px-4 rounded-xl font-semibold text-[13px] bg-zinc-950 text-white hover:bg-zinc-800 active:scale-[0.99] transition-all flex items-center justify-center gap-2 shadow-sm"
+              >
+                <span>Stage & Next Row</span>
+                <span className="text-zinc-400">→</span>
+              </button>
+            )}
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={stageCurrentRow}
+                className="flex-1 py-2.5 px-3 rounded-xl font-semibold text-[12px] bg-white border border-zinc-300 text-zinc-800 hover:bg-zinc-50 active:scale-[0.99] transition-all flex items-center justify-center gap-1.5 shadow-xs"
+              >
+                <span className="w-2 h-2 rounded-full bg-amber-500" />
+                Stage Changes
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="flex-1 py-2.5 px-3 rounded-xl font-semibold text-[12px] bg-emerald-600 hover:bg-emerald-500 text-white active:scale-[0.99] transition-all flex items-center justify-center gap-1.5 shadow-xs disabled:opacity-50"
+              >
+                {saving ? "Saving..." : "Save to Sheet Now"}
+              </button>
+            </div>
+            {pendingUpdates[getSheetRowIndex(selectedRowIdx)] && (
+              <button
+                type="button"
+                onClick={() => handleDiscardRow(getSheetRowIndex(selectedRowIdx))}
+                className="w-full text-center py-1.5 text-[11px] text-zinc-500 hover:text-red-600 transition-colors"
+              >
+                Revert this row to original sheet data
+              </button>
+            )}
           </div>
         )}
         <ErrorToast message={error} onDismiss={() => setError(null)} />
@@ -758,7 +1077,7 @@ function DataFillPageInner() {
       <div className="flex flex-col min-h-screen bg-zinc-100 overflow-y-auto">
         <AppHeader title="Data Correction" showBack onBack={() => window.history.back()} />
         {loading && <LoadingOverlay message="Loading entries..." />}
-        <div className="flex-1 w-full max-w-[560px] md:max-w-[720px] lg:max-w-[900px] xl:max-w-[1100px] mx-auto px-5 pt-8 pb-10">
+        <div className="flex-1 w-full max-w-[560px] md:max-w-[720px] lg:max-w-[900px] xl:max-w-[1100px] mx-auto px-5 pt-8 pb-32">
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
             <div className="min-w-0 flex-1">
@@ -767,6 +1086,24 @@ function DataFillPageInner() {
             </div>
             <button type="button" onClick={handleReset} className="text-[12px] font-medium text-zinc-600 hover:text-zinc-900 px-3 py-1.5 rounded-lg hover:bg-zinc-200 flex-shrink-0">Change</button>
           </div>
+
+          {successMsg && (
+            <div className="mb-4 px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-[13px] text-emerald-800 font-medium flex items-center justify-between gap-2 shadow-xs animate-fade-in">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-emerald-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span>{successMsg}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSuccessMsg(null)}
+                className="text-emerald-600 hover:text-emerald-800 text-xs"
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
           {/* Filter + Sort controls */}
           <div className="flex items-center gap-2 mb-3 flex-wrap">
@@ -788,6 +1125,35 @@ function DataFillPageInner() {
                 onChange={(val) => setSortMode(val as SortMode)}
               />
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                const nextMode = !isSelectionMode;
+                setIsSelectionMode(nextMode);
+                if (!nextMode) setSelectedRowIndices(new Set());
+              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] font-semibold border transition-all ${
+                isSelectionMode
+                  ? "bg-zinc-900 text-white border-zinc-900 shadow-xs"
+                  : "bg-white text-zinc-700 border-zinc-200 hover:border-zinc-400"
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {isSelectionMode ? "Exit Select" : "Select Rows"}
+            </button>
+            {isSelectionMode && (
+              <button
+                type="button"
+                onClick={handleSelectAllVisible}
+                className="text-[11px] font-semibold text-zinc-700 hover:text-zinc-950 px-2.5 py-1.5 bg-zinc-200/80 rounded-lg transition-colors"
+              >
+                {selectedRowIndices.size === visibleRows.length && visibleRows.length > 0
+                  ? "Deselect All"
+                  : `Select All (${visibleRows.length})`}
+              </button>
+            )}
             {filters.length > 0 && (
               <button onClick={() => setFilters([])} className="text-[11px] font-medium text-red-500 hover:text-red-700 px-2 py-1">Clear filters</button>
             )}
@@ -877,31 +1243,101 @@ function DataFillPageInner() {
             </div>
           )}
           {filteredAndSortedRows.length > 0 && (
-            <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden desktop-grid-list">
+            <div className="rounded-lg border border-zinc-200 bg-white overflow-hidden desktop-grid-list shadow-xs">
               {visibleRows.map((row, idx) => {
+                const sheetRowIdx = getRowSheetIndex(row);
+                const isStaged = pendingUpdates[sheetRowIdx] !== undefined;
+                const isSelected = selectedRowIndices.has(sheetRowIdx);
                 const missing = getMissingCount(row);
                 const filled = getFilledCount(row);
                 const total = loaded.fields.length;
                 const pct = total > 0 ? Math.round((filled / total) * 100) : 0;
                 const parts: string[] = [];
-                for (const f of loaded.fields) { if (parts.length >= 3) break; const val = row[f.key]; if (val?.trim()) parts.push(val.trim()); }
+                for (const f of loaded.fields) {
+                  if (parts.length >= 3) break;
+                  const val = row[f.key];
+                  if (val?.trim()) parts.push(val.trim());
+                }
+
                 return (
-                  <button key={idx} type="button" onClick={() => handleSelectRow(idx)}
-                    className="w-full text-left px-4 py-3 text-[13px] border-b border-zinc-100 last:border-b-0 transition-colors hover:bg-zinc-50 active:bg-zinc-100 group">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <span className="truncate text-zinc-800 font-medium block">{parts.join(" · ") || "Empty row"}</span>
-                        <div className="flex items-center gap-2 mt-1">
-                          <div className="w-16 h-1.5 rounded-full bg-zinc-100 overflow-hidden">
-                            <div className={`h-full rounded-full transition-all ${pct === 100 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-400" : "bg-red-400"}`} style={{ width: `${pct}%` }} />
-                          </div>
-                          <span className="text-[10px] text-zinc-500 font-medium">{pct}%</span>
-                          {missing > 0 && <span className="text-[10px] text-red-500 font-medium">{missing} missing</span>}
+                  <div
+                    key={idx}
+                    onClick={() => {
+                      if (isSelectionMode) {
+                        toggleRowSelection(sheetRowIdx);
+                      } else {
+                        handleSelectRow(idx);
+                      }
+                    }}
+                    className={`w-full text-left px-4 py-3 text-[13px] border-b border-zinc-100 last:border-b-0 transition-colors cursor-pointer group flex items-center gap-3 ${
+                      isSelected
+                        ? "bg-zinc-100/90"
+                        : isStaged
+                        ? "bg-amber-50/50 hover:bg-amber-50/80"
+                        : "hover:bg-zinc-50 active:bg-zinc-100"
+                    }`}
+                  >
+                    {isSelectionMode && (
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleRowSelection(sheetRowIdx);
+                        }}
+                        className="flex-shrink-0 cursor-pointer"
+                      >
+                        <div
+                          className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
+                            isSelected
+                              ? "bg-zinc-950 border-zinc-950 text-white shadow-xs"
+                              : "border-zinc-300 bg-white hover:border-zinc-500"
+                          }`}
+                        >
+                          {isSelected && (
+                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          )}
                         </div>
                       </div>
-                      <svg className="w-3.5 h-3.5 text-zinc-300 group-hover:text-zinc-700 flex-shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-zinc-900 font-medium block">
+                          {parts.join(" · ") || "Empty row"}
+                        </span>
+                        {isStaged && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-300 flex-shrink-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                            Staged
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="w-16 h-1.5 rounded-full bg-zinc-100 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              pct === 100 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-400" : "bg-red-400"
+                            }`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-zinc-500 font-medium">{pct}%</span>
+                        {missing > 0 && <span className="text-[10px] text-red-500 font-medium">{missing} missing</span>}
+                        <span className="text-[10px] text-zinc-400 font-mono ml-auto">Row {sheetRowIdx}</span>
+                      </div>
                     </div>
-                  </button>
+                    {!isSelectionMode && (
+                      <svg
+                        className="w-3.5 h-3.5 text-zinc-300 group-hover:text-zinc-700 flex-shrink-0 transition-colors"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                      </svg>
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -913,6 +1349,234 @@ function DataFillPageInner() {
             </button>
           )}
         </div>
+
+        {/* Floating action bar for selection */}
+        {selectedRowIndices.size > 0 && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] max-w-[560px] bg-zinc-950 text-white rounded-2xl shadow-2xl p-3.5 z-40 flex items-center justify-between gap-3 border border-zinc-800 animate-slide-up">
+            <div className="flex items-center gap-2 pl-1">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[13px] font-semibold tracking-wide">
+                {selectedRowIndices.size} selected
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedRowIndices(new Set());
+                  setIsSelectionMode(false);
+                }}
+                className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-900 transition-colors"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (loaded && loaded.fields.length > 0) {
+                    const firstEditable = loaded.fields.find((f) => !protectedHeaders.has(f.key));
+                    setBulkFieldKey(firstEditable ? firstEditable.key : loaded.fields[0].key);
+                    setBulkValue("");
+                    setShowBulkEditModal(true);
+                  }
+                }}
+                className="px-4 py-2 text-xs font-semibold bg-emerald-500 hover:bg-emerald-400 text-zinc-950 rounded-xl transition-all active:scale-[0.98] flex items-center gap-1.5 shadow"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                </svg>
+                Bulk Edit ({selectedRowIndices.size})
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Floating action bar for pending staged updates */}
+        {pendingCount > 0 && selectedRowIndices.size === 0 && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] max-w-[560px] bg-zinc-950 text-white rounded-2xl shadow-2xl p-3.5 z-40 flex items-center justify-between gap-3 border border-zinc-800 animate-slide-up">
+            <div className="flex items-center gap-2.5 pl-1 min-w-0">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+              <div className="min-w-0">
+                <span className="text-[13px] font-semibold tracking-wide block truncate">
+                  {pendingCount} row{pendingCount > 1 ? "s" : ""} staged
+                </span>
+                <span className="text-[10px] text-zinc-400 block -mt-0.5">unsaved in sheet</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                type="button"
+                onClick={handleDiscardPending}
+                disabled={isBatchSaving}
+                className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-900 transition-colors"
+              >
+                Discard
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveAllPending}
+                disabled={isBatchSaving}
+                className="px-4 py-2 text-xs font-semibold bg-emerald-500 hover:bg-emerald-400 text-zinc-950 rounded-xl transition-all active:scale-[0.98] flex items-center gap-1.5 shadow disabled:opacity-50"
+              >
+                {isBatchSaving ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-zinc-950 border-t-transparent rounded-full animate-spin" />
+                    Syncing...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                    Save All ({pendingCount})
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Bulk Edit Modal */}
+        {showBulkEditModal && loaded && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+            <div className="w-full max-w-[480px] bg-white rounded-2xl shadow-2xl p-6 space-y-5 border border-zinc-200 animate-scale-up">
+              <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
+                <div>
+                  <h3 className="text-[16px] font-bold text-zinc-950">Bulk Edit Rows</h3>
+                  <p className="text-[12px] text-zinc-500">Apply to {selectedRowIndices.size} selected row{selectedRowIndices.size > 1 ? "s" : ""}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowBulkEditModal(false)}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[11px] font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">
+                    Select Field to Update
+                  </label>
+                  <select
+                    value={bulkFieldKey}
+                    onChange={(e) => {
+                      setBulkFieldKey(e.target.value);
+                      setBulkValue("");
+                    }}
+                    className="w-full px-3 py-2 text-[14px] rounded-lg border border-zinc-200 bg-white focus:outline-none focus:ring-2 focus:ring-zinc-900"
+                  >
+                    {loaded.fields.map((f) => {
+                      const isProt = protectedHeaders.has(f.key);
+                      return (
+                        <option key={f.key} value={f.key} disabled={isProt}>
+                          {f.label} {isProt ? "(Protected 🔒)" : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                {(() => {
+                  const targetField = loaded.fields.find((f) => f.key === bulkFieldKey) || loaded.fields[0];
+                  if (!targetField) return null;
+                  const isCheckboxField = targetField.type === "checkbox" || targetField.label.toLowerCase().includes("status") || (targetField.options && targetField.options.length === 2 && targetField.options.includes("TRUE"));
+                  const hasOptions = (targetField.options && targetField.options.length > 0) || targetField.type === "select";
+
+                  return (
+                    <div>
+                      <label className="block text-[11px] font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">
+                        New Value for {targetField.label}
+                      </label>
+
+                      {targetField.type === "checkbox" ? (
+                        <div className="flex items-center gap-3 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setBulkValue(bulkValue === "TRUE" ? "FALSE" : "TRUE")}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                              bulkValue === "TRUE" ? "bg-emerald-500" : "bg-zinc-300"
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                bulkValue === "TRUE" ? "translate-x-6" : "translate-x-1"
+                              }`}
+                            />
+                          </button>
+                          <span className="text-[13px] font-semibold text-zinc-800">
+                            {bulkValue === "TRUE" ? "TRUE" : "FALSE"}
+                          </span>
+                        </div>
+                      ) : hasOptions && targetField.options ? (
+                        <select
+                          value={bulkValue}
+                          onChange={(e) => setBulkValue(e.target.value)}
+                          className="w-full px-3 py-2 text-[14px] rounded-lg border border-zinc-200 bg-white focus:outline-none focus:ring-2 focus:ring-zinc-900"
+                        >
+                          <option value="">— Select an option —</option>
+                          {targetField.options.map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type={targetField.type === "number" ? "number" : targetField.type === "date" ? "date" : "text"}
+                          value={bulkValue}
+                          onChange={(e) => setBulkValue(e.target.value)}
+                          placeholder={`Enter value for ${targetField.label}`}
+                          className="w-full px-3 py-2 text-[14px] rounded-lg border border-zinc-200 bg-white focus:outline-none focus:ring-2 focus:ring-zinc-900"
+                        />
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-100 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setShowBulkEditModal(false)}
+                  className="px-3.5 py-2 text-xs font-medium text-zinc-600 hover:bg-zinc-100 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyBulkEdit(false)}
+                  disabled={bulkIsSubmitting}
+                  className="px-3.5 py-2 text-xs font-semibold bg-zinc-100 hover:bg-zinc-200 text-zinc-800 rounded-lg transition-colors"
+                >
+                  Stage Changes ({selectedRowIndices.size})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyBulkEdit(true)}
+                  disabled={bulkIsSubmitting}
+                  className="px-4 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                >
+                  {bulkIsSubmitting ? (
+                    <>
+                      <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                      </svg>
+                      Save to Sheet Now
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <ErrorToast message={error} onDismiss={() => setError(null)} />
       </div>
     );

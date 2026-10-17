@@ -1405,20 +1405,25 @@ async def batch_update_endpoint(payload: BatchUpdateRequest):
     from app.utils.sanitizer import headers_to_fields
     
     try:
-        headers = await asyncio.to_thread(
+        _title, _ws, raw_headers = await asyncio.to_thread(
             read_headers,
             spreadsheet_id=spreadsheet_id,
             worksheet_name=payload.worksheet_name
         )
-        fields = headers_to_fields(headers)
+        fields, _warnings = headers_to_fields(raw_headers)
         
-        count = await asyncio.to_thread(
-            batch_update_rows,
-            spreadsheet_id=spreadsheet_id,
-            worksheet_name=payload.worksheet_name,
-            row_updates=payload.row_updates,
-            fields=fields,
-        )
+        _session_key = get_current_oauth_session_key()
+
+        def _do_batch_update():
+            with oauth_session_context(_session_key):
+                return batch_update_rows(
+                    spreadsheet_id=spreadsheet_id,
+                    worksheet_name=payload.worksheet_name,
+                    row_updates=payload.row_updates,
+                    fields=fields,
+                )
+
+        count = await asyncio.to_thread(_do_batch_update)
         return BatchUpdateResponse(success=True, updated_count=count)
     except Exception as exc:
         raise _sheet_error(exc)

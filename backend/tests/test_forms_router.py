@@ -440,3 +440,32 @@ class TestUpdateForm:
         }
         response = client.put(f"/api/forms/{form_id}", json=payload)
         assert response.status_code == 403
+
+
+# ===========================================================================
+# 8. Batch Update Endpoint
+# ===========================================================================
+
+
+class TestBatchUpdateEndpoint:
+    def test_batch_update_success(self, client):
+        sheet_url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/edit"
+        payload = {
+            "sheet_url": sheet_url,
+            "worksheet_name": "Sheet1",
+            "row_updates": [
+                {"row_index": 2, "values": {"full_name": "Alice Updated", "email": "alice@test.com"}},
+                {"row_index": 3, "values": {"full_name": "Bob Updated"}},
+            ],
+        }
+
+        with patch("app.routers.forms._has_credentials", return_value=True), \
+             patch("app.routers.forms.read_headers", return_value=("Test Sheet", None, ["Full Name", "Email"])), \
+             patch("app.services.sheets_client.batch_update_rows", return_value=2) as mock_batch:
+            response = client.post("/api/sheet/batch-update", json=payload)
+
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data["success"] is True
+        assert data["updated_count"] == 2
+
