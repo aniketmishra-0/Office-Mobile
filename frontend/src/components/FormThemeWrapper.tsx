@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { getFormTheme } from "@/lib/formThemes";
 import type { FormTheme } from "@/lib/formThemes";
 
@@ -21,6 +21,33 @@ export default function FormThemeWrapper({ designId, children }: Props) {
     const bg = (theme.styles.pageBg || "").toLowerCase();
     return bg.includes("#0") || bg.includes("#1") || bg.includes("#2") || bg.includes("rgb(1") || bg.includes("rgb(2");
   }, [theme]);
+
+  // Ensure document-level theme classes don't conflict with the form's chosen theme
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const root = document.documentElement;
+    const prevTheme = root.getAttribute("data-theme");
+    const wasDark = root.classList.contains("dark");
+
+    if (isDark) {
+      root.classList.add("dark");
+      root.setAttribute("data-theme", "dark");
+    } else {
+      root.classList.remove("dark");
+      root.setAttribute("data-theme", "light");
+    }
+
+    return () => {
+      if (wasDark) {
+        root.classList.add("dark");
+      } else {
+        root.classList.remove("dark");
+      }
+      if (prevTheme) {
+        root.setAttribute("data-theme", prevTheme);
+      }
+    };
+  }, [isDark]);
 
   const cssVars = useMemo(() => ({
     "--ft-page-bg": theme.styles.pageBg,

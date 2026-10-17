@@ -762,43 +762,57 @@ function ComboboxControl({
       {/* Floating Options Dropdown Menu inside app */}
       {isOpen && cleanOptions.length > 0 && (
         <div className="om-combobox-dropdown">
-          {filteredOptions.length === 0 ? (
-            <div className="om-combobox-empty">No options match &quot;{value}&quot;</div>
-          ) : (
-            filteredOptions.map((opt) => {
-              const isSelected = value.trim() === opt.trim();
-              return (
-                <button
-                  type="button"
-                  key={opt}
-                  className={`om-combobox-option ${isSelected ? "is-selected" : ""}`}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                  }}
-                  onClick={() => {
-                    onChange(opt);
-                    setDropdownOpen(false);
-                    onBlur();
-                  }}
-                >
-                  <span className="truncate">{opt}</span>
-                  {isSelected && (
-                    <span
-                      style={{
-                        color: "var(--ft-accent, var(--clay))",
-                        fontSize: 13,
-                        fontWeight: 700,
-                        marginLeft: 8,
-                        flexShrink: 0,
-                      }}
-                    >
-                      ✓
-                    </span>
-                  )}
-                </button>
-              );
-            })
-          )}
+          <div className="om-combobox-dropdown-header">
+            <span>Select an option</span>
+            <span className="om-combobox-count">{filteredOptions.length} available</span>
+          </div>
+
+          <div className="om-combobox-options-list">
+            {filteredOptions.length === 0 ? (
+              <div className="om-combobox-empty">
+                <p>No matching options for &quot;{value}&quot;</p>
+                {value.trim() && (
+                  <button
+                    type="button"
+                    className="om-combobox-use-custom"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setDropdownOpen(false);
+                      onBlur();
+                    }}
+                  >
+                    ✓ Keep &quot;{value}&quot;
+                  </button>
+                )}
+              </div>
+            ) : (
+              filteredOptions.map((opt) => {
+                const isSelected = value.trim() === opt.trim();
+                return (
+                  <button
+                    type="button"
+                    key={opt}
+                    className={`om-combobox-option ${isSelected ? "is-selected" : ""}`}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                    }}
+                    onClick={() => {
+                      onChange(opt);
+                      setDropdownOpen(false);
+                      onBlur();
+                    }}
+                  >
+                    <span className="truncate om-combobox-option-text">{opt}</span>
+                    {isSelected && (
+                      <span className="om-combobox-option-check" aria-hidden>
+                        ✓
+                      </span>
+                    )}
+                  </button>
+                );
+              })
+            )}
+          </div>
         </div>
       )}
 
@@ -819,23 +833,23 @@ function ComboboxControl({
           font-weight: 500;
           font-size: 15px;
           line-height: 1.5;
-          color: var(--ft-input-text, var(--ink)) !important;
-          -webkit-text-fill-color: var(--ft-input-text, var(--ink)) !important;
+          color: var(--ft-input-text, var(--ink, #1A1714)) !important;
+          -webkit-text-fill-color: var(--ft-input-text, var(--ink, #1A1714)) !important;
           background: transparent;
           border: 0;
-          border-bottom: 1.5px solid var(--rule);
+          border-bottom: 1.5px solid var(--rule, #D4CECC);
           border-radius: 0;
           padding: 8px 52px 8px 0;
           outline: none;
           transition: border-color 200ms ease-out, padding 200ms ease-out;
         }
         .om-combobox-input::placeholder {
-          color: var(--ft-placeholder-color, var(--stone)) !important;
-          -webkit-text-fill-color: var(--ft-placeholder-color, var(--stone)) !important;
-          opacity: 0.7;
+          color: var(--ft-placeholder-color, var(--stone, #9C9488)) !important;
+          -webkit-text-fill-color: var(--ft-placeholder-color, var(--stone, #9C9488)) !important;
+          opacity: 0.8;
         }
         .om-combobox-input:focus {
-          border-bottom: 2px solid var(--ft-accent, var(--clay));
+          border-bottom: 2px solid var(--ft-accent, var(--clay, #C8623A));
           padding-bottom: 7.5px;
         }
         :global(.om-field.has-error) .om-combobox-input {
@@ -858,7 +872,7 @@ function ComboboxControl({
           justify-content: center;
           background: transparent;
           border: 0;
-          color: var(--stone);
+          color: var(--stone, #9C9488);
           cursor: pointer;
           font-size: 15px;
           line-height: 1;
@@ -867,43 +881,90 @@ function ComboboxControl({
           transition: color 150ms ease;
         }
         .om-combobox-btn:hover {
-          color: var(--ft-input-text, var(--ink));
+          color: var(--ft-input-text, var(--ink, #1A1714));
         }
         .om-combobox-arrow {
           font-size: 14px;
+          color: var(--ft-accent, var(--clay, #C8623A));
         }
         .om-combobox-dropdown {
           position: absolute;
-          top: calc(100% + 6px);
+          top: calc(100% + 8px);
           left: 0;
           right: 0;
-          max-height: 250px;
+          max-height: 280px;
+          display: flex;
+          flex-direction: column;
+          background: var(--ft-card-bg, var(--paper, #FFFFFF));
+          border: 1px solid var(--ft-input-border, var(--rule, #D4CECC));
+          border-radius: 14px;
+          box-shadow: 0 16px 36px -4px rgba(26, 23, 20, 0.14), 0 4px 12px -2px rgba(26, 23, 20, 0.05);
+          z-index: 100;
+          overflow: hidden;
+          animation: dropdownFadeIn 140ms cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes dropdownFadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(-4px) scale(0.99);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+        .om-combobox-dropdown-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 8px 14px 6px;
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: var(--ft-label-color, var(--stone, #7F7A71));
+          border-bottom: 1px solid var(--rule, rgba(0, 0, 0, 0.06));
+          background: rgba(0, 0, 0, 0.015);
+        }
+        .om-combobox-count {
+          font-size: 9.5px;
+          opacity: 0.85;
+        }
+        .om-combobox-options-list {
+          padding: 4px;
           overflow-y: auto;
           -webkit-overflow-scrolling: touch;
           touch-action: pan-y;
           overscroll-behavior: contain;
-          background: var(--ft-field-focus-bg, var(--ft-card-bg, #FFFFFF));
-          border: 1px solid var(--rule);
-          border-radius: 12px;
-          box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.22), 0 4px 12px rgba(0, 0, 0, 0.08);
-          z-index: 100;
-          padding: 4px;
+          max-height: 240px;
         }
-        :global(.dark) .om-combobox-dropdown {
-          background: #1E293B;
-          border-color: rgba(255, 255, 255, 0.12);
-          box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.3);
+        .om-combobox-options-list::-webkit-scrollbar {
+          width: 5px;
+        }
+        .om-combobox-options-list::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .om-combobox-options-list::-webkit-scrollbar-thumb {
+          background: rgba(200, 98, 58, 0.25);
+          border-radius: 9999px;
+        }
+        .om-combobox-options-list::-webkit-scrollbar-thumb:hover {
+          background: rgba(200, 98, 58, 0.45);
         }
         .om-combobox-option {
           width: 100%;
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 10px 14px;
+          gap: 12px;
+          padding: 10px 12px;
+          margin-bottom: 2px;
           font-family: inherit;
-          font-size: 13px;
+          font-size: 14px;
           font-weight: 500;
-          color: var(--ft-input-text, var(--ink));
+          line-height: 1.4;
+          color: var(--ft-input-text, var(--ink, #1A1714));
           cursor: pointer;
           border: 0;
           border-radius: 8px;
@@ -912,25 +973,59 @@ function ComboboxControl({
           touch-action: pan-y;
           user-select: none;
           -webkit-user-select: none;
-          transition: all 120ms ease;
+          transition: background 120ms ease, color 120ms ease, transform 120ms ease;
+        }
+        .om-combobox-option:last-child {
+          margin-bottom: 0;
         }
         .om-combobox-option:hover,
         .om-combobox-option:focus {
-          background: rgba(200, 98, 58, 0.12);
-          color: var(--ft-accent, var(--clay));
+          background: rgba(200, 98, 58, 0.08);
+          color: var(--ft-accent, var(--clay, #C8623A));
           outline: none;
+          transform: translateX(2px);
         }
         .om-combobox-option.is-selected {
-          background: rgba(200, 98, 58, 0.16);
+          background: rgba(200, 98, 58, 0.12);
           font-weight: 600;
-          color: var(--ft-accent, var(--clay));
+          color: var(--ft-accent, var(--clay, #C8623A));
+        }
+        .om-combobox-option-text {
+          flex: 1;
+        }
+        .om-combobox-option-check {
+          color: var(--ft-accent, var(--clay, #C8623A));
+          font-size: 13px;
+          font-weight: 700;
+          line-height: 1;
+          flex-shrink: 0;
         }
         .om-combobox-empty {
-          padding: 12px 14px;
-          font-family: var(--font-plex-mono), ui-monospace, monospace;
-          font-size: 12px;
-          color: var(--stone);
+          padding: 16px 14px;
           text-align: center;
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-size: 11px;
+          color: var(--ft-label-color, var(--stone, #7F7A71));
+        }
+        .om-combobox-use-custom {
+          margin-top: 8px;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 4px 10px;
+          font-family: inherit;
+          font-size: 12px;
+          font-weight: 600;
+          color: var(--ft-accent, var(--clay, #C8623A));
+          background: rgba(200, 98, 58, 0.08);
+          border: 1px solid rgba(200, 98, 58, 0.25);
+          border-radius: 9999px;
+          cursor: pointer;
+          transition: all 120ms ease;
+        }
+        .om-combobox-use-custom:hover {
+          background: var(--ft-accent, var(--clay, #C8623A));
+          color: #FFFFFF;
         }
       `}</style>
     </div>
