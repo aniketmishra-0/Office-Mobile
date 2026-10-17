@@ -15,6 +15,8 @@ import type { EditFormResponse, FieldSchema, CustomKeywordRule } from "@/types/f
 import { QRCodeCanvas } from "qrcode.react";
 import { safeBack } from "@/lib/navigation";
 import RichTextEditor from "@/components/RichTextEditor";
+import CompanyLogoModal from "@/components/CompanyLogoModal";
+import { getDirectImageUrl } from "@/lib/driveImage";
 
 export default function EditFormPage() {
   const params = useParams();
@@ -27,6 +29,8 @@ export default function EditFormPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [formData, setFormData] = useState<EditFormResponse | null>(null);
   const [formTitle, setFormTitle] = useState("");
+  const [logoUrl, setLogoUrl] = useState("");
+  const [showLogoModal, setShowLogoModal] = useState(false);
   const [description, setDescription] = useState("");
   const [fields, setFields] = useState<FieldSchema[]>([]);
   const [rules, setRules] = useState<CustomKeywordRule[]>([]);
@@ -59,10 +63,14 @@ export default function EditFormPage() {
       .then((data) => {
         setFormData(data);
         setFormTitle(data.form_title);
+        setLogoUrl(data.ui_config?.logo_url || "");
         setDescription(data.description || "");
         setFields(data.fields);
         setRules(data.custom_keywords);
         setAutofillColumns(data.autofill_columns ?? []);
+        try {
+          window.localStorage.setItem(`om_edit_token_${id}`, token);
+        } catch {}
       })
       .catch((e) => setLoadError(e.message ?? "Failed to load form"))
       .finally(() => setLoading(false));
@@ -131,6 +139,10 @@ export default function EditFormPage() {
         })),
         custom_keywords: rules,
         autofill_columns: autofillColumns,
+        ui_config: {
+          ...(formData?.ui_config || {}),
+          logo_url: logoUrl.trim() || undefined,
+        },
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
@@ -233,6 +245,58 @@ export default function EditFormPage() {
             ))}
           </div>
         )}
+
+        {/* Company / Organization Logo */}
+        <div className="rounded-xl border border-zinc-200 bg-white p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <label className="block text-[13px] font-semibold text-zinc-800">
+                Company / Organization Logo
+              </label>
+              <p className="text-[11px] text-zinc-500">
+                Shown prominently at the top of your form. Saves directly to your Google Drive.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowLogoModal(true)}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-zinc-300 hover:bg-zinc-50 text-zinc-800 transition-all cursor-pointer"
+            >
+              {logoUrl ? "Change Logo" : "+ Add Logo"}
+            </button>
+          </div>
+
+          {logoUrl ? (
+            <div className="mt-3 flex items-center gap-3 p-3 rounded-lg bg-zinc-50 border border-zinc-100">
+              <div className="h-12 w-12 rounded-lg bg-white border border-zinc-200 p-1 flex items-center justify-center overflow-hidden shadow-2xs">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={getDirectImageUrl(logoUrl)}
+                  alt="Company Logo"
+                  className="max-h-full max-w-full object-contain"
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-emerald-600">✓ Logo attached</p>
+                <p className="text-[11px] text-zinc-400 truncate font-mono">{logoUrl}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLogoUrl("")}
+                className="text-xs text-red-500 hover:underline px-2 py-1 cursor-pointer"
+              >
+                Remove
+              </button>
+            </div>
+          ) : (
+            <div
+              onClick={() => setShowLogoModal(true)}
+              className="mt-2 p-3.5 border border-dashed border-zinc-300 rounded-lg text-center cursor-pointer hover:bg-zinc-50/60 transition-colors"
+            >
+              <p className="text-xs text-zinc-500 font-medium">🏢 No logo set yet. Tap to upload or enter image URL.</p>
+            </div>
+          )}
+        </div>
 
         {/* Form title */}
         <div>
@@ -461,6 +525,17 @@ export default function EditFormPage() {
 
       <SubmitButton label="Save changes" submitting={saving} onClick={handleSave} />
       <ErrorToast message={error} onDismiss={() => setError(null)} />
+
+      <CompanyLogoModal
+        isOpen={showLogoModal}
+        onClose={() => setShowLogoModal(false)}
+        formId={id}
+        folderName={formData?.worksheet_name || formData?.form_title}
+        currentLogoUrl={logoUrl}
+        onSave={async (url) => {
+          setLogoUrl(url);
+        }}
+      />
     </div>
   );
 }

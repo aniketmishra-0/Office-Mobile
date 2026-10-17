@@ -97,6 +97,13 @@ class UpdateFormResponse(BaseModel):
     id: str
 
 
+class UpdateBrandingRequest(BaseModel):
+    edit_token: str | None = None
+    logo_url: str | None = None
+    design: str | None = None
+    ui_config: dict | None = None
+
+
 class SubmitFormRequest(BaseModel):
     values: dict[str, str | int | float | bool | None]
 

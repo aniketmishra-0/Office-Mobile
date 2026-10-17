@@ -377,7 +377,8 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
   const [formTheme, setFormTheme] = useState("system");
   const [formFont, setFormFont] = useState("system");
   const [formLayout, setFormLayout] = useState("standard");
-  const [formDesign, setFormDesign] = useState("minimal");
+  const [formDesign, setFormDesign] = useState("officemobile");
+  const [logoUrl, setLogoUrl] = useState("");
   const [showConfig, setShowConfig] = useState(false);
 
   const canSubmit = useMemo(
@@ -518,10 +519,11 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
     });
 
     const uiConfig = {
-      design: formDesign,
+      design: formDesign || "officemobile",
       theme: formTheme,
       font_family: formFont,
       layout: formLayout,
+      logo_url: logoUrl.trim() || undefined,
     };
 
     setError(null);
@@ -1107,6 +1109,31 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                     </label>
                     <MobileDropdown size="sm" value={formLayout} options={LAYOUT_OPTIONS} onChange={setFormLayout} />
                   </div>
+                </div>
+
+                {/* Optional Company Logo */}
+                <div>
+                  <label
+                    className="block text-[10px] font-bold uppercase tracking-wider mb-1"
+                    style={{ color: "var(--stone)" }}
+                  >
+                    🏢 Company / Organization Logo URL (Optional)
+                  </label>
+                  <input
+                    type="url"
+                    value={logoUrl}
+                    onChange={(e) => setLogoUrl(e.target.value)}
+                    placeholder="https://company.com/logo.png"
+                    className="w-full text-xs font-mono px-3 py-2 rounded-lg border outline-none"
+                    style={{
+                      borderColor: "var(--rule)",
+                      background: "var(--cream)",
+                      color: "var(--ink)",
+                    }}
+                  />
+                  <p className="text-[10px] mt-1" style={{ color: "var(--stone)" }}>
+                    You can also upload a logo directly to your Google Drive folder anytime after creating the form.
+                  </p>
                 </div>
               </div>
             )}

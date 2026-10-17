@@ -47,16 +47,16 @@ export default function FormThemeWrapper({ designId, children }: Props) {
     "--ft-progress-fill": theme.styles.progressFill,
     "--ft-accent": theme.styles.accentColor,
     "--ft-meta-color": theme.styles.metaColor,
-    "--ft-field-bg": isDark ? "rgba(30, 41, 59, 0.7)" : "rgba(255, 255, 255, 0.95)",
-    "--ft-field-focus-bg": isDark ? "rgba(30, 41, 59, 0.95)" : "#FFFFFF",
-    "--ft-field-border": isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.1)",
-    "--ink": isDark ? (theme.styles.inputText || "#F8FAFC") : (theme.styles.textColor || "#0F172A"),
-    "--on-ink": isDark ? "#0F172A" : "#FFFFFF",
+    "--ft-field-bg": isDark ? "rgba(36, 32, 32, 0.85)" : "rgba(255, 255, 255, 0.95)",
+    "--ft-field-focus-bg": isDark ? "#242020" : "#FFFFFF",
+    "--ft-field-border": isDark ? "#35302B" : "rgba(0, 0, 0, 0.08)",
+    "--ink": isDark ? (theme.styles.inputText || "#F3ECE2") : (theme.styles.textColor || "#1A1714"),
+    "--on-ink": isDark ? "#1A1714" : "#FFFFFF",
     "--paper": theme.styles.cardBg,
     "--cream": theme.styles.pageBg,
-    "--rule": theme.styles.inputBorder || (isDark ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.12)"),
-    "--stone": theme.styles.placeholderColor || (isDark ? "#94A3B8" : "#64748B"),
-    "--clay": theme.styles.accentColor || (isDark ? "#38BDF8" : "#C8623A"),
+    "--rule": theme.styles.inputBorder || (isDark ? "#35302B" : "#D4CECC"),
+    "--stone": theme.styles.placeholderColor || (isDark ? "#7F7A71" : "#9C9488"),
+    "--clay": theme.styles.accentColor || (isDark ? "#E07A50" : "#C8623A"),
     colorScheme: isDark ? "dark" : "light",
   } as React.CSSProperties), [theme, isDark]);
 
@@ -203,8 +203,8 @@ export default function FormThemeWrapper({ designId, children }: Props) {
         .form-theme-root .om-input,
         .form-theme-root .om-combobox-input,
         .form-theme-root .om-date__input {
-          color: ${theme.styles.inputText || (isDark ? "#F8FAFC" : "#0F172A")} !important;
-          -webkit-text-fill-color: ${theme.styles.inputText || (isDark ? "#F8FAFC" : "#0F172A")} !important;
+          color: ${theme.styles.inputText || (isDark ? "#F3ECE2" : "#1A1714")} !important;
+          -webkit-text-fill-color: ${theme.styles.inputText || (isDark ? "#F3ECE2" : "#1A1714")} !important;
         }
 
         .form-theme-root input::placeholder,
@@ -213,13 +213,13 @@ export default function FormThemeWrapper({ designId, children }: Props) {
         .form-theme-root .om-input::placeholder,
         .form-theme-root .om-combobox-input::placeholder,
         .form-theme-root .om-date__input::placeholder {
-          color: ${theme.styles.placeholderColor || (isDark ? "#64748B" : "#94A3B8")} !important;
-          -webkit-text-fill-color: ${theme.styles.placeholderColor || (isDark ? "#64748B" : "#94A3B8")} !important;
+          color: ${theme.styles.placeholderColor || (isDark ? "#7F7A71" : "#9C9488")} !important;
+          -webkit-text-fill-color: ${theme.styles.placeholderColor || (isDark ? "#7F7A71" : "#9C9488")} !important;
           opacity: 1 !important;
         }
 
         .form-theme-root .om-field__label {
-          color: ${theme.styles.labelColor || (isDark ? "#94A3B8" : "#475569")} !important;
+          color: ${theme.styles.labelColor || (isDark ? "#9C9488" : "#7F7A71")} !important;
         }
 
         /* Prevent Chrome autofill from rendering an invisible/white box */
@@ -227,16 +227,16 @@ export default function FormThemeWrapper({ designId, children }: Props) {
         .form-theme-root input:-webkit-autofill:hover, 
         .form-theme-root input:-webkit-autofill:focus,
         .form-theme-root textarea:-webkit-autofill {
-          -webkit-text-fill-color: ${theme.styles.inputText || (isDark ? "#F8FAFC" : "#0F172A")} !important;
-          -webkit-box-shadow: 0 0 0px 1000px ${theme.styles.cardBg || (isDark ? "#1E293B" : "#FFFFFF")} inset !important;
-          box-shadow: 0 0 0px 1000px ${theme.styles.cardBg || (isDark ? "#1E293B" : "#FFFFFF")} inset !important;
+          -webkit-text-fill-color: ${theme.styles.inputText || (isDark ? "#F3ECE2" : "#1A1714")} !important;
+          -webkit-box-shadow: 0 0 0px 1000px ${theme.styles.cardBg || (isDark ? "#242020" : "#FFFFFF")} inset !important;
+          box-shadow: 0 0 0px 1000px ${theme.styles.cardBg || (isDark ? "#242020" : "#FFFFFF")} inset !important;
           transition: background-color 5000s ease-in-out 0s;
         }
 
         /* High-contrast crisp text selection in themed form */
         .form-theme-root ::selection {
-          background: ${theme.styles.accentColor || "#38BDF8"};
-          color: ${isDark ? "#0F172A" : "#FFFFFF"};
+          background: ${theme.styles.accentColor || "#C8623A"};
+          color: ${isDark ? "#1A1714" : "#FFFFFF"};
         }
 
         /* Header override */

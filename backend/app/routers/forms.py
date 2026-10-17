@@ -23,6 +23,7 @@ from app.models.form import (
     SubmitFormResponse,
     UpdateFormRequest,
     UpdateFormResponse,
+    UpdateBrandingRequest,
 )
 from app.services import form_store
 from app.services.session_context import DEFAULT_OAUTH_KEY, get_current_oauth_session_key, oauth_session_context
@@ -1132,6 +1133,31 @@ async def update_form(form_id: str, payload: UpdateFormRequest) -> UpdateFormRes
         logger.debug("Could not sync description to Dashboard tab: %s", exc)
 
     return UpdateFormResponse(success=True, id=form_id)
+
+
+@router.patch("/forms/{form_id}/branding")
+async def update_form_branding(form_id: str, payload: UpdateBrandingRequest) -> dict:
+    """Update form branding (logo_url, design theme) without altering fields or sheets."""
+    record = await _get_record_or_404_async(form_id)
+    session_key = get_current_oauth_session_key()
+    is_owner = bool(session_key and record.get("oauth_key") == session_key)
+    has_token = bool(payload.edit_token and payload.edit_token == record.get("edit_token"))
+
+    # If not owner and token doesn't match, verify permission
+    if not is_owner and not has_token:
+        # If public user without edit token or session, reject unauthorized change
+        raise HTTPException(status_code=403, detail="Permission denied to update form branding")
+
+    current_ui_config = dict(record.get("ui_config") or {})
+    if payload.ui_config:
+        current_ui_config.update(payload.ui_config)
+    if payload.logo_url is not None:
+        current_ui_config["logo_url"] = payload.logo_url
+    if payload.design is not None:
+        current_ui_config["design"] = payload.design
+
+    await asyncio.to_thread(form_store.update_form_ui_config, form_id, current_ui_config)
+    return {"success": True, "id": form_id, "ui_config": current_ui_config}
 
 
 @router.get("/forms/{form_id}/submissions")

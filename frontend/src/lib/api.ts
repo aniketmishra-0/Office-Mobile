@@ -322,6 +322,28 @@ export async function updateForm(
   );
 }
 
+export async function updateFormBranding(
+  id: string,
+  payload: {
+    edit_token?: string;
+    logo_url?: string | null;
+    design?: string | null;
+    ui_config?: Record<string, any>;
+  },
+): Promise<{ success: boolean; id: string; ui_config: Record<string, any> }> {
+  let editToken = payload.edit_token;
+  if (!editToken && typeof window !== "undefined") {
+    try {
+      editToken = window.localStorage.getItem(`om_edit_token_${id}`) || undefined;
+    } catch {}
+  }
+  return jsonRequest<{ success: boolean; id: string; ui_config: Record<string, any> }>(
+    "PATCH",
+    `/forms/${encodeURIComponent(id)}/branding`,
+    { ...payload, ...(editToken ? { edit_token: editToken } : {}) },
+  );
+}
+
 /**
  * POST /api/forms/:id/submit
  * Append one row of user-submitted values to the backing Google Sheet.

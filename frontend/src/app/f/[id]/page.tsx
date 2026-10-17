@@ -10,7 +10,9 @@ import DynamicForm from "@/components/DynamicForm";
 import type { DynamicFormHandle } from "@/components/DynamicForm";
 import SubmitButton from "@/components/SubmitButton";
 import FormThemeWrapper from "@/components/FormThemeWrapper";
-import { submitForm, getPublicForm, getFormSuggestions, getAiSuggestions } from "@/lib/api";
+import CompanyLogoModal from "@/components/CompanyLogoModal";
+import { submitForm, getPublicForm, getFormSuggestions, getAiSuggestions, updateFormBranding } from "@/lib/api";
+import { getDirectImageUrl } from "@/lib/driveImage";
 import { safeBack } from "@/lib/navigation";
 import type { AiSuggestionsResponse } from "@/lib/api";
 import type { PublicFormResponse } from "@/types/field";
@@ -36,6 +38,49 @@ export default function FillFormPage() {
   const [aiData, setAiData] = useState<AiSuggestionsResponse | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  // Company Logo Modal state
+  const [showLogoModal, setShowLogoModal] = useState(false);
+
+  // Persist token from URL query string if present
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const sp = new URLSearchParams(window.location.search);
+        const qToken = sp.get("token");
+        if (qToken) {
+          window.localStorage.setItem(`om_edit_token_${id}`, qToken);
+        }
+      } catch {}
+    }
+  }, [id]);
+
+  const handleSaveLogo = useCallback(
+    async (newLogoUrl: string) => {
+      let editToken: string | undefined;
+      if (typeof window !== "undefined") {
+        try {
+          const sp = new URLSearchParams(window.location.search);
+          editToken = sp.get("token") || window.localStorage.getItem(`om_edit_token_${id}`) || undefined;
+        } catch {}
+      }
+      await updateFormBranding(id, {
+        logo_url: newLogoUrl,
+        edit_token: editToken,
+      });
+      setFormData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          ui_config: {
+            ...(prev.ui_config || {}),
+            logo_url: newLogoUrl,
+          },
+        };
+      });
+    },
+    [id],
+  );
+
   // Track whether suggestions have been fetched. We defer this expensive
   // call (up to 10k sheet rows) until the user actually opens autofill.
   const suggestionsRequested = useRef(false);
@@ -240,6 +285,89 @@ export default function FillFormPage() {
         <AppHeader title={formData!.worksheet_name || formData!.form_title} showBack onBack={() => safeBack(router)} />
 
         <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-8 overflow-y-auto">
+          {/* Branded Form Hero Section */}
+          <div
+            className="mb-6 rounded-2xl p-6 shadow-xs transition-all relative"
+            style={{
+              background: "var(--ft-card-bg, #FFFFFF)",
+              border: "var(--ft-card-border, 1px solid var(--rule))",
+              borderRadius: "var(--ft-card-radius, 16px)",
+            }}
+          >
+            {/* Top Row: Logo & Action Pill */}
+            <div className="flex items-start justify-between gap-3 mb-3">
+              {formData!.ui_config?.logo_url ? (
+                <div className="flex items-center gap-3">
+                  <div
+                    className="h-14 w-14 sm:h-16 sm:w-16 rounded-xl p-1.5 flex items-center justify-center overflow-hidden border shadow-xs bg-white dark:bg-black/20"
+                    style={{ borderColor: "var(--rule, rgba(0,0,0,0.1))" }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={getDirectImageUrl(formData!.ui_config.logo_url)}
+                      alt="Company Logo"
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowLogoModal(true)}
+                    className="text-[11px] font-semibold flex items-center gap-1 hover:underline cursor-pointer"
+                    style={{ color: "var(--ft-accent, var(--clay))" }}
+                  >
+                    <span>✎ Change logo</span>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowLogoModal(true)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-dashed hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-2xs"
+                  style={{
+                    borderColor: "var(--ft-accent, var(--clay))",
+                    background: "rgba(200, 98, 58, 0.05)",
+                    color: "var(--ft-accent, var(--clay))",
+                  }}
+                >
+                  <span className="text-sm">🏢</span>
+                  <span className="text-[11px] font-semibold">+ Add Company Logo</span>
+                </button>
+              )}
+
+              {/* Verified / Cloud-Synced Badge */}
+              <div
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider border"
+                style={{
+                  borderColor: "var(--rule, rgba(0,0,0,0.1))",
+                  background: "rgba(0,0,0,0.02)",
+                  color: "var(--ft-meta-color, var(--stone))",
+                }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Google Drive Synced</span>
+              </div>
+            </div>
+
+            {/* Form Title */}
+            <h1
+              className="text-2xl sm:text-[26px] font-bold tracking-tight leading-snug"
+              style={{
+                fontFamily: "var(--ft-font-family, var(--font-newsreader)), Georgia, serif",
+                color: "var(--ft-title-color, var(--ink))",
+              }}
+            >
+              {formData!.form_title}
+            </h1>
+            {formData!.worksheet_name && formData!.worksheet_name !== formData!.form_title && (
+              <p
+                className="text-[11px] font-mono uppercase tracking-wider mt-1.5"
+                style={{ color: "var(--ft-meta-color, var(--stone))" }}
+              >
+                📋 Sheet tab: {formData!.worksheet_name}
+              </p>
+            )}
+          </div>
+
           {/* Form Description / JD (Collapsible) */}
           {formData!.description && (() => {
             const isJobForm = /job|hiring|applicant|recruitment|vacancy|career|role|jd|position/i.test(
@@ -330,6 +458,15 @@ export default function FillFormPage() {
         />
         <ErrorToast message={error} onDismiss={() => setError(null)} />
       </div>
+
+      <CompanyLogoModal
+        isOpen={showLogoModal}
+        onClose={() => setShowLogoModal(false)}
+        formId={id}
+        folderName={formData!.worksheet_name || formData!.form_title}
+        currentLogoUrl={formData!.ui_config?.logo_url}
+        onSave={handleSaveLogo}
+      />
     </FormThemeWrapper>
   );
 }

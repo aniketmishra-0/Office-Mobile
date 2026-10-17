@@ -114,7 +114,7 @@ export default function FieldRenderer({
         .om-field.is-focused {
           border-color: var(--ft-accent, var(--clay));
           background: var(--ft-field-focus-bg, var(--ft-card-bg, rgba(255, 255, 255, 0.06)));
-          box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18), 0 4px 14px rgba(0, 0, 0, 0.08);
+          box-shadow: var(--ft-input-focus-ring, 0 0 0 3px rgba(200, 98, 58, 0.18)), 0 4px 14px rgba(0, 0, 0, 0.08);
         }
         .om-field.has-error {
           border-color: var(--error, #ef4444) !important;

@@ -283,6 +283,13 @@ def update_form(
     autofill_columns: list[str] | None = None,
     ui_config: dict | None = None,
 ) -> dict[str, Any] | None:
+    current = get_form(form_id)
+    if not current:
+        return None
+    merged_ui_config = dict(current.get("ui_config") or {})
+    if ui_config:
+        merged_ui_config.update(ui_config)
+
     execute(
         """
         UPDATE forms
@@ -301,7 +308,7 @@ def update_form(
             Jsonb(_dump_models(fields)),
             Jsonb(_dump_models(custom_keywords)),
             Jsonb(autofill_columns or []),
-            Jsonb(ui_config or {}),
+            Jsonb(merged_ui_config),
             form_id,
         ),
     )
@@ -314,6 +321,15 @@ def update_form_fields(form_id: str, fields: list[FieldSchema]) -> None:
         "UPDATE forms SET fields_json = %s, updated_at = now() WHERE id = %s",
         (Jsonb(_dump_models(fields)), form_id),
     )
+
+
+def update_form_ui_config(form_id: str, ui_config: dict) -> dict[str, Any] | None:
+    """Update only the ui_config_json column (e.g. logo_url, design theme)."""
+    execute(
+        "UPDATE forms SET ui_config_json = %s, updated_at = now() WHERE id = %s",
+        (Jsonb(ui_config or {}), form_id),
+    )
+    return get_form(form_id)
 
 
 def delete_form(form_id: str) -> bool:
