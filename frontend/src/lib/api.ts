@@ -128,8 +128,32 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
   let detail = `Request failed with status ${res.status}`;
   try {
-    const errorBody = (await res.json()) as { detail?: string };
-    if (errorBody.detail) detail = errorBody.detail;
+    const errorBody = (await res.json()) as any;
+    if (errorBody) {
+      if (typeof errorBody.detail === "string") {
+        detail = errorBody.detail;
+      } else if (Array.isArray(errorBody.detail)) {
+        // Handle FastAPI 422 validation error array: [{loc: [...], msg: "...", type: "..."}]
+        detail = errorBody.detail
+          .map((item: any) => {
+            if (typeof item === "string") return item;
+            const fieldPath = Array.isArray(item.loc)
+              ? item.loc.filter((p: any) => p !== "body").join(".")
+              : "";
+            const msg = item.msg || "Invalid value";
+            return fieldPath ? `${fieldPath}: ${msg}` : msg;
+          })
+          .join("; ");
+      } else if (typeof errorBody.message === "string") {
+        detail = errorBody.message;
+      } else if (Array.isArray(errorBody.errors)) {
+        detail = errorBody.errors
+          .map((e: any) => (typeof e === "string" ? e : e.message || JSON.stringify(e)))
+          .join("; ");
+      } else if (typeof errorBody === "object") {
+        detail = JSON.stringify(errorBody);
+      }
+    }
   } catch {
     // Body was not valid JSON — keep the default message
   }

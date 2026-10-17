@@ -361,6 +361,8 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
   const [formDescription, setFormDescription] = useState("");
   const [showJdSection, setShowJdSection] = useState(false);
   const [previewJdExpanded, setPreviewJdExpanded] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [showTemplatesGrid, setShowTemplatesGrid] = useState<boolean>(false);
   const [fields, setFields] = useState<DraftField[]>([createDraftField()]);
   const [error, setError] = useState<string | null>(null);
 
@@ -422,6 +424,7 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
   }
 
   function loadTemplate(tpl: FormTemplate) {
+    setSelectedTemplateId(tpl.id);
     setFormTitle(tpl.name);
     setWorksheetName(tpl.worksheetName);
     if (tpl.jd) {
@@ -536,28 +539,28 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
   return (
     <div className="space-y-6 animate-in pb-12 max-w-4xl mx-auto">
       {/* Top Header & Mode Toggle */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-zinc-950 text-white shadow-xl border border-zinc-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:p-5 rounded-2xl bg-zinc-950 text-white shadow-xl border border-zinc-800">
         <div>
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-emerald-400 font-semibold">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-emerald-400 font-semibold">
               Form Builder Studio
             </span>
           </div>
-          <h2 className="text-[20px] font-bold text-white tracking-tight mt-1">
+          <h2 className="text-[18px] sm:text-[20px] font-bold text-white tracking-tight mt-0.5">
             Create & Deploy Form
           </h2>
-          <p className="text-[12px] text-zinc-400 mt-0.5">
+          <p className="text-[11px] sm:text-[12px] text-zinc-400 mt-0.5">
             Turn blank or existing Google Sheets into fast, mobile-friendly forms.
           </p>
         </div>
 
         {/* View Switcher: Editor vs Live Mobile Preview */}
-        <div className="inline-flex items-center p-1 rounded-xl bg-zinc-900 border border-zinc-800 self-start sm:self-auto">
+        <div className="inline-flex items-center p-1 rounded-xl bg-zinc-900 border border-zinc-800 self-start sm:self-auto shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab("editor")}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
               activeTab === "editor"
                 ? "bg-white text-zinc-950 shadow-sm"
                 : "text-zinc-400 hover:text-white"
@@ -586,41 +589,108 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
          ─────────────────────────────────────────────────────────────── */}
       {activeTab === "editor" && (
         <div className="space-y-6">
-          {/* Quick Starters & Templates */}
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">
-                ⚡ Ready-Made Templates (1-Tap Load)
-              </label>
-              <button
-                type="button"
-                onClick={() => setShowBulkPasteModal(true)}
-                className="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 underline underline-offset-2"
-              >
-                <span>📋</span> Paste Bulk Headers
-              </button>
+          {/* Quick Starters & Templates (Collapsible) */}
+          <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs space-y-3 transition-all">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-base">⚡</span>
+                <span className="text-[12px] font-bold text-zinc-950 uppercase tracking-wide">
+                  Ready-Made Templates
+                </span>
+                <span className="text-[10px] font-mono font-semibold text-zinc-600 bg-zinc-100 px-2 py-0.5 rounded-full border border-zinc-200">
+                  {FORM_TEMPLATES.length}
+                </span>
+                {selectedTemplateId && (
+                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                    Active: {FORM_TEMPLATES.find((t) => t.id === selectedTemplateId)?.name}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowBulkPasteModal(true)}
+                  className="text-[11px] font-semibold text-zinc-600 hover:text-zinc-950 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200 transition-colors"
+                >
+                  <span>📋</span>
+                  <span>Bulk Headers</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowTemplatesGrid(!showTemplatesGrid)}
+                  className="text-[11px] font-semibold text-zinc-700 hover:text-zinc-950 flex items-center gap-1 px-2.5 py-1 rounded-lg border border-zinc-200 hover:bg-zinc-50 transition-colors cursor-pointer"
+                >
+                  <span>{showTemplatesGrid ? "▲ Compact View" : "▼ Show All Cards"}</span>
+                </button>
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-              {FORM_TEMPLATES.map((tpl) => (
-                <button
-                  key={tpl.id}
-                  type="button"
-                  onClick={() => loadTemplate(tpl)}
-                  className="p-3 text-left rounded-xl border border-zinc-200 bg-white hover:border-zinc-950 hover:shadow-md transition-all active:scale-[0.98] group flex flex-col justify-between"
-                >
-                  <div className="text-xl mb-1.5">{tpl.icon}</div>
-                  <div>
-                    <p className="text-[12px] font-bold text-zinc-900 group-hover:text-emerald-600 transition-colors leading-tight truncate">
-                      {tpl.name}
-                    </p>
-                    <p className="text-[10px] text-zinc-400 mt-0.5 line-clamp-1">
-                      {tpl.fields.length} fields
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </div>
+            {/* When Collapsed: Super compact 1-line horizontal scrollable chip bar */}
+            {!showTemplatesGrid ? (
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 scrollbar-thin">
+                {FORM_TEMPLATES.map((tpl) => {
+                  const isSelected = selectedTemplateId === tpl.id;
+                  return (
+                    <button
+                      key={tpl.id}
+                      type="button"
+                      onClick={() => loadTemplate(tpl)}
+                      className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border active:scale-95 cursor-pointer ${
+                        isSelected
+                          ? "bg-zinc-950 text-white border-zinc-950 shadow-xs"
+                          : "bg-zinc-50 hover:bg-zinc-100 text-zinc-700 border-zinc-200"
+                      }`}
+                    >
+                      <span>{tpl.icon}</span>
+                      <span>{tpl.name}</span>
+                      <span className={`text-[10px] ml-0.5 font-normal ${isSelected ? "text-zinc-300" : "text-zinc-400"}`}>
+                        ({tpl.fields.length})
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              /* When Expanded: Full template card grid */
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1 animate-in fade-in">
+                {FORM_TEMPLATES.map((tpl) => {
+                  const isSelected = selectedTemplateId === tpl.id;
+                  return (
+                    <button
+                      key={tpl.id}
+                      type="button"
+                      onClick={() => {
+                        loadTemplate(tpl);
+                        setShowTemplatesGrid(false);
+                      }}
+                      className={`p-3 text-left rounded-xl border transition-all active:scale-[0.98] group flex items-start gap-3 cursor-pointer ${
+                        isSelected
+                          ? "border-emerald-500 bg-emerald-50/50 ring-1 ring-emerald-500"
+                          : "border-zinc-200 bg-zinc-50/60 hover:bg-white hover:border-zinc-300"
+                      }`}
+                    >
+                      <div className="text-2xl p-1.5 rounded-lg bg-white border border-zinc-100 shadow-2xs shrink-0">
+                        {tpl.icon}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-1">
+                          <p className="text-[12px] font-bold text-zinc-900 group-hover:text-emerald-700 transition-colors truncate">
+                            {tpl.name}
+                          </p>
+                          <span className="text-[10px] font-mono text-zinc-400 shrink-0">
+                            {tpl.fields.length}f
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-zinc-500 mt-0.5 line-clamp-1">
+                          {tpl.description}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Destination Selector: New Sheet vs Existing Sheet */}

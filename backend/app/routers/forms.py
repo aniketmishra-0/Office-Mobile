@@ -169,41 +169,51 @@ def public_config() -> dict[str, str | None]:
 @router.post("/sheet/create", response_model=CreateSheetResponse)
 async def create_sheet(payload: CreateSheetRequest) -> CreateSheetResponse:
     _ensure_fields(payload.fields)
+    _session_key = get_current_oauth_session_key()
 
     def _do_create():
-        try:
-            client = get_client()
-        except Exception as exc:
-            logger.exception("sheet.create.client_init_failed")
-            raise _sheet_error(exc) from exc
+        with oauth_session_context(_session_key):
+            try:
+                client = get_client()
+            except Exception as exc:
+                logger.exception("sheet.create.client_init_failed")
+                raise _sheet_error(exc) from exc
 
-        try:
-            spreadsheet = client.create(payload.form_title)
-            worksheet = spreadsheet.sheet1
-            if payload.worksheet_name:
-                worksheet.update_title(payload.worksheet_name)
-            headers = [field.source_header for field in payload.fields]
-            worksheet.update("A1", [headers], value_input_option="RAW")
-        except Exception as exc:
-            logger.warning(
-                "sheet.create.failed title=%r type=%s msg=%s",
-                payload.form_title,
-                type(exc).__name__,
-                str(exc)[:300],
+            try:
+                spreadsheet = client.create(payload.form_title)
+                worksheet = spreadsheet.sheet1
+                if payload.worksheet_name:
+                    worksheet.update_title(payload.worksheet_name)
+                headers = [field.source_header for field in payload.fields]
+                worksheet.update("A1", [headers], value_input_option="RAW")
+
+                # If created via OAuth, optionally share with service account so background sync works seamlessly
+                settings = get_settings()
+                if settings.google_service_account_email:
+                    try:
+                        spreadsheet.share(settings.google_service_account_email, perm_type="user", role="writer")
+                    except Exception:
+                        pass
+            except Exception as exc:
+                logger.warning(
+                    "sheet.create.failed title=%r type=%s msg=%s",
+                    payload.form_title,
+                    type(exc).__name__,
+                    str(exc)[:300],
+                )
+                raise _sheet_error(exc) from exc
+
+            spreadsheet_id = spreadsheet.id
+            sheet_url = (
+                spreadsheet.url
+                if getattr(spreadsheet, "url", None)
+                else f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit"
             )
-            raise _sheet_error(exc) from exc
-
-        spreadsheet_id = spreadsheet.id
-        sheet_url = (
-            spreadsheet.url
-            if getattr(spreadsheet, "url", None)
-            else f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit"
-        )
-        return CreateSheetResponse(
-            spreadsheet_id=spreadsheet_id,
-            sheet_url=sheet_url,
-            worksheet_name=worksheet.title,
-        )
+            return CreateSheetResponse(
+                spreadsheet_id=spreadsheet_id,
+                sheet_url=sheet_url,
+                worksheet_name=worksheet.title,
+            )
 
     return await asyncio.to_thread(_do_create)
 
