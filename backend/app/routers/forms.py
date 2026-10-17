@@ -47,6 +47,7 @@ from app.services.cache import (
     make_worksheets_key,
     set_json,
 )
+from app.services.websocket_manager import ws_manager
 from app.services.session_context import DEFAULT_OAUTH_KEY, get_current_oauth_session_key, oauth_session_context
 from app.services.sheets_client import (
     _has_credentials,
@@ -889,6 +890,11 @@ async def update_sheet_row_endpoint(
         raise _sheet_error(exc) from exc
 
     await invalidate_sheet_cache(spreadsheet_id)
+    await ws_manager.broadcast(
+        sheet_id=spreadsheet_id,
+        event_type="row_updated",
+        row_index=row_index,
+    )
     return {
         "success": True,
         "updated_range": updated_range,
@@ -1433,6 +1439,11 @@ async def submit_form(
 
     await invalidate_sheet_cache(record["spreadsheet_id"])
     await invalidate_library_cache(record.get("oauth_key"))
+    await ws_manager.broadcast(
+        sheet_id=record["spreadsheet_id"],
+        event_type="row_appended",
+        row_index=None,
+    )
 
     return SubmitFormResponse(
         success=True,
@@ -1494,6 +1505,11 @@ async def batch_append(request: Request, payload: BatchAppendRequest = Body(...)
         raise _sheet_error(exc)
 
     await invalidate_sheet_cache(spreadsheet_id)
+    await ws_manager.broadcast(
+        sheet_id=spreadsheet_id,
+        event_type="rows_batch_appended",
+        extra={"appended_count": result["appended_count"]},
+    )
     return BatchAppendResponse(
         success=result["success"],
         appended_count=result["appended_count"],
@@ -1522,6 +1538,11 @@ async def batch_delete_endpoint(request: Request, payload: BatchDeleteRequest = 
             row_indices=payload.row_indices,
         )
         await invalidate_sheet_cache(spreadsheet_id)
+        await ws_manager.broadcast(
+            sheet_id=spreadsheet_id,
+            event_type="rows_batch_deleted",
+            extra={"deleted_count": count},
+        )
         return BatchDeleteResponse(success=True, deleted_count=count)
     except Exception as exc:
         raise _sheet_error(exc)
@@ -1566,6 +1587,11 @@ async def batch_update_endpoint(request: Request, payload: BatchUpdateRequest = 
 
         count = await asyncio.to_thread(_do_batch_update)
         await invalidate_sheet_cache(spreadsheet_id)
+        await ws_manager.broadcast(
+            sheet_id=spreadsheet_id,
+            event_type="rows_batch_updated",
+            extra={"updated_count": count},
+        )
         return BatchUpdateResponse(success=True, updated_count=count)
     except Exception as exc:
         raise _sheet_error(exc)

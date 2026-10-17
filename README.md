@@ -457,6 +457,13 @@ Predicts field values based on submission history.
 | POST | `/api/sheet/batch-update` | Update multiple rows |
 | GET | `/api/sheet/protected-columns` | Get protected columns |
 
+### WebSockets (Real-Time Updates)
+| Protocol | Path | Description |
+|----------|------|-------------|
+| WS | `/ws/sheet/{sheet_id}` | Real-time event subscription for sheet watchers. Broadcasts `{type, sheet_id, row_index, timestamp}` on row mutations. Authenticated via session cookie/token. Includes heartbeat (ping/pong) and zero-leak disconnect cleanup. |
+
+> **Polling Fallback:** Clients that do not support WebSockets continue to use periodic polling via `GET /api/sheet/history` (backed by Redis cache).
+
 ### Other
 | Method | Path | Description |
 |--------|------|-------------|

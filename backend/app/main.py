@@ -9,7 +9,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.config import get_settings
 from app.limiter import limiter
-from app.routers import auth, forms, health, preferences, saved_sheets, upload
+from app.routers import auth, forms, health, preferences, saved_sheets, upload, websocket
 from app.services.session_context import OAUTH_SESSION_COOKIE, reset_oauth_session_key, set_oauth_session_key
 from app.services.form_store import init_db
 from app.routers.saved_sheets import init_saved_sheets_table
@@ -282,3 +282,4 @@ app.include_router(auth.router)
 app.include_router(upload.router)
 app.include_router(preferences.router)
 app.include_router(saved_sheets.router)
+app.include_router(websocket.router)
