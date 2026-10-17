@@ -28,6 +28,15 @@ class Settings(BaseModel):
     # tokens in Postgres. Set via the DATABASE_URL env var.
     database_url: str | None = None
 
+    # Rate limiting — all values use `limits` syntax, e.g. "15/minute".
+    rate_limit_auth: str = "15/minute"
+    rate_limit_submit: str = "30/minute"
+    rate_limit_batch: str = "10/minute"
+    rate_limit_default: str = "120/minute"
+
+    # Debug mode — enables diagnostic endpoints like /api/debug/form/{id}.
+    debug_mode: bool = False
+
 
 DEFAULT_ALLOWED_ORIGINS: List[str] = [
     "https://officemobile.org",
@@ -61,4 +70,10 @@ def get_settings() -> Settings:
         google_oauth_client_secret=os.getenv("GOOGLE_OAUTH_CLIENT_SECRET") or None,
         google_oauth_redirect_uri=os.getenv("GOOGLE_OAUTH_REDIRECT_URI") or None,
         database_url=os.getenv("DATABASE_URL") or None,
+        rate_limit_auth=os.getenv("RATE_LIMIT_AUTH", "15/minute"),
+        rate_limit_submit=os.getenv("RATE_LIMIT_SUBMIT", "30/minute"),
+        rate_limit_batch=os.getenv("RATE_LIMIT_BATCH", "10/minute"),
+        rate_limit_default=os.getenv("RATE_LIMIT_DEFAULT", "120/minute"),
+        debug_mode=os.getenv("DEBUG_MODE", "false").lower() in ("true", "1", "yes"),
     )
+

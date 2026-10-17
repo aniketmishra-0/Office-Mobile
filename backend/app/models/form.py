@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field, field_validator
 
 from app.models.field import CustomKeywordRule, FieldSchema
@@ -133,3 +135,104 @@ class SubmitFormResponse(BaseModel):
     queued: bool = False
     message: str | None = None
     estimated_sync_seconds: int | None = None
+
+
+class AddTabRequest(BaseModel):
+    sheet_url: str = Field(..., min_length=10, max_length=2000)
+    tab_name: str = Field(..., min_length=1, max_length=100)
+    headers: list[str] | None = Field(default=None, max_length=500)
+
+    model_config = {"extra": "ignore"}
+
+
+class UpdateRowRequest(BaseModel):
+    sheet_url: str = Field(..., min_length=10, max_length=2000)
+    worksheet_name: str | None = Field(default=None, max_length=100)
+    row_index: int = Field(..., ge=2)
+    values: dict[str, str | int | float | bool | None]
+
+    model_config = {"extra": "ignore"}
+
+    @field_validator("values")
+    @classmethod
+    def _validate_values(
+        cls, v: dict[str, str | int | float | bool | None]
+    ) -> dict[str, str | int | float | bool | None]:
+        if len(v) > MAX_FIELDS_PER_SUBMISSION:
+            raise ValueError(
+                f"Too many fields: row update may have at most {MAX_FIELDS_PER_SUBMISSION} entries"
+            )
+        for key, value in v.items():
+            if len(key) > 500:
+                raise ValueError("Field key exceeds 500 characters")
+            if isinstance(value, str) and len(value) > MAX_STRING_VALUE_LENGTH:
+                raise ValueError(
+                    f"Value for '{key}' exceeds the {MAX_STRING_VALUE_LENGTH}-character limit"
+                )
+        return v
+
+
+class DeleteFormRequest(BaseModel):
+    token: str | None = Field(default=None, max_length=200)
+
+    model_config = {"extra": "ignore"}
+
+
+class BatchAppendRequest(BaseModel):
+    sheet_url: str = Field(..., min_length=10, max_length=2000)
+    worksheet_name: str | None = Field(default=None, max_length=100)
+    rows: list[dict[str, str]] = Field(..., min_length=1, max_length=200)
+
+    model_config = {"extra": "ignore"}
+
+
+class BatchAppendResponse(BaseModel):
+    success: bool
+    appended_count: int
+    updated_range: str | None = None
+
+
+class BatchDeleteRequest(BaseModel):
+    sheet_url: str = Field(..., min_length=10, max_length=2000)
+    worksheet_name: str | None = Field(default=None, max_length=100)
+    row_indices: list[int] = Field(..., min_length=1, max_length=500)
+
+    model_config = {"extra": "ignore"}
+
+
+class BatchDeleteResponse(BaseModel):
+    success: bool
+    deleted_count: int
+
+
+class SingleRowUpdate(BaseModel):
+    row_index: int = Field(..., ge=2)
+    values: dict[str, Any] = Field(...)
+
+    model_config = {"extra": "ignore"}
+
+    @field_validator("values")
+    @classmethod
+    def _validate_values(cls, v: dict[str, Any]) -> dict[str, Any]:
+        if len(v) > 200:
+            raise ValueError("Too many fields in row update (max 200)")
+        for key, val in v.items():
+            if len(str(key)) > 500:
+                raise ValueError("Header key exceeds 500 characters")
+            if isinstance(val, str) and len(val) > 10000:
+                raise ValueError(f"Value for '{key}' exceeds 10,000 character limit")
+        return v
+
+
+class BatchUpdateRequest(BaseModel):
+    sheet_url: str = Field(..., min_length=10, max_length=2000)
+    worksheet_name: str | None = Field(default=None, max_length=100)
+    row_updates: list[SingleRowUpdate] = Field(..., min_length=1, max_length=200)
+
+    model_config = {"extra": "ignore"}
+
+
+class BatchUpdateResponse(BaseModel):
+    success: bool
+    updated_count: int
+

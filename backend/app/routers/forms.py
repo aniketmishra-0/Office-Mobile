@@ -5,26 +5,38 @@ import logging
 from datetime import datetime, timezone
 from functools import partial
 
-from fastapi import APIRouter, HTTPException, Query, Body
+from fastapi import APIRouter, HTTPException, Query, Body, Request
 from gspread.urls import SPREADSHEETS_API_V4_BASE_URL
 
 from app.config import get_settings
+from app.limiter import limiter
 from app.models.field import CustomKeywordRule, FieldSchema
 from app.models.form import (
+    AddTabRequest,
+    BatchAppendRequest,
+    BatchAppendResponse,
+    BatchDeleteRequest,
+    BatchDeleteResponse,
+    BatchUpdateRequest,
+    BatchUpdateResponse,
     CreateSheetRequest,
     CreateSheetResponse,
     CreateFormRequest,
     CreateFormResponse,
+    DeleteFormRequest,
     EditFormResponse,
     PreviewRequest,
     PreviewResponse,
     PublicFormResponse,
+    SingleRowUpdate,
     SubmitFormRequest,
     SubmitFormResponse,
     UpdateFormRequest,
     UpdateFormResponse,
     UpdateBrandingRequest,
+    UpdateRowRequest,
 )
+
 from app.services import form_store
 from app.services.session_context import DEFAULT_OAUTH_KEY, get_current_oauth_session_key, oauth_session_context
 from app.services.sheets_client import (
@@ -71,10 +83,11 @@ async def _get_record_or_404_async(form_id: str) -> dict:
         record = await asyncio.to_thread(form_store.get_form, form_id)
     except Exception as exc:
         logger.exception("get_form FAILED form_id=%s", form_id)
-        raise HTTPException(status_code=500, detail=f"Database error: {type(exc).__name__}: {str(exc)[:200]}")
+        raise HTTPException(status_code=500, detail="Failed to load form. Please try again.") from exc
     if record is None:
         raise HTTPException(status_code=404, detail="Form not found")
     return record
+
 
 
 def _ensure_fields(fields: list) -> None:
@@ -272,17 +285,10 @@ async def create_sheet(payload: CreateSheetRequest) -> CreateSheetResponse:
 
 
 @router.post("/sheet/add-tab")
-async def add_sheet_tab(payload: dict = Body(...)) -> dict:
+async def add_sheet_tab(payload: AddTabRequest) -> dict:
     """Add a new worksheet tab to an existing spreadsheet."""
-    sheet_url = payload.get("sheet_url", "")
-    tab_name = payload.get("tab_name", "")
-    headers = payload.get("headers")  # optional list of header strings
-
-    if not sheet_url or not tab_name:
-        raise HTTPException(status_code=400, detail="sheet_url and tab_name are required")
-
     try:
-        spreadsheet_id = extract_spreadsheet_id(sheet_url)
+        spreadsheet_id = extract_spreadsheet_id(payload.sheet_url)
     except InvalidGoogleSheetUrl as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -290,7 +296,7 @@ async def add_sheet_tab(payload: dict = Body(...)) -> dict:
 
     def _add():
         with oauth_session_context(_session_key):
-            return add_worksheet_tab(spreadsheet_id, tab_name, headers)
+            return add_worksheet_tab(spreadsheet_id, payload.tab_name, payload.headers)
 
     try:
         actual_name = await asyncio.to_thread(_add)
@@ -298,6 +304,7 @@ async def add_sheet_tab(payload: dict = Body(...)) -> dict:
         raise _sheet_error(exc) from exc
 
     return {"success": True, "worksheet_name": actual_name, "spreadsheet_id": spreadsheet_id}
+
 
 
 @router.get("/forms/library")
@@ -685,21 +692,27 @@ async def get_sheet_sections(
 
 
 @router.patch("/sheet/row")
+@limiter.limit(get_settings().rate_limit_submit)
 async def update_sheet_row_endpoint(
-    sheet_url: str = Body(...),
-    worksheet_name: str | None = Body(None),
-    row_index: int = Body(..., ge=2),
-    values: dict = Body(...),
+    request: Request,
+    payload: UpdateRowRequest = Body(...),
 ) -> dict:
+
     """
     Update a specific row in a Google Sheet.
     row_index is 1-based (row 1 = header, row 2 = first data row).
     values is a dict of field_key → new_value.
     """
+    sheet_url = payload.sheet_url
+    worksheet_name = payload.worksheet_name
+    row_index = payload.row_index
+    values = payload.values
+
     try:
         spreadsheet_id = extract_spreadsheet_id(sheet_url)
     except InvalidGoogleSheetUrl as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
 
     # Use authenticated header reading to ensure consistency with the
     # live headers that update_sheet_row will read internally. The public
@@ -1019,9 +1032,9 @@ async def delete_all_forms_endpoint() -> dict:
 
 
 @router.delete("/forms/{form_id}")
-async def delete_form_endpoint(form_id: str, payload: dict | None = Body(None)) -> dict:
+async def delete_form_endpoint(form_id: str, payload: DeleteFormRequest | None = None) -> dict:
     """Delete a saved form and its submissions."""
-    token = payload.get("token") if payload else None
+    token = payload.token if payload else None
     record = await _get_record_or_404_async(form_id)
     if token and token != record.get("edit_token"):
         raise HTTPException(status_code=403, detail="Invalid edit token")
@@ -1033,10 +1046,11 @@ async def delete_form_endpoint(form_id: str, payload: dict | None = Body(None)) 
 
 
 @router.post("/forms/{form_id}/unauthorize")
-async def unauthorize_form_endpoint(form_id: str, payload: dict | None = Body(None)) -> dict:
+async def unauthorize_form_endpoint(form_id: str, payload: DeleteFormRequest | None = None) -> dict:
     """Unauthorize a form: clear its oauth_key and associated token if any."""
-    token = payload.get("token") if payload else None
+    token = payload.token if payload else None
     record = await _get_record_or_404_async(form_id)
+
 
     if token:
         if token != record.get("edit_token"):
@@ -1276,7 +1290,14 @@ async def _background_retry_submission(
 
 
 @router.post("/forms/{form_id}/submit", response_model=SubmitFormResponse)
-async def submit_form(form_id: str, payload: SubmitFormRequest) -> SubmitFormResponse:
+@limiter.limit(get_settings().rate_limit_submit)
+async def submit_form(
+    request: Request,
+    form_id: str,
+    payload: SubmitFormRequest = Body(...),
+) -> SubmitFormResponse:
+
+
     record = await _get_record_or_404_async(form_id)
     _validate_submission(record, payload.values)
 
@@ -1381,26 +1402,10 @@ async def submit_form(form_id: str, payload: SubmitFormRequest) -> SubmitFormRes
 # ---------------------------------------------------------------------------
 
 
-from pydantic import BaseModel, Field as PydanticField
-from typing import Optional
-
-
-class BatchAppendRequest(BaseModel):
-    sheet_url: str
-    worksheet_name: Optional[str] = None
-    rows: list[dict[str, str]] = PydanticField(
-        ..., min_length=1, max_length=200
-    )
-
-
-class BatchAppendResponse(BaseModel):
-    success: bool
-    appended_count: int
-    updated_range: Optional[str] = None
-
-
 @router.post("/sheet/batch-append", response_model=BatchAppendResponse)
-async def batch_append(payload: BatchAppendRequest):
+@limiter.limit(get_settings().rate_limit_batch)
+async def batch_append(request: Request, payload: BatchAppendRequest = Body(...)):
+
     """
     Append multiple rows to a Google Sheet in a single batch operation.
     Each row is a dict mapping column header names to cell values.
@@ -1447,17 +1452,10 @@ async def batch_append(payload: BatchAppendRequest):
         updated_range=result.get("updated_range"),
     )
 
-class BatchDeleteRequest(BaseModel):
-    sheet_url: str
-    worksheet_name: Optional[str] = None
-    row_indices: list[int] = PydanticField(..., min_length=1)
-
-class BatchDeleteResponse(BaseModel):
-    success: bool
-    deleted_count: int
 
 @router.post("/sheet/batch-delete", response_model=BatchDeleteResponse)
-async def batch_delete_endpoint(payload: BatchDeleteRequest):
+@limiter.limit(get_settings().rate_limit_batch)
+async def batch_delete_endpoint(request: Request, payload: BatchDeleteRequest = Body(...)):
     """Delete multiple rows from a sheet by their 1-based indices."""
     try:
         spreadsheet_id = extract_spreadsheet_id(payload.sheet_url)
@@ -1479,17 +1477,11 @@ async def batch_delete_endpoint(payload: BatchDeleteRequest):
     except Exception as exc:
         raise _sheet_error(exc)
 
-class BatchUpdateRequest(BaseModel):
-    sheet_url: str
-    worksheet_name: Optional[str] = None
-    row_updates: list[dict] = PydanticField(..., min_length=1)
-
-class BatchUpdateResponse(BaseModel):
-    success: bool
-    updated_count: int
 
 @router.post("/sheet/batch-update", response_model=BatchUpdateResponse)
-async def batch_update_endpoint(payload: BatchUpdateRequest):
+@limiter.limit(get_settings().rate_limit_batch)
+async def batch_update_endpoint(request: Request, payload: BatchUpdateRequest = Body(...)):
+
     """Update multiple non-contiguous rows in a sheet."""
     try:
         spreadsheet_id = extract_spreadsheet_id(payload.sheet_url)
@@ -1512,12 +1504,14 @@ async def batch_update_endpoint(payload: BatchUpdateRequest):
         
         _session_key = get_current_oauth_session_key()
 
+        row_updates_dicts = [u.model_dump() for u in payload.row_updates]
+
         def _do_batch_update():
             with oauth_session_context(_session_key):
                 return batch_update_rows(
                     spreadsheet_id=spreadsheet_id,
                     worksheet_name=payload.worksheet_name,
-                    row_updates=payload.row_updates,
+                    row_updates=row_updates_dicts,
                     fields=fields,
                 )
 
@@ -1525,4 +1519,5 @@ async def batch_update_endpoint(payload: BatchUpdateRequest):
         return BatchUpdateResponse(success=True, updated_count=count)
     except Exception as exc:
         raise _sheet_error(exc)
+
 

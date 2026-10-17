@@ -533,7 +533,12 @@ Open [http://localhost:3000](http://localhost:3000)
 | `GOOGLE_OAUTH_CLIENT_ID` | OAuth 2.0 client ID |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | OAuth 2.0 client secret |
 | `GOOGLE_OAUTH_REDIRECT_URI` | OAuth callback URL |
-| `ALLOWED_ORIGINS` | Comma-separated CORS origins |
+| `ALLOWED_ORIGINS` | Comma-separated CORS origins (e.g. `https://officemobile.org,https://officemobile.vercel.app`) |
+| `RATE_LIMIT_AUTH` | Rate limit for `/api/auth/*` endpoints (default: `15/minute`) |
+| `RATE_LIMIT_SUBMIT` | Rate limit for `/api/forms/{id}/submit` (default: `30/minute`) |
+| `RATE_LIMIT_BATCH` | Rate limit for `/api/sheet/batch-*` (default: `10/minute`) |
+| `RATE_LIMIT_DEFAULT` | Default rate limit for other routes (default: `120/minute`) |
+| `DEBUG_MODE` | Set to `true` to enable diagnostic endpoints. Must be `false` in production. |
 
 ### Frontend (`frontend/.env.local`)
 
@@ -545,13 +550,15 @@ Open [http://localhost:3000](http://localhost:3000)
 
 ## Security
 
-- OAuth 2.0 with state parameter (CSRF protection)
-- Session cookies: `HttpOnly`, `Secure`, `SameSite=None` (production)
-- Request body size limit: 2MB (10MB for uploads)
-- Formula injection prevention: cells starting with `=`, `+`, `-`, `@` are prefixed with `'`
-- No sheet data stored on server — all reads/writes go directly to Google Sheets API
-- CORS restricted to explicit origins (no wildcards)
-- Protected columns enforced (owner-restricted columns are read-only)
+- **OAuth 2.0 State Verification**: Single-use cryptographic state cookie with strict origin verification to prevent CSRF and redirect attacks.
+- **Session Security**: Session cookies use `HttpOnly`, `Secure`, and `SameSite=None` in production (`SameSite=Lax` for local development).
+- **Rate Limiting**: Tiered SlowAPI rate limiting with IP keying on authentication routes, form submissions, and batch operations, returning HTTP 429 with CORS headers.
+- **Request Body & Field Bounds**: Enforced 2MB general payload limit (10MB for uploads). All Pydantic request models enforce explicit string lengths (max 10,000 chars per value), max fields (200 fields per submission), and max batch rows (200 rows per batch).
+- **Formula Injection Prevention**: Cells starting with `=`, `+`, `-`, `@`, `\t`, or `\r` are safely escaped across every write path (single append, single update, batch append, batch update).
+- **Global Error Handling & Leak Prevention**: All API errors conform to `{ "detail": "...", "error_code": "..." }`. Server stack traces, raw database errors, and internal Google Sheets API response bodies are logged internally and never leaked to clients.
+- **Zero Sheet Storage**: No spreadsheet row data is ever stored in the database — all reads and writes interact directly with the Google Sheets API via user-scoped OAuth tokens.
+- **CORS Protection**: Restricted strictly to allowed production and preview origins with credential support.
+- **Column Protection**: Protected and restricted worksheet columns are enforced as read-only on all mutation paths.
 
 ---
 

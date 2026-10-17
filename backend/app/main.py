@@ -4,19 +4,26 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, ORJSONResponse
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from app.config import get_settings
+from app.limiter import limiter
 from app.routers import auth, forms, health, preferences, saved_sheets, upload
 from app.services.session_context import OAUTH_SESSION_COOKIE, reset_oauth_session_key, set_oauth_session_key
 from app.services.form_store import init_db
 from app.routers.saved_sheets import init_saved_sheets_table
 from app.db import close_pool
+from app.utils.error_responses import ErrorCode
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
 import asyncio
 import logging
 
 logger = logging.getLogger(__name__)
+
 
 
 async def _periodic_queue_sweeper():
@@ -101,6 +108,13 @@ app = FastAPI(
     default_response_class=ORJSONResponse,
 )
 
+# Attach the limiter so routers can import it and so the exception handler
+# fires correctly.
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
+
+
+
 # Reject oversized request bodies at the edge. 2 MB is well above any
 # legitimate form submission and blocks memory-exhaustion attacks.
 _MAX_BODY_BYTES = 2 * 1024 * 1024
@@ -124,7 +138,7 @@ async def limit_request_size(request: Request, call_next):
         if size > limit:
             return JSONResponse(
                 status_code=413,
-                content={"detail": "Payload too large"},
+                content={"detail": "Payload too large", "error_code": "PAYLOAD_TOO_LARGE"},
             )
     return await call_next(request)
 
@@ -169,6 +183,80 @@ app.add_middleware(
 )
 
 
+def _add_cors_headers(response: JSONResponse, request: Request) -> None:
+    """Manually inject CORS headers so the browser can read error responses."""
+    origin = request.headers.get("origin")
+    if origin and origin in settings.allowed_origins:
+        response.headers["access-control-allow-origin"] = origin
+        response.headers["access-control-allow-credentials"] = "true"
+        response.headers["vary"] = "Origin"
+
+
+# Rate-limit exceeded handler — returns a structured 429 with CORS headers.
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    response = JSONResponse(
+        status_code=429,
+        content={
+            "detail": "Rate limit exceeded. Please try again later.",
+            "error_code": ErrorCode.RATE_LIMITED,
+        },
+    )
+    _add_cors_headers(response, request)
+    return response
+
+
+# HTTP exception handler — standardizes error shapes and attaches CORS headers.
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    error_code = getattr(exc, "error_code", None)
+    if not error_code:
+        code_map = {
+            400: ErrorCode.BAD_REQUEST,
+            401: ErrorCode.UNAUTHORIZED,
+            403: ErrorCode.FORBIDDEN,
+            404: ErrorCode.NOT_FOUND,
+            413: ErrorCode.PAYLOAD_TOO_LARGE,
+            429: ErrorCode.RATE_LIMITED,
+            500: ErrorCode.INTERNAL_ERROR,
+            502: ErrorCode.UPSTREAM_ERROR,
+            503: ErrorCode.SERVICE_UNAVAILABLE,
+        }
+        error_code = code_map.get(exc.status_code, "ERROR")
+
+    if isinstance(exc.detail, dict):
+        content = dict(exc.detail)
+        if "error_code" not in content:
+            content["error_code"] = error_code
+    else:
+        content = {
+            "detail": exc.detail,
+            "error_code": error_code,
+        }
+
+    response = JSONResponse(
+        status_code=exc.status_code,
+        content=content,
+        headers=getattr(exc, "headers", None),
+    )
+    _add_cors_headers(response, request)
+    return response
+
+
+# Validation error handler — returns 422 with structured errors and error_code.
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    response = JSONResponse(
+        status_code=422,
+        content={
+            "detail": exc.errors(),
+            "error_code": ErrorCode.VALIDATION_ERROR,
+        },
+    )
+    _add_cors_headers(response, request)
+    return response
+
+
 # Global exception handler — ensures CORS headers are present even on 500s.
 # Without this, the browser blocks the response body and the frontend only
 # sees "CORS error" instead of the actual error message.
@@ -178,14 +266,12 @@ async def global_exception_handler(request: Request, exc: Exception):
     logging.getLogger("app").exception("Unhandled error on %s %s", request.method, request.url.path)
     response = JSONResponse(
         status_code=500,
-        content={"detail": "Internal server error"},
+        content={
+            "detail": "Internal server error",
+            "error_code": ErrorCode.INTERNAL_ERROR,
+        },
     )
-    # Manually add CORS headers so the browser doesn't block the error response.
-    origin = request.headers.get("origin")
-    if origin and origin in settings.allowed_origins:
-        response.headers["access-control-allow-origin"] = origin
-        response.headers["access-control-allow-credentials"] = "true"
-        response.headers["vary"] = "Origin"
+    _add_cors_headers(response, request)
     return response
 
 app.include_router(health.router)

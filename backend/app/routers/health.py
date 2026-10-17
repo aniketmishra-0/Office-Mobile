@@ -1,4 +1,5 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+from app.config import get_settings
 
 
 router = APIRouter(prefix="/api", tags=["health"])
@@ -11,10 +12,12 @@ def health() -> dict[str, str]:
 
 @router.get("/debug/form/{form_id}")
 def debug_form(form_id: str) -> dict:
-    """Temporary debug endpoint to diagnose form loading issues."""
+    """Temporary debug endpoint to diagnose form loading issues. Gated by DEBUG_MODE."""
+    if not get_settings().debug_mode:
+        raise HTTPException(status_code=404, detail="Not found")
+
     from app.services import form_store
     from app.db import fetchone
-    import traceback
 
     try:
         row = fetchone("SELECT id, form_title, fields_json, ui_config_json FROM forms WHERE id = %s", (form_id,))
@@ -32,14 +35,13 @@ def debug_form(form_id: str) -> dict:
         except Exception as e:
             fields_parsed = False
             fields_count = 0
-            fields_error = f"{type(e).__name__}: {str(e)[:300]}"
+            fields_error = f"{type(e).__name__}"
             return {
                 "form_id": form_id,
                 "form_title": row.get("form_title"),
                 "fields_type": fields_type,
                 "fields_parsed": False,
                 "parse_error": fields_error,
-                "traceback": traceback.format_exc()[-500:],
             }
 
         return {
@@ -51,4 +53,5 @@ def debug_form(form_id: str) -> dict:
             "ui_config_type": type(row.get("ui_config_json")).__name__,
         }
     except Exception as e:
-        return {"error": f"{type(e).__name__}: {str(e)[:300]}", "traceback": traceback.format_exc()[-500:]}
+        return {"error": f"{type(e).__name__}"}
+

@@ -27,6 +27,15 @@ class SaveSheetRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     worksheet_name: str | None = None
 
+    model_config = {"extra": "ignore"}
+
+
+class RenameSavedSheetRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+
+    model_config = {"extra": "ignore"}
+
+
 
 class SaveSheetResponse(BaseModel):
     id: str
@@ -196,18 +205,16 @@ def delete_saved_sheet(sheet_id: str, request: Request, response: Response):
 @router.patch("/{sheet_id}")
 def rename_saved_sheet(
     sheet_id: str,
+    body: RenameSavedSheetRequest,
     request: Request,
     response: Response,
-    body: dict[str, Any] = {},
 ):
     """Rename a saved sheet."""
     session_key = _get_session_key(request, response)
 
-    new_title = (body.get("title") or "").strip()
+    new_title = body.title.strip()
     if not new_title:
         raise HTTPException(status_code=422, detail="Title is required")
-    if len(new_title) > 200:
-        raise HTTPException(status_code=422, detail="Title too long (max 200 chars)")
 
     row = fetchone(
         "SELECT id FROM saved_sheets WHERE id = %s AND session_key = %s",
@@ -222,3 +229,4 @@ def rename_saved_sheet(
     )
 
     return {"success": True, "title": new_title}
+

@@ -9,12 +9,14 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.config import get_settings
+from app.limiter import limiter
 from app.services import form_store
 from app.services.session_context import OAUTH_SESSION_COOKIE, OAUTH_SESSION_MAX_AGE
 import base64
 import json
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
 
 
 GOOGLE_AUTH_BASE = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -143,6 +145,7 @@ def _frontend_origin() -> str:
 
 
 @router.get("/status")
+@limiter.limit(get_settings().rate_limit_auth)
 def status(request: Request, response: Response) -> dict:
     session_key = _ensure_session_key(request, response)
     token = form_store.get_oauth_token(session_key)
@@ -221,6 +224,7 @@ def status(request: Request, response: Response) -> dict:
 
 
 @router.post("/logout")
+@limiter.limit(get_settings().rate_limit_auth)
 def logout(request: Request, response: Response) -> dict:
     session_key = request.cookies.get(OAUTH_SESSION_COOKIE) or request.headers.get(
         "x-session-key"
@@ -276,6 +280,7 @@ def _set_origin_cookie(response: Response, request: Request, origin: str) -> Non
 
 
 @router.get("/google/start")
+@limiter.limit(get_settings().rate_limit_auth)
 def google_start(request: Request, origin: str | None = None) -> RedirectResponse:
     client_id, _secret, redirect_uri = _require_oauth_config()
     target_origin = _resolve_frontend_origin(request, origin)
@@ -290,6 +295,7 @@ def google_start(request: Request, origin: str | None = None) -> RedirectRespons
 
 
 @router.get("/google/url")
+@limiter.limit(get_settings().rate_limit_auth)
 def google_url(request: Request, response: Response, origin: str | None = None) -> dict:
     """Return the OAuth URL so the frontend can open it directly in the browser."""
     client_id, _secret, redirect_uri = _require_oauth_config()
@@ -304,12 +310,14 @@ def google_url(request: Request, response: Response, origin: str | None = None) 
 
 
 @router.get("/google/callback")
+@limiter.limit(get_settings().rate_limit_auth)
 def google_callback(
     request: Request,
     code: str | None = None,
     state: str | None = None,
     error: str | None = None,
 ):
+
     if error:
         raise HTTPException(status_code=400, detail=f"OAuth error: {error}")
     if not code:

@@ -277,5 +277,6 @@ async def upload_file(
     except Exception as exc:
         logger.exception("drive.upload_failed")
         raise HTTPException(
-            status_code=502, detail=f"Failed to upload file to Google Drive: {exc}"
+            status_code=502, detail="Failed to upload file to Google Drive. Please try again."
         ) from exc
+

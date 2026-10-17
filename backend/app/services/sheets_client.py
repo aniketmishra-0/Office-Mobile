@@ -2218,18 +2218,9 @@ def map_sheet_exception(exc: Exception) -> tuple[int, str]:
             response_body,
         )
         if status_code == 400:
-            # Always include both response body and exception string for maximum debug info
-            detail_parts = []
-            if response_body:
-                detail_parts.append(response_body[:300])
-            exc_str = str(exc)[:300]
-            if exc_str and exc_str not in (response_body or ""):
-                detail_parts.append(exc_str)
-            detail = " | ".join(detail_parts) if detail_parts else "No additional detail from Google"
-            # Provide a more actionable message when possible
-            if "exceeds" in detail.lower() or "range" in detail.lower() or "grid" in detail.lower():
-                return 400, f"The update range exceeds the sheet dimensions. The row may not exist in the sheet. Detail: {detail}"
-            return 400, f"The sheet structure changed or the request was invalid. Try refreshing the page to reload the latest data. Detail: {detail}"
+            if "exceeds" in response_body.lower() or "range" in response_body.lower() or "grid" in response_body.lower():
+                return 400, "The update range exceeds the sheet dimensions. The row may not exist in the sheet."
+            return 400, "The sheet structure changed or the request was invalid. Try refreshing the page to reload the latest data."
         if status_code == 403:
             # The message differs depending on which auth path is in use.
             # OAuth users can't "share with a service account" — that advice
@@ -2238,9 +2229,7 @@ def map_sheet_exception(exc: Exception) -> tuple[int, str]:
             has_oauth = form_store.get_oauth_token() is not None
             body_lower = response_body.lower()
 
-            # Pull Google's own reason out of the body so the UI can show
-            # something more useful than "access denied". Google's v3 error
-            # envelope is {"error":{"code":403,"message":"...","errors":[...]}}.
+            # Pull Google's own reason out of the body for server logging and classification
             google_reason: str | None = None
             google_status: str | None = None
             try:
@@ -2265,13 +2254,10 @@ def map_sheet_exception(exc: Exception) -> tuple[int, str]:
                     or "api has not been used" in body_lower
                     or ("api" in body_lower and "disabled" in body_lower)
                 ):
-                    msg = (
+                    return 403, (
                         "Google Drive or Sheets API is disabled for the app's OAuth project. "
                         "An administrator needs to enable them in the Google Cloud Console."
                     )
-                    if google_reason:
-                        msg += f" (Google said: {google_reason[:200]})"
-                    return 403, msg
 
                 # User ran out of Drive storage.
                 if "storage quota" in body_lower or "storagequotaexceeded" in body_lower:
@@ -2287,13 +2273,10 @@ def map_sheet_exception(exc: Exception) -> tuple[int, str]:
                     or "policy" in body_lower
                     or "domain" in body_lower
                 ):
-                    msg = (
+                    return 403, (
                         "Your Google Workspace administrator has blocked this action. "
                         "Ask them to allow third-party apps to create Sheets on your account."
                     )
-                    if google_reason:
-                        msg += f" (Google said: {google_reason[:200]})"
-                    return 403, msg
 
                 # Missing scope — user unchecked a permission box on consent.
                 if (
@@ -2310,11 +2293,6 @@ def map_sheet_exception(exc: Exception) -> tuple[int, str]:
                         "you use with this app' stay checked on the consent screen."
                     )
 
-                # Fall back to Google's own message if we have one — much more
-                # useful than the old generic "sign out and sign in again" blurb.
-                if google_reason:
-                    return 403, f"Google denied this request: {google_reason[:300]}"
-
                 return 403, (
                     "Google denied access to this sheet or to your Drive. "
                     "If you're trying to open an existing sheet, make sure you have access to it in Google Drive. "
@@ -2324,6 +2302,7 @@ def map_sheet_exception(exc: Exception) -> tuple[int, str]:
                 "No permission to read or write this sheet. "
                 "If you expect the app to create or access sheets, share the sheet/Drive with the service account or sign in with Google."
             )
+
         if status_code == 404:
             return 404, "Sheet or tab not found."
         if status_code == 429:
