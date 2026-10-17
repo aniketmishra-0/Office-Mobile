@@ -9,10 +9,11 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.config import get_settings
 from app.limiter import limiter
-from app.routers import auth, forms, health, preferences, saved_sheets, upload, websocket
+from app.routers import auth, forms, health, jobs, preferences, saved_sheets, upload, websocket
 from app.services.session_context import OAUTH_SESSION_COOKIE, reset_oauth_session_key, set_oauth_session_key
 from app.services.form_store import init_db
 from app.routers.saved_sheets import init_saved_sheets_table
+from app.services.job_store import init_jobs_table
 from app.db import close_pool
 from app.utils.error_responses import ErrorCode
 from fastapi.exceptions import RequestValidationError
@@ -76,6 +77,7 @@ async def _periodic_queue_sweeper():
 async def lifespan(app: FastAPI):
     init_db()
     init_saved_sheets_table()
+    init_jobs_table()
     sweeper_task = asyncio.create_task(_periodic_queue_sweeper())
     try:
         yield
@@ -283,3 +285,4 @@ app.include_router(upload.router)
 app.include_router(preferences.router)
 app.include_router(saved_sheets.router)
 app.include_router(websocket.router)
+app.include_router(jobs.router)

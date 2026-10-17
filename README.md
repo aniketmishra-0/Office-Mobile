@@ -416,6 +416,12 @@ Predicts field values based on submission history.
 - **External Staleness Tradeoff:** Because Google Sheets can be edited directly outside of Office Mobile (e.g., in a separate browser tab or mobile app), changes made externally may take up to 60 seconds (the TTL duration) to reflect in read calls unless an invalidation event or page reload occurs.
 - **Graceful Fallback:** If `REDIS_URL` is not set or Redis is temporarily unavailable, the app automatically falls back to direct API calls with zero downtime or user impact.
 
+### Background Jobs Architecture
+- **Worker Execution:** Heavy and bulk spreadsheet tasks (bulk batch appends over 100 rows, bulk row deletions, duplicate scans) execute asynchronously via FastAPI `BackgroundTasks`.
+- **Persistent Job State:** Job records (`queued`, `running`, `completed`, `failed`), chunk progress (`processed_count`, `total_count`, `progress_pct`), and result payload are stored in the PostgreSQL `jobs` table.
+- **Chunked Writes & Crash Resilience:** Batch writes are executed in chunks of 50. Progress is committed after each chunk; if an API quota or network error occurs mid-job, the sheet remains uncorrupted, the error is recorded, and `processed_count` preserves exact progress for inspection.
+- **Why BackgroundTasks vs Celery/RQ:** For the single GCP Compute Engine VM, Celery or RQ introduces excessive daemon overhead (broker process, separate worker pools, split-brain states). FastAPI `BackgroundTasks` backed by durable PostgreSQL state provides low-latency execution and zero extra memory footprint without external broker dependencies.
+
 ---
 
 ## API Endpoints
@@ -463,6 +469,14 @@ Predicts field values based on submission history.
 | WS | `/ws/sheet/{sheet_id}` | Real-time event subscription for sheet watchers. Broadcasts `{type, sheet_id, row_index, timestamp}` on row mutations. Authenticated via session cookie/token. Includes heartbeat (ping/pong) and zero-leak disconnect cleanup. |
 
 > **Polling Fallback:** Clients that do not support WebSockets continue to use periodic polling via `GET /api/sheet/history` (backed by Redis cache).
+
+### Background Jobs
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/jobs/{job_id}` | Check job status (`queued`, `running`, `completed`, `failed`), progress percentage, and results |
+| POST | `/api/jobs/batch-append` | Enqueue background batch append of up to 2,000 rows in chunks of 50 with live progress tracking |
+| POST | `/api/jobs/bulk-delete` | Enqueue background bulk delete of up to 2,000 rows in descending chunks |
+| POST | `/api/jobs/duplicate-scan` | Enqueue background duplicate rows scan with optional key column matching |
 
 ### Other
 | Method | Path | Description |
