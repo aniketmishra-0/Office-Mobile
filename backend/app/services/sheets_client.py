@@ -490,9 +490,21 @@ def add_worksheet_tab(spreadsheet_id: str, tab_name: str, headers: list[str] | N
     """Add a new worksheet tab to an existing spreadsheet. Returns the actual tab name."""
     client = get_client()
     spreadsheet = client.open_by_key(spreadsheet_id)
-    worksheet = spreadsheet.add_worksheet(title=tab_name, rows=1000, cols=max(26, len(headers or [])))
+
+    target_name = tab_name
+    try:
+        existing_titles = {ws.title for ws in spreadsheet.worksheets()}
+        if target_name in existing_titles:
+            counter = 1
+            while f"{target_name} ({counter})" in existing_titles:
+                counter += 1
+            target_name = f"{target_name} ({counter})"
+    except Exception:
+        pass
+
+    worksheet = spreadsheet.add_worksheet(title=target_name, rows=1000, cols=max(26, len(headers or [])))
     if headers:
-        worksheet.update("A1", [headers], value_input_option="RAW")
+        worksheet.update([headers], "A1")
     return worksheet.title
 
 

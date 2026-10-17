@@ -525,15 +525,19 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
     };
 
     setError(null);
-    await onSubmit({
-      formTitle: trimmedTitle,
-      description: formDescription.trim() || undefined,
-      worksheetName: trimmedWorksheet,
-      destination,
-      existingSheetUrl: destination === "existing" ? existingSheetUrl.trim() : undefined,
-      fields: normalizedFields,
-      uiConfig,
-    });
+    try {
+      await onSubmit({
+        formTitle: trimmedTitle,
+        description: formDescription.trim() || undefined,
+        worksheetName: trimmedWorksheet,
+        destination,
+        existingSheetUrl: destination === "existing" ? existingSheetUrl.trim() : undefined,
+        fields: normalizedFields,
+        uiConfig,
+      });
+    } catch (err: any) {
+      setError(err?.message || "Failed to create form. Please try again.");
+    }
   }
 
   return (
@@ -590,18 +594,38 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
       {activeTab === "editor" && (
         <div className="space-y-6">
           {/* Quick Starters & Templates (Collapsible) */}
-          <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs space-y-3 transition-all">
+          <div
+            className="rounded-2xl p-4 shadow-xs space-y-3 transition-all"
+            style={{ background: "var(--paper)", border: "1px solid var(--rule)" }}
+          >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="text-base">⚡</span>
-                <span className="text-[12px] font-bold text-zinc-950 uppercase tracking-wide">
+                <span
+                  className="text-[12px] font-bold uppercase tracking-wide"
+                  style={{ color: "var(--ink)" }}
+                >
                   Ready-Made Templates
                 </span>
-                <span className="text-[10px] font-mono font-semibold text-zinc-600 bg-zinc-100 px-2 py-0.5 rounded-full border border-zinc-200">
+                <span
+                  className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full"
+                  style={{
+                    color: "var(--stone)",
+                    background: "var(--cream)",
+                    border: "1px solid var(--rule)",
+                  }}
+                >
                   {FORM_TEMPLATES.length}
                 </span>
                 {selectedTemplateId && (
-                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                  <span
+                    className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                    style={{
+                      color: "var(--clay)",
+                      background: "rgba(224, 122, 80, 0.12)",
+                      border: "1px solid var(--clay)",
+                    }}
+                  >
                     Active: {FORM_TEMPLATES.find((t) => t.id === selectedTemplateId)?.name}
                   </span>
                 )}
@@ -611,7 +635,12 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                 <button
                   type="button"
                   onClick={() => setShowBulkPasteModal(true)}
-                  className="text-[11px] font-semibold text-zinc-600 hover:text-zinc-950 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200 transition-colors"
+                  className="text-[11px] font-semibold flex items-center gap-1 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                  style={{
+                    color: "var(--ink)",
+                    background: "var(--cream)",
+                    border: "1px solid var(--rule)",
+                  }}
                 >
                   <span>📋</span>
                   <span>Bulk Headers</span>
@@ -619,7 +648,12 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                 <button
                   type="button"
                   onClick={() => setShowTemplatesGrid(!showTemplatesGrid)}
-                  className="text-[11px] font-semibold text-zinc-700 hover:text-zinc-950 flex items-center gap-1 px-2.5 py-1 rounded-lg border border-zinc-200 hover:bg-zinc-50 transition-colors cursor-pointer"
+                  className="text-[11px] font-semibold flex items-center gap-1 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                  style={{
+                    color: "var(--ink)",
+                    background: "var(--cream)",
+                    border: "1px solid var(--rule)",
+                  }}
                 >
                   <span>{showTemplatesGrid ? "▲ Compact View" : "▼ Show All Cards"}</span>
                 </button>
@@ -636,15 +670,30 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                       key={tpl.id}
                       type="button"
                       onClick={() => loadTemplate(tpl)}
-                      className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border active:scale-95 cursor-pointer ${
+                      className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border active:scale-95 cursor-pointer"
+                      style={
                         isSelected
-                          ? "bg-zinc-950 text-white border-zinc-950 shadow-xs"
-                          : "bg-zinc-50 hover:bg-zinc-100 text-zinc-700 border-zinc-200"
-                      }`}
+                          ? {
+                              background: "var(--ink)",
+                              color: "var(--cream)",
+                              borderColor: "var(--ink)",
+                            }
+                          : {
+                              background: "var(--cream)",
+                              color: "var(--ink)",
+                              borderColor: "var(--rule)",
+                            }
+                      }
                     >
                       <span>{tpl.icon}</span>
                       <span>{tpl.name}</span>
-                      <span className={`text-[10px] ml-0.5 font-normal ${isSelected ? "text-zinc-300" : "text-zinc-400"}`}>
+                      <span
+                        className="text-[10px] ml-0.5 font-normal"
+                        style={{
+                          color: isSelected ? "var(--cream)" : "var(--stone)",
+                          opacity: 0.8,
+                        }}
+                      >
                         ({tpl.fields.length})
                       </span>
                     </button>
@@ -664,25 +713,48 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                         loadTemplate(tpl);
                         setShowTemplatesGrid(false);
                       }}
-                      className={`p-3 text-left rounded-xl border transition-all active:scale-[0.98] group flex items-start gap-3 cursor-pointer ${
+                      className="p-3 text-left rounded-xl border transition-all active:scale-[0.98] group flex items-start gap-3 cursor-pointer"
+                      style={
                         isSelected
-                          ? "border-emerald-500 bg-emerald-50/50 ring-1 ring-emerald-500"
-                          : "border-zinc-200 bg-zinc-50/60 hover:bg-white hover:border-zinc-300"
-                      }`}
+                          ? {
+                              background: "rgba(224, 122, 80, 0.12)",
+                              borderColor: "var(--clay)",
+                              boxShadow: "0 0 0 1px var(--clay)",
+                            }
+                          : {
+                              background: "var(--cream)",
+                              borderColor: "var(--rule)",
+                            }
+                      }
                     >
-                      <div className="text-2xl p-1.5 rounded-lg bg-white border border-zinc-100 shadow-2xs shrink-0">
+                      <div
+                        className="text-2xl p-1.5 rounded-lg border shrink-0"
+                        style={{
+                          background: "var(--paper)",
+                          borderColor: "var(--rule)",
+                        }}
+                      >
                         {tpl.icon}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-1">
-                          <p className="text-[12px] font-bold text-zinc-900 group-hover:text-emerald-700 transition-colors truncate">
+                          <p
+                            className="text-[12px] font-bold truncate transition-colors"
+                            style={{ color: isSelected ? "var(--clay)" : "var(--ink)" }}
+                          >
                             {tpl.name}
                           </p>
-                          <span className="text-[10px] font-mono text-zinc-400 shrink-0">
+                          <span
+                            className="text-[10px] font-mono shrink-0"
+                            style={{ color: "var(--stone)" }}
+                          >
                             {tpl.fields.length}f
                           </span>
                         </div>
-                        <p className="text-[11px] text-zinc-500 mt-0.5 line-clamp-1">
+                        <p
+                          className="text-[11px] mt-0.5 line-clamp-1"
+                          style={{ color: "var(--stone)" }}
+                        >
                           {tpl.description}
                         </p>
                       </div>
@@ -694,25 +766,41 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
           </div>
 
           {/* Destination Selector: New Sheet vs Existing Sheet */}
-          <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-xs space-y-4">
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-500">
+          <div
+            className="rounded-2xl p-5 shadow-xs space-y-4"
+            style={{ background: "var(--paper)", border: "1px solid var(--rule)" }}
+          >
+            <label
+              className="block text-[11px] font-bold uppercase tracking-wider"
+              style={{ color: "var(--stone)" }}
+            >
               Where will the data be stored?
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => setDestination("new")}
-                className={`p-3.5 text-left rounded-xl border transition-all ${
+                className="p-3.5 text-left rounded-xl border transition-all cursor-pointer"
+                style={
                   destination === "new"
-                    ? "border-zinc-950 bg-zinc-50/80 shadow-xs ring-1 ring-zinc-950"
-                    : "border-zinc-200 hover:border-zinc-300"
-                }`}
+                    ? {
+                        borderColor: "var(--clay)",
+                        background: "rgba(224, 122, 80, 0.10)",
+                        boxShadow: "0 0 0 1px var(--clay)",
+                      }
+                    : {
+                        borderColor: "var(--rule)",
+                        background: "var(--cream)",
+                      }
+                }
               >
                 <div className="flex items-center gap-2">
                   <span className="text-lg">✨</span>
-                  <span className="text-[13px] font-bold text-zinc-950">Create New Google Sheet</span>
+                  <span className="text-[13px] font-bold" style={{ color: "var(--ink)" }}>
+                    Create New Google Sheet
+                  </span>
                 </div>
-                <p className="text-[11px] text-zinc-500 mt-1 pl-7">
+                <p className="text-[11px] mt-1 pl-7" style={{ color: "var(--stone)" }}>
                   We&apos;ll automatically generate a brand new Google Spreadsheet linked to this form.
                 </p>
               </button>
@@ -720,17 +808,27 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
               <button
                 type="button"
                 onClick={() => setDestination("existing")}
-                className={`p-3.5 text-left rounded-xl border transition-all ${
+                className="p-3.5 text-left rounded-xl border transition-all cursor-pointer"
+                style={
                   destination === "existing"
-                    ? "border-zinc-950 bg-zinc-50/80 shadow-xs ring-1 ring-zinc-950"
-                    : "border-zinc-200 hover:border-zinc-300"
-                }`}
+                    ? {
+                        borderColor: "var(--clay)",
+                        background: "rgba(224, 122, 80, 0.10)",
+                        boxShadow: "0 0 0 1px var(--clay)",
+                      }
+                    : {
+                        borderColor: "var(--rule)",
+                        background: "var(--cream)",
+                      }
+                }
               >
                 <div className="flex items-center gap-2">
                   <span className="text-lg">🔗</span>
-                  <span className="text-[13px] font-bold text-zinc-950">Add Tab to Existing Sheet</span>
+                  <span className="text-[13px] font-bold" style={{ color: "var(--ink)" }}>
+                    Add Tab to Existing Sheet
+                  </span>
                 </div>
-                <p className="text-[11px] text-zinc-500 mt-1 pl-7">
+                <p className="text-[11px] mt-1 pl-7" style={{ color: "var(--stone)" }}>
                   Paste your existing Google Sheet link and we&apos;ll insert a fresh tab for this form.
                 </p>
               </button>
@@ -738,15 +836,23 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
 
             {destination === "existing" && (
               <div className="pt-2 animate-in fade-in">
-                <label className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-600 mb-1.5">
-                  Existing Google Sheet URL or ID <span className="text-red-500">*</span>
+                <label
+                  className="block text-[11px] font-semibold uppercase tracking-wide mb-1.5"
+                  style={{ color: "var(--stone)" }}
+                >
+                  Existing Google Sheet URL or ID <span style={{ color: "var(--error)" }}>*</span>
                 </label>
                 <input
                   type="text"
                   value={existingSheetUrl}
                   onChange={(e) => setExistingSheetUrl(e.target.value)}
                   placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
-                  className="w-full rounded-xl border border-zinc-300 bg-white px-3.5 py-2.5 text-[14px] text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-950 focus:border-transparent"
+                  className="w-full rounded-xl px-3.5 py-2.5 text-[14px] focus:outline-none"
+                  style={{
+                    background: "var(--cream)",
+                    border: "1px solid var(--rule)",
+                    color: "var(--ink)",
+                  }}
                 />
               </div>
             )}
@@ -754,8 +860,14 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
 
           {/* Form Title & Subsheet Name */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs">
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+            <div
+              className="rounded-2xl p-4 shadow-xs"
+              style={{ background: "var(--paper)", border: "1px solid var(--rule)" }}
+            >
+              <label
+                className="block text-[11px] font-bold uppercase tracking-wider mb-1"
+                style={{ color: "var(--stone)" }}
+              >
                 Form Title
               </label>
               <div className="relative">
@@ -763,15 +875,26 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                   type="text"
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
-                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50/50 px-3.5 py-2.5 pr-10 text-[15px] font-semibold text-zinc-950 focus:border-zinc-950 focus:bg-white focus:outline-none focus:ring-2 focus:ring-zinc-950 transition-all"
+                  className="w-full rounded-xl px-3.5 py-2.5 pr-10 text-[15px] font-semibold transition-all focus:outline-none"
+                  style={{
+                    background: "var(--cream)",
+                    border: "1px solid var(--rule)",
+                    color: "var(--ink)",
+                  }}
                   placeholder="e.g. Daily Attendance"
                 />
                 {formTitle && <ClearButton onClick={() => setFormTitle("")} right={12} ariaLabel="Clear title" />}
               </div>
             </div>
 
-            <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs">
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+            <div
+              className="rounded-2xl p-4 shadow-xs"
+              style={{ background: "var(--paper)", border: "1px solid var(--rule)" }}
+            >
+              <label
+                className="block text-[11px] font-bold uppercase tracking-wider mb-1"
+                style={{ color: "var(--stone)" }}
+              >
                 Subsheet (Tab) Name
               </label>
               <div className="relative">
@@ -779,7 +902,12 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                   type="text"
                   value={worksheetName}
                   onChange={(e) => setWorksheetName(e.target.value)}
-                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50/50 px-3.5 py-2.5 pr-10 text-[15px] font-semibold text-zinc-950 focus:border-zinc-950 focus:bg-white focus:outline-none focus:ring-2 focus:ring-zinc-950 transition-all"
+                  className="w-full rounded-xl px-3.5 py-2.5 pr-10 text-[15px] font-semibold transition-all focus:outline-none"
+                  style={{
+                    background: "var(--cream)",
+                    border: "1px solid var(--rule)",
+                    color: "var(--ink)",
+                  }}
                   placeholder="e.g. Sheet1"
                 />
                 {worksheetName !== "Sheet1" && worksheetName !== "" && (
@@ -792,26 +920,43 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
           {/* ─────────────────────────────────────────────────────────────
               Job Description (JD) / Role Overview Section (Collapsible)
              ───────────────────────────────────────────────────────────── */}
-          <div className="rounded-2xl border border-zinc-200 bg-white overflow-hidden shadow-xs transition-all">
+          <div
+            className="rounded-2xl overflow-hidden shadow-xs transition-all"
+            style={{ background: "var(--paper)", border: "1px solid var(--rule)" }}
+          >
             <button
               type="button"
               onClick={() => setShowJdSection(!showJdSection)}
-              className="w-full flex items-center justify-between p-4 bg-zinc-50/50 hover:bg-zinc-100/60 transition-colors"
+              className="w-full flex items-center justify-between p-4 transition-colors cursor-pointer"
+              style={{ background: "var(--cream)" }}
             >
               <div className="flex items-center gap-2.5 text-left">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white text-xs">
+                <span
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-xs"
+                  style={{ background: "var(--clay)", color: "var(--on-clay)" }}
+                >
                   💼
                 </span>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-bold text-zinc-950">
+                    <span
+                      className="text-[13px] font-bold"
+                      style={{ color: "var(--ink)" }}
+                    >
                       Job Description (JD) & Role Details
                     </span>
-                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full border border-emerald-200/50">
+                    <span
+                      className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                      style={{
+                        color: "var(--clay)",
+                        background: "rgba(224, 122, 80, 0.12)",
+                        border: "1px solid var(--clay)",
+                      }}
+                    >
                       Collapsible on Form
                     </span>
                   </div>
-                  <p className="text-[11px] text-zinc-500 mt-0.5">
+                  <p className="text-[11px] mt-0.5" style={{ color: "var(--stone)" }}>
                     {formDescription.trim()
                       ? `${formDescription.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 65)}...`
                       : "Add role details, responsibilities & perks (candidates can expand/collapse on mobile)"}
@@ -820,12 +965,16 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
               </div>
               <div className="flex items-center gap-2">
                 {formDescription.trim() && (
-                  <span className="text-[10px] font-mono font-medium text-zinc-400 hidden sm:inline">
+                  <span
+                    className="text-[10px] font-mono font-medium hidden sm:inline"
+                    style={{ color: "var(--stone)" }}
+                  >
                     {formDescription.length} chars
                   </span>
                 )}
                 <svg
-                  className={`w-4 h-4 text-zinc-500 transition-transform duration-200 ${showJdSection ? "rotate-180" : ""}`}
+                  className={`w-4 h-4 transition-transform duration-200 ${showJdSection ? "rotate-180" : ""}`}
+                  style={{ color: "var(--stone)" }}
                   fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -834,16 +983,30 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
             </button>
 
             {showJdSection && (
-              <div className="p-4 pt-3 border-t border-zinc-100 space-y-3 bg-white animate-in fade-in">
+              <div
+                className="p-4 pt-3 space-y-3 animate-in fade-in"
+                style={{
+                  background: "var(--paper)",
+                  borderTop: "1px solid var(--rule)",
+                }}
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-600">
+                  <label
+                    className="text-[11px] font-bold uppercase tracking-wider"
+                    style={{ color: "var(--stone)" }}
+                  >
                     JD Content (Overview, Requirements & Perks)
                   </label>
                   <div className="flex items-center gap-1.5">
                     <button
                       type="button"
                       onClick={() => setFormDescription(DEFAULT_JOB_DESCRIPTION)}
-                      className="px-2.5 py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors flex items-center gap-1"
+                      className="px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                      style={{
+                        color: "var(--clay)",
+                        background: "rgba(224, 122, 80, 0.12)",
+                        border: "1px solid var(--clay)",
+                      }}
                     >
                       <span>✨</span>
                       <span>Insert Sample JD</span>
@@ -852,7 +1015,8 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                       <button
                         type="button"
                         onClick={() => setFormDescription("")}
-                        className="px-2 py-1 text-[11px] font-medium text-zinc-500 hover:text-red-600 rounded-lg hover:bg-zinc-100 transition-colors"
+                        className="px-2 py-1 text-[11px] font-medium rounded-lg transition-colors cursor-pointer"
+                        style={{ color: "var(--stone)" }}
                       >
                         Clear
                       </button>
@@ -867,7 +1031,7 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                   maxLength={10000}
                 />
 
-                <p className="text-[11px] text-zinc-400 flex items-center gap-1 pt-1">
+                <p className="text-[11px] flex items-center gap-1 pt-1" style={{ color: "var(--stone)" }}>
                   <span>💡</span>
                   <span>
                     This JD will appear at the top of the form with a smooth <strong>[View Full JD ▾]</strong> accordion toggle, keeping the form fast and clean on mobile.
@@ -878,20 +1042,30 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
           </div>
 
           {/* UI/UX Appearance Drawer */}
-          <div className="rounded-2xl border border-zinc-200 bg-white overflow-hidden shadow-xs">
+          <div
+            className="rounded-2xl overflow-hidden shadow-xs"
+            style={{ background: "var(--paper)", border: "1px solid var(--rule)" }}
+          >
             <button
               type="button"
               onClick={() => setShowConfig(!showConfig)}
-              className="w-full flex items-center justify-between p-4 bg-zinc-50/50 hover:bg-zinc-100/60 transition-colors"
+              className="w-full flex items-center justify-between p-4 transition-colors cursor-pointer"
+              style={{ background: "var(--cream)" }}
             >
               <div className="flex items-center gap-2.5">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-900 text-white text-xs">
+                <span
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-xs"
+                  style={{ background: "var(--ink)", color: "var(--cream)" }}
+                >
                   🎨
                 </span>
-                <span className="text-[13px] font-bold text-zinc-950">Theme, Fonts & Layout Configuration</span>
+                <span className="text-[13px] font-bold" style={{ color: "var(--ink)" }}>
+                  Theme, Fonts & Layout Configuration
+                </span>
               </div>
               <svg
-                className={`w-4 h-4 text-zinc-500 transition-transform duration-200 ${showConfig ? "rotate-180" : ""}`}
+                className={`w-4 h-4 transition-transform duration-200 ${showConfig ? "rotate-180" : ""}`}
+                style={{ color: "var(--stone)" }}
                 fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
               >
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -899,24 +1073,36 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
             </button>
 
             {showConfig && (
-              <div className="p-4 pt-3 border-t border-zinc-100 space-y-4 bg-white animate-in fade-in">
+              <div
+                className="p-4 pt-3 space-y-4 animate-in fade-in"
+                style={{ background: "var(--paper)", borderTop: "1px solid var(--rule)" }}
+              >
                 <FormDesignPicker value={formDesign} onChange={setFormDesign} />
-                <hr className="border-zinc-100" />
+                <hr style={{ borderColor: "var(--rule)" }} />
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                    <label
+                      className="block text-[10px] font-bold uppercase tracking-wider mb-1"
+                      style={{ color: "var(--stone)" }}
+                    >
                       Theme
                     </label>
                     <MobileDropdown size="sm" value={formTheme} options={THEME_OPTIONS} onChange={setFormTheme} />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                    <label
+                      className="block text-[10px] font-bold uppercase tracking-wider mb-1"
+                      style={{ color: "var(--stone)" }}
+                    >
                       Font
                     </label>
                     <MobileDropdown size="sm" value={formFont} options={FONT_OPTIONS} onChange={setFormFont} />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                    <label
+                      className="block text-[10px] font-bold uppercase tracking-wider mb-1"
+                      style={{ color: "var(--stone)" }}
+                    >
                       Layout
                     </label>
                     <MobileDropdown size="sm" value={formLayout} options={LAYOUT_OPTIONS} onChange={setFormLayout} />
@@ -930,16 +1116,23 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
           <div className="space-y-3">
             <div className="flex items-center justify-between px-1">
               <div>
-                <h3 className="text-[14px] font-bold text-zinc-950">
+                <h3 className="text-[14px] font-bold" style={{ color: "var(--ink)" }}>
                   Form Fields ({fields.length})
                 </h3>
-                <p className="text-[11px] text-zinc-500">These will become the column headers in your Google Sheet.</p>
+                <p className="text-[11px]" style={{ color: "var(--stone)" }}>
+                  These will become the column headers in your Google Sheet.
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setShowBulkPasteModal(true)}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-[12px] font-semibold text-zinc-700 hover:bg-zinc-50 shadow-2xs transition-all"
+                  className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-semibold transition-all cursor-pointer"
+                  style={{
+                    color: "var(--ink)",
+                    background: "var(--cream)",
+                    border: "1px solid var(--rule)",
+                  }}
                 >
                   <span>📋</span>
                   <span>Bulk Paste</span>
@@ -947,7 +1140,11 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                 <button
                   type="button"
                   onClick={() => setFields((prev) => [...prev, createDraftField()])}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-zinc-950 text-white px-3.5 py-2 text-[12px] font-semibold hover:bg-zinc-800 shadow-sm transition-all active:scale-[0.98]"
+                  className="inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-semibold transition-all active:scale-[0.98] cursor-pointer"
+                  style={{
+                    color: "var(--on-clay)",
+                    background: "var(--clay)",
+                  }}
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -961,16 +1158,27 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
               {fields.map((field, index) => (
                 <div
                   key={field.id}
-                  className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-2xs hover:shadow-xs transition-shadow space-y-3"
+                  className="rounded-2xl p-4 shadow-2xs hover:shadow-xs transition-shadow space-y-3"
+                  style={{ background: "var(--paper)", border: "1px solid var(--rule)" }}
                 >
                   {/* Field Header & Controls Bar */}
-                  <div className="flex items-center justify-between gap-2 pb-2 border-b border-zinc-100">
+                  <div
+                    className="flex items-center justify-between gap-2 pb-2"
+                    style={{ borderBottom: "1px solid var(--rule)" }}
+                  >
                     <div className="flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-md bg-zinc-100 text-zinc-600 text-[10px] font-mono font-bold flex items-center justify-center">
+                      <span
+                        className="w-5 h-5 rounded-md text-[10px] font-mono font-bold flex items-center justify-center"
+                        style={{
+                          background: "var(--cream)",
+                          color: "var(--stone)",
+                          border: "1px solid var(--rule)",
+                        }}
+                      >
                         #{index + 1}
                       </span>
-                      <span className="text-[12px] font-semibold text-zinc-800">
-                        {field.name.trim() || <span className="text-zinc-400 italic">Untitled Field</span>}
+                      <span className="text-[12px] font-semibold" style={{ color: "var(--ink)" }}>
+                        {field.name.trim() || <span className="italic" style={{ color: "var(--stone)" }}>Untitled Field</span>}
                       </span>
                     </div>
 
@@ -979,14 +1187,23 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                       <button
                         type="button"
                         onClick={() => updateField(field.id, { required: !field.required })}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1 ${
+                        className="px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+                        style={
                           field.required
-                            ? "bg-red-50 text-red-600 border border-red-200"
-                            : "bg-zinc-100 text-zinc-500 hover:text-zinc-700"
-                        }`}
+                            ? {
+                                background: "rgba(184, 58, 58, 0.12)",
+                                color: "var(--error)",
+                                border: "1px solid var(--error)",
+                              }
+                            : {
+                                background: "var(--cream)",
+                                color: "var(--stone)",
+                                border: "1px solid var(--rule)",
+                              }
+                        }
                         title="Toggle required status"
                       >
-                        <span className="text-red-500">*</span>
+                        <span style={{ color: "var(--error)" }}>*</span>
                         <span>Required</span>
                       </button>
 
@@ -995,7 +1212,8 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                         type="button"
                         onClick={() => moveField(field.id, -1)}
                         disabled={index === 0}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 disabled:opacity-20"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors disabled:opacity-20 cursor-pointer"
+                        style={{ color: "var(--stone)" }}
                         title="Move Up"
                       >
                         ↑
@@ -1006,7 +1224,8 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                         type="button"
                         onClick={() => moveField(field.id, 1)}
                         disabled={index === fields.length - 1}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 disabled:opacity-20"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors disabled:opacity-20 cursor-pointer"
+                        style={{ color: "var(--stone)" }}
                         title="Move Down"
                       >
                         ↓
@@ -1016,7 +1235,8 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                       <button
                         type="button"
                         onClick={() => duplicateField(field.id)}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors cursor-pointer"
+                        style={{ color: "var(--stone)" }}
                         title="Duplicate Field"
                       >
                         ⎘
@@ -1027,7 +1247,8 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                         type="button"
                         onClick={() => removeField(field.id)}
                         disabled={fields.length === 1}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-20"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors disabled:opacity-20 cursor-pointer"
+                        style={{ color: "var(--error)" }}
                         title="Delete Field"
                       >
                         ✕
@@ -1038,7 +1259,10 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                   {/* Field Inputs Row */}
                   <div className="grid grid-cols-1 sm:grid-cols-[1fr_180px] gap-3 items-start">
                     <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                      <label
+                        className="block text-[10px] font-bold uppercase tracking-wider mb-1"
+                        style={{ color: "var(--stone)" }}
+                      >
                         Field Label (Column Header)
                       </label>
                       <input
@@ -1046,12 +1270,20 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                         value={field.name}
                         onChange={(e) => updateField(field.id, { name: e.target.value })}
                         placeholder={`e.g. ${index === 0 ? "Full Name" : index === 1 ? "Mobile Number" : "Status"}`}
-                        className="w-full rounded-xl border border-zinc-200 bg-zinc-50/50 px-3 py-2 text-[13px] font-medium text-zinc-950 focus:border-zinc-950 focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-950"
+                        className="w-full rounded-xl px-3 py-2 text-[13px] font-medium focus:outline-none"
+                        style={{
+                          background: "var(--cream)",
+                          border: "1px solid var(--rule)",
+                          color: "var(--ink)",
+                        }}
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                      <label
+                        className="block text-[10px] font-bold uppercase tracking-wider mb-1"
+                        style={{ color: "var(--stone)" }}
+                      >
                         Field Type
                       </label>
                       <MobileDropdown
@@ -1065,7 +1297,10 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
 
                   {/* Placeholder Input */}
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                    <label
+                      className="block text-[10px] font-bold uppercase tracking-wider mb-1"
+                      style={{ color: "var(--stone)" }}
+                    >
                       Custom Placeholder (Optional)
                     </label>
                     <input
@@ -1073,18 +1308,28 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                       value={field.placeholder || ""}
                       onChange={(e) => updateField(field.id, { placeholder: e.target.value })}
                       placeholder={`e.g. Enter ${field.name ? field.name.toLowerCase() : "value"}`}
-                      className="w-full rounded-xl border border-zinc-200 bg-zinc-50/30 px-3 py-1.5 text-[12px] text-zinc-700 focus:border-zinc-950 focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-950"
+                      className="w-full rounded-xl px-3 py-1.5 text-[12px] focus:outline-none"
+                      style={{
+                        background: "var(--cream)",
+                        border: "1px solid var(--rule)",
+                        color: "var(--ink)",
+                      }}
                     />
                   </div>
 
                   {/* Dropdown Options Manager (if type is select) */}
                   {field.type === "select" && (
-                    <div className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-3.5 space-y-2.5">
+                    <div
+                      className="rounded-xl p-3.5 space-y-2.5"
+                      style={{ background: "var(--cream)", border: "1px solid var(--rule)" }}
+                    >
                       <div className="flex items-center justify-between">
-                        <label className="text-[11px] font-bold text-zinc-700">
+                        <label className="text-[11px] font-bold" style={{ color: "var(--ink)" }}>
                           Dropdown Choices ({field.options?.length || 0})
                         </label>
-                        <span className="text-[10px] text-zinc-400">Type option and click &apos;+ Add&apos;</span>
+                        <span className="text-[10px]" style={{ color: "var(--stone)" }}>
+                          Type option and click &apos;+ Add&apos;
+                        </span>
                       </div>
 
                       {/* Add Option Input */}
@@ -1100,12 +1345,21 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                             }
                           }}
                           placeholder="Type option name (e.g. Completed)"
-                          className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-[12px] text-zinc-950 focus:outline-none focus:ring-2 focus:ring-zinc-950"
+                          className="flex-1 rounded-lg px-3 py-1.5 text-[12px] focus:outline-none"
+                          style={{
+                            background: "var(--paper)",
+                            border: "1px solid var(--rule)",
+                            color: "var(--ink)",
+                          }}
                         />
                         <button
                           type="button"
                           onClick={() => addOptionToField(field.id)}
-                          className="px-3 py-1.5 rounded-lg bg-zinc-900 text-white text-[11px] font-semibold hover:bg-zinc-800 transition-colors"
+                          className="px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer"
+                          style={{
+                            background: "var(--ink)",
+                            color: "var(--cream)",
+                          }}
                         >
                           + Add
                         </button>
@@ -1117,13 +1371,19 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                           {field.options.map((opt) => (
                             <span
                               key={opt}
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-white border border-zinc-200 text-zinc-800 shadow-2xs"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium shadow-2xs"
+                              style={{
+                                background: "var(--paper)",
+                                border: "1px solid var(--rule)",
+                                color: "var(--ink)",
+                              }}
                             >
                               <span>{opt}</span>
                               <button
                                 type="button"
                                 onClick={() => removeOptionFromField(field.id, opt)}
-                                className="text-zinc-400 hover:text-red-500 font-bold text-xs"
+                                className="font-bold text-xs cursor-pointer opacity-60 hover:opacity-100"
+                                style={{ color: "var(--error)" }}
                                 title="Remove option"
                               >
                                 ×
@@ -1132,7 +1392,7 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                           ))}
                         </div>
                       ) : (
-                        <p className="text-[11px] text-amber-600 italic">
+                        <p className="text-[11px] italic" style={{ color: "var(--stone)" }}>
                           ⚠️ No choices added yet. Add at least 1-2 options for this dropdown.
                         </p>
                       )}
@@ -1144,7 +1404,14 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
           </div>
 
           {error && (
-            <div className="rounded-xl bg-red-50 border border-red-200 p-3.5 flex items-start gap-2.5 text-red-700 text-xs font-semibold">
+            <div
+              className="rounded-xl p-3.5 flex items-start gap-2.5 text-xs font-semibold"
+              style={{
+                background: "rgba(184, 58, 58, 0.12)",
+                border: "1px solid var(--error)",
+                color: "var(--error)",
+              }}
+            >
               <span>⚠️</span>
               <span>{error}</span>
             </div>
@@ -1311,24 +1578,42 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
           BULK PASTE MODAL
          ─────────────────────────────────────────────────────────────── */}
       {showBulkPasteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="w-full max-w-[500px] bg-white rounded-3xl shadow-2xl p-6 space-y-4 border border-zinc-200 animate-scale-up">
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in">
+          <div
+            className="w-full max-w-[500px] rounded-3xl shadow-2xl p-6 space-y-4 animate-scale-up"
+            style={{
+              background: "var(--paper)",
+              border: "1px solid var(--rule)",
+              color: "var(--ink)",
+            }}
+          >
+            <div
+              className="flex items-center justify-between pb-2"
+              style={{ borderBottom: "1px solid var(--rule)" }}
+            >
               <div>
-                <h3 className="text-[16px] font-bold text-zinc-950">📋 Bulk Paste Column Headers</h3>
-                <p className="text-[12px] text-zinc-500">Paste headers from Excel, Google Sheets, or WhatsApp</p>
+                <h3 className="text-[16px] font-bold" style={{ color: "var(--ink)" }}>
+                  📋 Bulk Paste Column Headers
+                </h3>
+                <p className="text-[12px]" style={{ color: "var(--stone)" }}>
+                  Paste headers from Excel, Google Sheets, or WhatsApp
+                </p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowBulkPasteModal(false)}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100"
+                className="w-8 h-8 rounded-full flex items-center justify-center cursor-pointer transition-colors"
+                style={{ color: "var(--stone)" }}
               >
                 ✕
               </button>
             </div>
 
             <div className="space-y-2">
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-500">
+              <label
+                className="block text-[11px] font-bold uppercase tracking-wider"
+                style={{ color: "var(--stone)" }}
+              >
                 Paste Columns (1 per line, or comma-separated)
               </label>
               <textarea
@@ -1336,18 +1621,27 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                 value={bulkPasteText}
                 onChange={(e) => setBulkPasteText(e.target.value)}
                 placeholder={`Student Name\nPhone Number\nGender (Male, Female, Other)\nFees Amount (Number)\nFee Receipt (File)\nRemarks`}
-                className="w-full font-mono text-xs rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-950"
+                className="w-full font-mono text-xs rounded-xl p-3 focus:outline-none"
+                style={{
+                  background: "var(--cream)",
+                  border: "1px solid var(--rule)",
+                  color: "var(--ink)",
+                }}
               />
-              <p className="text-[11px] text-zinc-400">
+              <p className="text-[11px]" style={{ color: "var(--stone)" }}>
                 💡 Tip: Add parentheses for dropdowns like <code>Status (Active, Inactive)</code>.
               </p>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100">
+            <div
+              className="flex items-center justify-end gap-2 pt-2"
+              style={{ borderTop: "1px solid var(--rule)" }}
+            >
               <button
                 type="button"
                 onClick={() => setShowBulkPasteModal(false)}
-                className="px-3 py-2 text-xs font-semibold text-zinc-600 hover:bg-zinc-100 rounded-lg"
+                className="px-3 py-2 text-xs font-semibold rounded-lg cursor-pointer"
+                style={{ color: "var(--stone)" }}
               >
                 Cancel
               </button>
@@ -1355,7 +1649,12 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                 type="button"
                 onClick={() => handleApplyBulkPaste("append")}
                 disabled={!bulkPasteText.trim()}
-                className="px-3.5 py-2 text-xs font-semibold bg-zinc-100 hover:bg-zinc-200 text-zinc-800 rounded-xl disabled:opacity-50"
+                className="px-3.5 py-2 text-xs font-semibold rounded-xl disabled:opacity-50 cursor-pointer"
+                style={{
+                  color: "var(--ink)",
+                  background: "var(--cream)",
+                  border: "1px solid var(--rule)",
+                }}
               >
                 + Append to Existing
               </button>
@@ -1363,7 +1662,11 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                 type="button"
                 onClick={() => handleApplyBulkPaste("replace")}
                 disabled={!bulkPasteText.trim()}
-                className="px-4 py-2 text-xs font-semibold bg-zinc-950 hover:bg-zinc-800 text-white rounded-xl shadow-xs disabled:opacity-50"
+                className="px-4 py-2 text-xs font-semibold rounded-xl shadow-xs disabled:opacity-50 cursor-pointer"
+                style={{
+                  color: "var(--on-clay)",
+                  background: "var(--clay)",
+                }}
               >
                 Replace All Fields
               </button>

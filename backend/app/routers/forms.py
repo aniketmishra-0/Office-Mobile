@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from functools import partial
 
 from fastapi import APIRouter, HTTPException, Query, Body
+from gspread.urls import SPREADSHEETS_API_V4_BASE_URL
 
 from app.config import get_settings
 from app.models.field import CustomKeywordRule, FieldSchema
@@ -116,7 +117,7 @@ def _sync_description_to_dashboard(
         except Exception:
             # Dashboard tab doesn't exist — create it
             dashboard_ws = spreadsheet.add_worksheet(title="Dashboard", rows=100, cols=2)
-            dashboard_ws.update("A1", [["Subsheet", "Description"]], value_input_option="RAW")
+            dashboard_ws.update([["Subsheet", "Description"]], "A1")
 
         # Find existing row for this worksheet_name and update, or append
         all_values = dashboard_ws.get_all_values()
@@ -180,12 +181,63 @@ async def create_sheet(payload: CreateSheetRequest) -> CreateSheetResponse:
                 raise _sheet_error(exc) from exc
 
             try:
-                spreadsheet = client.create(payload.form_title)
-                worksheet = spreadsheet.sheet1
-                if payload.worksheet_name:
-                    worksheet.update_title(payload.worksheet_name)
+                # 1. Try creating directly via Google Sheets API v4
+                # POST https://sheets.googleapis.com/v4/spreadsheets
+                # This only requires https://www.googleapis.com/auth/spreadsheets scope,
+                # avoiding Drive API 403 / insufficient permission errors.
+                body = {
+                    "properties": {"title": payload.form_title},
+                    "sheets": [
+                        {"properties": {"title": payload.worksheet_name or "Sheet1"}}
+                    ],
+                }
+                res = client.http_client.request(
+                    "post",
+                    SPREADSHEETS_API_V4_BASE_URL,
+                    json=body,
+                )
+                if res.status_code == 200:
+                    spreadsheet_id = res.json()["spreadsheetId"]
+                    spreadsheet = client.open_by_key(spreadsheet_id)
+                    worksheet = (
+                        spreadsheet.worksheet(payload.worksheet_name)
+                        if payload.worksheet_name
+                        else spreadsheet.sheet1
+                    )
+                else:
+                    logger.info(
+                        "Sheets v4 direct create returned %s (%s), falling back to client.create",
+                        res.status_code,
+                        res.text[:200],
+                    )
+                    spreadsheet = client.create(payload.form_title)
+                    worksheet = spreadsheet.sheet1
+                    if payload.worksheet_name:
+                        worksheet.update_title(payload.worksheet_name)
+            except Exception as v4_err:
+                logger.info(
+                    "Sheets v4 direct create failed (%s: %s), falling back to client.create",
+                    type(v4_err).__name__,
+                    str(v4_err)[:200],
+                )
+                try:
+                    spreadsheet = client.create(payload.form_title)
+                    worksheet = spreadsheet.sheet1
+                    if payload.worksheet_name:
+                        worksheet.update_title(payload.worksheet_name)
+                except Exception as exc:
+                    logger.warning(
+                        "sheet.create.failed title=%r type=%s msg=%s",
+                        payload.form_title,
+                        type(exc).__name__,
+                        str(exc)[:300],
+                    )
+                    raise _sheet_error(exc) from exc
+
+            try:
                 headers = [field.source_header for field in payload.fields]
-                worksheet.update("A1", [headers], value_input_option="RAW")
+                if headers:
+                    worksheet.update("A1", [headers], value_input_option="RAW")
 
                 # If created via OAuth, optionally share with service account so background sync works seamlessly
                 settings = get_settings()
@@ -196,7 +248,7 @@ async def create_sheet(payload: CreateSheetRequest) -> CreateSheetResponse:
                         pass
             except Exception as exc:
                 logger.warning(
-                    "sheet.create.failed title=%r type=%s msg=%s",
+                    "sheet.post_create.failed title=%r type=%s msg=%s",
                     payload.form_title,
                     type(exc).__name__,
                     str(exc)[:300],
