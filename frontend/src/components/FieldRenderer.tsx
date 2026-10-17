@@ -561,7 +561,6 @@ function ComboboxControl({
   required?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [showAllChips, setShowAllChips] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -584,27 +583,6 @@ function ComboboxControl({
     const matches = cleanOptions.filter((opt) => opt.toLowerCase().includes(q));
     return matches.length > 0 ? matches : cleanOptions;
   }, [cleanOptions, value]);
-
-  // Quick chips to show directly inside the app
-  const visibleChips = useMemo(() => {
-    if (cleanOptions.length === 0) return [];
-    const q = value.trim().toLowerCase();
-    if (q) {
-      // If typing, show matching chips
-      return filteredOptions.slice(0, 20);
-    }
-    // If not typing, show all if <= 12 or if user clicked more
-    if (cleanOptions.length <= 12 || showAllChips) {
-      return cleanOptions;
-    }
-    // Top 10 chips, ensuring currently selected option is visible
-    const top = cleanOptions.slice(0, 10);
-    const trimmedVal = value.trim();
-    if (trimmedVal && !top.includes(trimmedVal) && cleanOptions.includes(trimmedVal)) {
-      top.push(trimmedVal);
-    }
-    return top;
-  }, [cleanOptions, filteredOptions, value, showAllChips]);
 
   // Close dropdown on outside click or touch
   useEffect(() => {
@@ -716,40 +694,6 @@ function ComboboxControl({
                 </button>
               );
             })
-          )}
-        </div>
-      )}
-
-      {/* In-app quick chips below */}
-      {cleanOptions.length > 0 && (
-        <div className="om-quick-chips">
-          {visibleChips.map((opt) => {
-            const isSelected = value.trim() === opt.trim();
-            return (
-              <button
-                key={opt}
-                type="button"
-                className={`om-quick-chip ${isSelected ? "is-selected" : ""}`}
-                onClick={() => {
-                  onChange(isSelected ? "" : opt);
-                  setIsOpen(false);
-                }}
-              >
-                {opt}
-              </button>
-            );
-          })}
-          {!value.trim() && cleanOptions.length > 12 && (
-            <button
-              type="button"
-              className="om-quick-chip om-quick-chip--more"
-              onClick={() => {
-                setShowAllChips((prev) => !prev);
-                setIsOpen(false);
-              }}
-            >
-              {showAllChips ? "− Show less" : `+ ${cleanOptions.length - 10} more`}
-            </button>
           )}
         </div>
       )}
@@ -871,36 +815,6 @@ function ComboboxControl({
           font-size: 12px;
           color: var(--stone);
           text-align: center;
-        }
-        .om-quick-chips {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-          margin-top: 8px;
-        }
-        .om-quick-chip {
-          font-family: var(--font-plex-mono), ui-monospace, monospace;
-          font-size: 11px;
-          padding: 4px 10px;
-          border-radius: 0;
-          border: 1px solid var(--rule);
-          background: transparent;
-          color: var(--ink);
-          cursor: pointer;
-          transition: all 150ms ease;
-        }
-        .om-quick-chip:hover {
-          border-color: var(--stone);
-        }
-        .om-quick-chip.is-selected {
-          background: var(--ink);
-          color: var(--paper, #fff);
-          border-color: var(--ink);
-        }
-        .om-quick-chip--more {
-          border-style: dashed;
-          color: var(--clay, #c8623a);
-          font-weight: 500;
         }
       `}</style>
     </div>

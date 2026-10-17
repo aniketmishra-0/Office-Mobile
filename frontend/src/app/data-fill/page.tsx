@@ -1071,24 +1071,6 @@ function DataFillPageInner() {
                             </option>
                           ))}
                         </select>
-                        {(field.options || []).length <= 6 && (
-                          <div className="flex flex-wrap gap-1.5 mt-2">
-                            {(field.options || []).map((opt) => (
-                              <button
-                                key={opt}
-                                type="button"
-                                onClick={() => handleFieldValueChange(field.key, opt)}
-                                className={`px-2.5 py-1 text-xs rounded-full border transition-all ${
-                                  editValues[field.key] === opt
-                                    ? "bg-zinc-900 text-white border-zinc-900"
-                                    : "bg-zinc-50 text-zinc-700 border-zinc-200 hover:border-zinc-400"
-                                }`}
-                              >
-                                {opt}
-                              </button>
-                            ))}
-                          </div>
-                        )}
                       </div>
                     ) : (
                       <div>
