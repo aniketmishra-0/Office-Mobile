@@ -342,7 +342,6 @@ function TextInput({
   suggestions?: string[];
 }) {
   const [isFocused, setIsFocused] = useState(false);
-  const datalistId = `dl-${id}`;
 
   const cleanSuggestions = useMemo(() => {
     const seen = new Set<string>();
@@ -370,7 +369,6 @@ function TextInput({
         <input
           id={id}
           type={type}
-          list={cleanSuggestions.length > 0 ? datalistId : undefined}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onFocus={() => {
@@ -384,17 +382,9 @@ function TextInput({
           placeholder={placeholder}
           required={required}
           inputMode={inputMode}
-          autoComplete={cleanSuggestions.length > 0 ? "off" : autoComplete}
+          autoComplete={autoComplete}
           className="om-input"
         />
-
-        {cleanSuggestions.length > 0 && (
-          <datalist id={datalistId}>
-            {cleanSuggestions.map((sug) => (
-              <option key={sug} value={sug} />
-            ))}
-          </datalist>
-        )}
 
         {value && (
           <button
@@ -413,7 +403,7 @@ function TextInput({
         )}
       </div>
 
-      {/* Smart Auto-Complete quick suggestion chips */}
+      {/* Smart Auto-Complete quick suggestion chips inside app */}
       {isFocused && filteredSuggestions.length > 0 && (
         <div className="om-suggestions-row">
           <span className="om-suggestions-label">Suggestions:</span>
@@ -423,6 +413,10 @@ function TextInput({
               type="button"
               tabIndex={-1}
               className="om-suggestion-chip"
+              onPointerDown={(e) => {
+                e.preventDefault();
+                onChange(sug);
+              }}
               onMouseDown={(e) => {
                 e.preventDefault();
                 onChange(sug);
@@ -567,6 +561,7 @@ function ComboboxControl({
   required?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [showAllChips, setShowAllChips] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -590,19 +585,42 @@ function ComboboxControl({
     return matches.length > 0 ? matches : cleanOptions;
   }, [cleanOptions, value]);
 
-  // Close dropdown on outside click
+  // Quick chips to show directly inside the app
+  const visibleChips = useMemo(() => {
+    if (cleanOptions.length === 0) return [];
+    const q = value.trim().toLowerCase();
+    if (q) {
+      // If typing, show matching chips
+      return filteredOptions.slice(0, 20);
+    }
+    // If not typing, show all if <= 12 or if user clicked more
+    if (cleanOptions.length <= 12 || showAllChips) {
+      return cleanOptions;
+    }
+    // Top 10 chips, ensuring currently selected option is visible
+    const top = cleanOptions.slice(0, 10);
+    const trimmedVal = value.trim();
+    if (trimmedVal && !top.includes(trimmedVal) && cleanOptions.includes(trimmedVal)) {
+      top.push(trimmedVal);
+    }
+    return top;
+  }, [cleanOptions, filteredOptions, value, showAllChips]);
+
+  // Close dropdown on outside click or touch
   useEffect(() => {
     if (!isOpen) return;
-    const handleClick = (e: MouseEvent) => {
+    const handleClick = (e: MouseEvent | TouchEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    document.addEventListener("touchstart", handleClick);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("touchstart", handleClick);
+    };
   }, [isOpen]);
-
-  const listId = `dl-${id}`;
 
   return (
     <div ref={containerRef} className="om-combobox-wrap">
@@ -611,7 +629,6 @@ function ComboboxControl({
           ref={inputRef}
           id={id}
           type="text"
-          list={listId}
           value={value}
           onChange={(e) => {
             onChange(e.target.value);
@@ -619,20 +636,16 @@ function ComboboxControl({
           }}
           onFocus={() => {
             onFocus();
+            if (cleanOptions.length > 0) setIsOpen(true);
           }}
-          onBlur={onBlur}
+          onClick={() => {
+            if (cleanOptions.length > 0) setIsOpen(true);
+          }}
           placeholder={placeholder || (cleanOptions.length > 0 ? "Select or type…" : "Enter text…")}
           required={required}
           className="om-combobox-input"
           autoComplete="off"
         />
-
-        {/* Native datalist fallback */}
-        <datalist id={listId}>
-          {cleanOptions.map((opt) => (
-            <option key={opt} value={opt} />
-          ))}
-        </datalist>
 
         <div className="om-combobox-actions">
           {value && (
@@ -670,45 +683,74 @@ function ComboboxControl({
         </div>
       </div>
 
-      {/* Floating Options Dropdown Menu */}
+      {/* Floating Options Dropdown Menu inside app */}
       {isOpen && cleanOptions.length > 0 && (
         <div className="om-combobox-dropdown">
-          {filteredOptions.map((opt) => {
-            const isSelected = value.trim() === opt.trim();
-            return (
-              <div
-                key={opt}
-                className={`om-combobox-option ${isSelected ? "is-selected" : ""}`}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  onChange(opt);
-                  setIsOpen(false);
-                }}
-              >
-                <span>{opt}</span>
-                {isSelected && <span style={{ color: "var(--clay)", fontSize: 12 }}>✓</span>}
-              </div>
-            );
-          })}
+          {filteredOptions.length === 0 ? (
+            <div className="om-combobox-empty">No options match &quot;{value}&quot;</div>
+          ) : (
+            filteredOptions.map((opt) => {
+              const isSelected = value.trim() === opt.trim();
+              return (
+                <button
+                  type="button"
+                  key={opt}
+                  className={`om-combobox-option ${isSelected ? "is-selected" : ""}`}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    onChange(opt);
+                    setIsOpen(false);
+                  }}
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    onChange(opt);
+                    setIsOpen(false);
+                  }}
+                  onClick={() => {
+                    onChange(opt);
+                    setIsOpen(false);
+                  }}
+                >
+                  <span className="truncate">{opt}</span>
+                  {isSelected && <span style={{ color: "var(--clay)", fontSize: 13, fontWeight: 700 }}>✓</span>}
+                </button>
+              );
+            })
+          )}
         </div>
       )}
 
-      {/* Quick chips below for up to 8 options */}
-      {cleanOptions.length > 0 && cleanOptions.length <= 8 && (
+      {/* In-app quick chips below */}
+      {cleanOptions.length > 0 && (
         <div className="om-quick-chips">
-          {cleanOptions.map((opt) => {
+          {visibleChips.map((opt) => {
             const isSelected = value.trim() === opt.trim();
             return (
               <button
                 key={opt}
                 type="button"
                 className={`om-quick-chip ${isSelected ? "is-selected" : ""}`}
-                onClick={() => onChange(isSelected ? "" : opt)}
+                onClick={() => {
+                  onChange(isSelected ? "" : opt);
+                  setIsOpen(false);
+                }}
               >
                 {opt}
               </button>
             );
           })}
+          {!value.trim() && cleanOptions.length > 12 && (
+            <button
+              type="button"
+              className="om-quick-chip om-quick-chip--more"
+              onClick={() => {
+                setShowAllChips((prev) => !prev);
+                setIsOpen(false);
+              }}
+            >
+              {showAllChips ? "− Show less" : `+ ${cleanOptions.length - 10} more`}
+            </button>
+          )}
         </div>
       )}
 
@@ -781,12 +823,13 @@ function ComboboxControl({
           top: calc(100% + 4px);
           left: 0;
           right: 0;
-          max-height: 220px;
+          max-height: 240px;
           overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
           background: var(--paper, #ffffff);
           border: 1px solid var(--rule, #e4e4e7);
-          border-radius: 0;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+          border-radius: 4px;
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
           z-index: 50;
         }
         :global(.dark) .om-combobox-dropdown {
@@ -794,27 +837,40 @@ function ComboboxControl({
           border-color: #27272a;
         }
         .om-combobox-option {
+          width: 100%;
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 8px 12px;
+          padding: 10px 14px;
           font-family: var(--font-plex-mono), ui-monospace, monospace;
-          font-size: 12px;
+          font-size: 13px;
           color: var(--ink);
           cursor: pointer;
+          border: 0;
           border-bottom: 1px solid var(--rule, #e4e4e7);
+          background: transparent;
+          text-align: left;
           transition: background 120ms ease;
         }
         .om-combobox-option:last-child {
           border-bottom: 0;
         }
-        .om-combobox-option:hover {
+        .om-combobox-option:hover,
+        .om-combobox-option:focus {
           background: rgba(200, 98, 58, 0.08);
           color: var(--clay);
+          outline: none;
         }
         .om-combobox-option.is-selected {
           background: rgba(200, 98, 58, 0.12);
           font-weight: 600;
+        }
+        .om-combobox-empty {
+          padding: 12px 14px;
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-size: 12px;
+          color: var(--stone);
+          text-align: center;
         }
         .om-quick-chips {
           display: flex;
@@ -840,6 +896,11 @@ function ComboboxControl({
           background: var(--ink);
           color: var(--paper, #fff);
           border-color: var(--ink);
+        }
+        .om-quick-chip--more {
+          border-style: dashed;
+          color: var(--clay, #c8623a);
+          font-weight: 500;
         }
       `}</style>
     </div>

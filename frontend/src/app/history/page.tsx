@@ -2114,10 +2114,7 @@ function HistoryPageInner() {
                       }}>
                         {field.label}
                       </label>
-                      <input
-                        type="text"
-                        list={listId}
-                        placeholder="All"
+                      <select
                         value={columnFilters[field.key] ?? ""}
                         onChange={(e) => {
                           setColumnFilters((prev) => ({
@@ -2134,13 +2131,16 @@ function HistoryPageInner() {
                           border: columnFilters[field.key] ? "1px solid rgba(200, 98, 58, 0.4)" : "1px solid var(--rule)",
                           borderRadius: 4,
                           padding: "6px 8px",
+                          outline: "none",
                         }}
-                      />
-                      <datalist id={listId}>
+                      >
+                        <option value="">All</option>
                         {uniqueVals.map((val) => (
-                          <option key={val} value={val} />
+                          <option key={val} value={val}>
+                            {val}
+                          </option>
                         ))}
-                      </datalist>
+                      </select>
                     </div>
                   );
                 })}

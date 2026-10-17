@@ -1095,19 +1095,11 @@ function DataFillPageInner() {
                         <input
                           ref={(el) => { editFieldRefs.current[fieldIdx] = el; }}
                           type={field.type === "number" ? "number" : field.type === "email" ? "email" : field.type === "tel" ? "tel" : field.type === "url" ? "url" : "text"}
-                          list={`df-dl-${field.key}`}
                           value={editValues[field.key] ?? ""}
                           onChange={(e) => handleFieldValueChange(field.key, e.target.value)}
                           placeholder={field.placeholder || `Enter ${field.label}`}
                           className={`w-full mt-1 px-3 py-2 text-[14px] rounded-md border ${isMissing ? "border-red-300 bg-red-50/30" : "border-zinc-200"} focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent`}
                         />
-                        {fieldSuggestionsMap[field.key] && (
-                          <datalist id={`df-dl-${field.key}`}>
-                            {fieldSuggestionsMap[field.key].slice(0, 30).map((sug) => (
-                              <option key={sug} value={sug} />
-                            ))}
-                          </datalist>
-                        )}
                         {(() => {
                           const valLower = (editValues[field.key] ?? "").toLowerCase().trim();
                           const sugs = (fieldSuggestionsMap[field.key] || [])
@@ -1659,19 +1651,11 @@ function DataFillPageInner() {
                         <div>
                           <input
                             type={targetField.type === "number" ? "number" : targetField.type === "date" ? "date" : "text"}
-                            list={`bulk-dl-${targetField.key}`}
                             value={bulkValue}
                             onChange={(e) => setBulkValue(e.target.value)}
                             placeholder={`Enter value for ${targetField.label}`}
                             className="w-full px-3 py-2 text-[14px] rounded-lg border border-zinc-200 bg-white focus:outline-none focus:ring-2 focus:ring-zinc-900"
                           />
-                          {fieldSuggestionsMap[targetField.key] && (
-                            <datalist id={`bulk-dl-${targetField.key}`}>
-                              {fieldSuggestionsMap[targetField.key].slice(0, 30).map((sug) => (
-                                <option key={sug} value={sug} />
-                              ))}
-                            </datalist>
-                          )}
                           {(() => {
                             const valLower = bulkValue.toLowerCase().trim();
                             const sugs = (fieldSuggestionsMap[targetField.key] || [])
