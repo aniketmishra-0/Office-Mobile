@@ -7,35 +7,154 @@ import SubmitButton from "@/components/SubmitButton";
 import MobileDropdown from "@/components/MobileDropdown";
 import FormDesignPicker from "@/components/FormDesignPicker";
 
-type DraftField = {
+export type DraftField = {
   id: string;
   name: string;
   type: FieldType;
+  required?: boolean;
+  placeholder?: string;
   options?: string[];
 };
 
-interface Props {
-  submitting: boolean;
-  onSubmit: (payload: {
-    formTitle: string;
-    worksheetName?: string;
-    fields: FieldSchema[];
-    uiConfig?: Record<string, any>;
-  }) => Promise<void> | void;
+export interface FormBuilderSubmitPayload {
+  formTitle: string;
+  worksheetName: string;
+  destination: "new" | "existing";
+  existingSheetUrl?: string;
+  fields: FieldSchema[];
+  uiConfig?: Record<string, any>;
 }
 
-const FIELD_TYPES: Array<{ value: FieldType; label: string }> = [
-  { value: "text", label: "Text" },
-  { value: "select", label: "Dropdown" },
-  { value: "number", label: "Number" },
-  { value: "date", label: "Date" },
-  { value: "time", label: "Time" },
-  { value: "tel", label: "Phone" },
-  { value: "email", label: "Email" },
-  { value: "textarea", label: "Long Text" },
-  { value: "checkbox", label: "Checkbox" },
-  { value: "url", label: "URL" },
-  { value: "file", label: "File" },
+interface Props {
+  submitting: boolean;
+  onSubmit: (payload: FormBuilderSubmitPayload) => Promise<void> | void;
+}
+
+export const FIELD_TYPES: Array<{ value: FieldType; label: string; icon: string }> = [
+  { value: "text", label: "Text", icon: "📝" },
+  { value: "select", label: "Dropdown", icon: "▾" },
+  { value: "number", label: "Number", icon: "🔢" },
+  { value: "date", label: "Date", icon: "📅" },
+  { value: "time", label: "Time", icon: "⏰" },
+  { value: "tel", label: "Phone", icon: "📞" },
+  { value: "email", label: "Email", icon: "✉️" },
+  { value: "textarea", label: "Long Text", icon: "📄" },
+  { value: "checkbox", label: "Checkbox", icon: "☑️" },
+  { value: "file", label: "File / Photo", icon: "📎" },
+  { value: "url", label: "URL", icon: "🌐" },
+];
+
+export interface FormTemplate {
+  id: string;
+  icon: string;
+  name: string;
+  description: string;
+  worksheetName: string;
+  fields: Array<{
+    name: string;
+    type: FieldType;
+    required?: boolean;
+    options?: string[];
+    placeholder?: string;
+  }>;
+}
+
+export const FORM_TEMPLATES: FormTemplate[] = [
+  {
+    id: "attendance",
+    icon: "📋",
+    name: "Attendance Register",
+    description: "Daily staff or student presence tracking",
+    worksheetName: "Attendance",
+    fields: [
+      { name: "Full Name", type: "text", required: true, placeholder: "e.g. John Doe" },
+      { name: "Roll / Employee ID", type: "text", required: true, placeholder: "e.g. EMP-104" },
+      { name: "Date", type: "date", required: true },
+      { name: "Shift / Batch", type: "select", options: ["Morning Shift", "Afternoon Shift", "Evening Shift", "General"] },
+      { name: "Status", type: "select", required: true, options: ["Present", "Absent", "Late", "Half Day", "On Leave"] },
+      { name: "Remarks / Reason", type: "text", placeholder: "Optional notes" },
+    ],
+  },
+  {
+    id: "expenses",
+    icon: "💰",
+    name: "Expense & Bill Tracker",
+    description: "Log daily expenses, bills, and receipts",
+    worksheetName: "Expenses",
+    fields: [
+      { name: "Expense Date", type: "date", required: true },
+      { name: "Item / Purpose", type: "text", required: true, placeholder: "e.g. Client lunch, Uber, Stationary" },
+      { name: "Category", type: "select", required: true, options: ["Travel & Fuel", "Meals & Food", "Office Supplies", "Software & Tools", "Utilities & Bills", "Client Entertainment", "Other"] },
+      { name: "Amount ₹", type: "number", required: true, placeholder: "0.00" },
+      { name: "Payment Mode", type: "select", options: ["UPI / GPay / PhonePe", "Cash", "Credit Card", "Debit Card", "Net Banking", "Company Card"] },
+      { name: "Bill / Receipt Photo", type: "file", placeholder: "Upload receipt" },
+      { name: "Notes", type: "text" },
+    ],
+  },
+  {
+    id: "leads",
+    icon: "🎯",
+    name: "Sales & Lead CRM",
+    description: "Capture new inquiries and track status",
+    worksheetName: "Leads",
+    fields: [
+      { name: "Client / Customer Name", type: "text", required: true, placeholder: "e.g. Sharma Enterprises" },
+      { name: "Phone Number", type: "tel", required: true, placeholder: "+91 98765 43210" },
+      { name: "Email Address", type: "email", placeholder: "name@company.com" },
+      { name: "Requirement / Interest", type: "text", placeholder: "Product or service details" },
+      { name: "Estimated Budget ₹", type: "number", placeholder: "50000" },
+      { name: "Lead Priority", type: "select", options: ["🔥 High / Hot", "⚡ Medium / Warm", "❄️ Low / Cold"] },
+      { name: "Stage", type: "select", required: true, options: ["New Inquiry", "Contacted", "Proposal Sent", "Negotiation", "Converted (Won)", "Lost"] },
+      { name: "Next Follow-up Date", type: "date" },
+    ],
+  },
+  {
+    id: "inventory",
+    icon: "📦",
+    name: "Inventory & Stock Log",
+    description: "Stock in/out, quantities, and items",
+    worksheetName: "Inventory",
+    fields: [
+      { name: "Item SKU / Code", type: "text", required: true, placeholder: "e.g. SKU-4029" },
+      { name: "Item Name", type: "text", required: true, placeholder: "e.g. Wireless Mouse" },
+      { name: "Transaction Type", type: "select", required: true, options: ["Stock In (Received)", "Stock Out (Dispatched)", "Return", "Damaged / Disposed"] },
+      { name: "Quantity", type: "number", required: true, placeholder: "10" },
+      { name: "Unit", type: "select", options: ["Pcs", "Kg", "Box", "Pack", "Litre", "Meter"] },
+      { name: "Unit Price ₹", type: "number", placeholder: "Unit cost" },
+      { name: "Supplier / Recipient", type: "text", placeholder: "Vendor or department name" },
+    ],
+  },
+  {
+    id: "feedback",
+    icon: "⭐",
+    name: "Customer Feedback",
+    description: "Ratings, reviews, and client satisfaction",
+    worksheetName: "Feedback",
+    fields: [
+      { name: "Customer Name", type: "text", required: true, placeholder: "John Doe" },
+      { name: "Contact Phone", type: "tel", placeholder: "Phone number" },
+      { name: "Overall Experience", type: "select", required: true, options: ["⭐⭐⭐⭐⭐ Excellent", "⭐⭐⭐⭐ Very Good", "⭐⭐⭐ Good / Average", "⭐⭐ Needs Improvement", "⭐ Poor"] },
+      { name: "Service Quality", type: "select", options: ["Highly Satisfied", "Satisfied", "Neutral", "Unsatisfied"] },
+      { name: "Would you recommend us?", type: "select", options: ["Yes, Definitely!", "Maybe", "No"] },
+      { name: "Detailed Feedback / Suggestions", type: "textarea", placeholder: "Tell us what you liked or how we can improve..." },
+    ],
+  },
+  {
+    id: "visitor",
+    icon: "🪪",
+    name: "Visitor / Gate Pass",
+    description: "Office visitor log, entry time, and photo",
+    worksheetName: "Visitors",
+    fields: [
+      { name: "Visitor Name", type: "text", required: true, placeholder: "Full Name" },
+      { name: "Phone Number", type: "tel", required: true, placeholder: "Mobile Number" },
+      { name: "Person to Meet", type: "text", required: true, placeholder: "Host Name / Employee" },
+      { name: "Department", type: "select", options: ["Administration", "Human Resources", "Sales & Marketing", "Finance & Accounts", "Engineering / IT", "Management"] },
+      { name: "Purpose of Visit", type: "select", options: ["Business Meeting", "Job Interview", "Delivery / Vendor", "Personal Visit", "Maintenance"] },
+      { name: "Entry Date & Time", type: "date", required: true },
+      { name: "Visitor Photo / ID Proof", type: "file" },
+    ],
+  },
 ];
 
 const THEME_OPTIONS = [
@@ -61,6 +180,8 @@ function createDraftField(): DraftField {
     id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2),
     name: "",
     type: "text",
+    required: false,
+    placeholder: "",
   };
 }
 
@@ -72,11 +193,79 @@ function slugify(value: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+function parseBulkColumnsText(rawText: string): DraftField[] {
+  const lines = rawText
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const items = lines.length === 1 && lines[0].includes(",")
+    ? lines[0].split(",").map((s) => s.trim()).filter(Boolean)
+    : lines;
+
+  return items.map((item) => {
+    let name = item;
+    let type: FieldType = "text";
+    let options: string[] | undefined = undefined;
+
+    const matchParens = item.match(/^(.*?)\s*[\(\[](.*?)[\)\]]$/);
+    if (matchParens) {
+      name = matchParens[1].trim();
+      const optsString = matchParens[2].trim();
+      const explicitType = FIELD_TYPES.find((t) => t.label.toLowerCase() === optsString.toLowerCase() || t.value === optsString.toLowerCase());
+      if (explicitType) {
+        type = explicitType.value;
+      } else if (optsString.includes(",") || optsString.includes("/") || optsString.includes("|")) {
+        type = "select";
+        options = optsString.split(/[,/|]/).map((s) => s.trim()).filter(Boolean);
+      }
+    }
+
+    if (type === "text") {
+      const lower = name.toLowerCase();
+      if (/phone|mobile|contact|tel|whatsapp/.test(lower)) type = "tel";
+      else if (/email|mail/.test(lower)) type = "email";
+      else if (/date|dob|birth|joining|deadline|schedule/.test(lower)) type = "date";
+      else if (/time|slot|hour/.test(lower)) type = "time";
+      else if (/price|amount|rate|cost|fee|qty|quantity|count|budget|total|salary|score|percentage|percent/.test(lower)) type = "number";
+      else if (/photo|image|picture|file|receipt|bill|doc|document|attachment|pdf|proof/.test(lower)) type = "file";
+      else if (/done|checked|verified|active|enabled|yes\/no|agree/.test(lower)) type = "checkbox";
+      else if (/address|comment|remark|description|note|message|reason|feedback/.test(lower)) type = "textarea";
+      else if (/url|link|website/.test(lower)) type = "url";
+      else if (/status|gender|category|mode|type|priority|shift|department|state/.test(lower)) {
+        type = "select";
+      }
+    }
+
+    return {
+      id: Math.random().toString(36).slice(2),
+      name,
+      type,
+      required: false,
+      placeholder: `Enter ${name.toLowerCase()}`,
+      options,
+    };
+  });
+}
+
 export default function FormBuilder({ submitting, onSubmit }: Props) {
+  const [activeTab, setActiveTab] = useState<"editor" | "preview">("editor");
+
+  // Destination: New Sheet or Add to Existing
+  const [destination, setDestination] = useState<"new" | "existing">("new");
+  const [existingSheetUrl, setExistingSheetUrl] = useState("");
+
   const [formTitle, setFormTitle] = useState("Untitled Form");
   const [worksheetName, setWorksheetName] = useState("Sheet1");
   const [fields, setFields] = useState<DraftField[]>([createDraftField()]);
   const [error, setError] = useState<string | null>(null);
+
+  // Bulk paste drawer/modal
+  const [showBulkPasteModal, setShowBulkPasteModal] = useState(false);
+  const [bulkPasteText, setBulkPasteText] = useState("");
+
+  // Quick option adding state per field id
+  const [newOptionInputs, setNewOptionInputs] = useState<Record<string, string>>({});
 
   // Form UI/UX Config
   const [formTheme, setFormTheme] = useState("system");
@@ -98,6 +287,23 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
     setFields((prev) => (prev.length > 1 ? prev.filter((field) => field.id !== id) : prev));
   }
 
+  function duplicateField(id: string) {
+    setFields((prev) => {
+      const idx = prev.findIndex((f) => f.id === id);
+      if (idx < 0) return prev;
+      const target = prev[idx];
+      const dup: DraftField = {
+        ...target,
+        id: Math.random().toString(36).slice(2),
+        name: `${target.name} (Copy)`,
+        options: target.options ? [...target.options] : undefined,
+      };
+      const next = [...prev];
+      next.splice(idx + 1, 0, dup);
+      return next;
+    });
+  }
+
   function moveField(id: string, direction: -1 | 1) {
     setFields((prev) => {
       const index = prev.findIndex((field) => field.id === id);
@@ -108,6 +314,56 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
       const [item] = next.splice(index, 1);
       next.splice(target, 0, item);
       return next;
+    });
+  }
+
+  function loadTemplate(tpl: FormTemplate) {
+    setFormTitle(tpl.name);
+    setWorksheetName(tpl.worksheetName);
+    setFields(
+      tpl.fields.map((f) => ({
+        id: Math.random().toString(36).slice(2),
+        name: f.name,
+        type: f.type,
+        required: f.required ?? false,
+        placeholder: f.placeholder || `Enter ${f.name.toLowerCase()}`,
+        options: f.options ? [...f.options] : undefined,
+      }))
+    );
+    setError(null);
+  }
+
+  function handleApplyBulkPaste(mode: "replace" | "append") {
+    if (!bulkPasteText.trim()) return;
+    const parsed = parseBulkColumnsText(bulkPasteText);
+    if (!parsed.length) return;
+
+    if (mode === "replace") {
+      setFields(parsed);
+    } else {
+      setFields((prev) => [...prev.filter((f) => f.name.trim().length > 0), ...parsed]);
+    }
+    setBulkPasteText("");
+    setShowBulkPasteModal(false);
+  }
+
+  function addOptionToField(fieldId: string) {
+    const raw = (newOptionInputs[fieldId] || "").trim();
+    if (!raw) return;
+    const target = fields.find((f) => f.id === fieldId);
+    if (!target) return;
+    const current = target.options || [];
+    if (!current.includes(raw)) {
+      updateField(fieldId, { options: [...current, raw] });
+    }
+    setNewOptionInputs((prev) => ({ ...prev, [fieldId]: "" }));
+  }
+
+  function removeOptionFromField(fieldId: string, optToRemove: string) {
+    const target = fields.find((f) => f.id === fieldId);
+    if (!target) return;
+    updateField(fieldId, {
+      options: (target.options || []).filter((opt) => opt !== optToRemove),
     });
   }
 
@@ -126,6 +382,10 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
       setError("Add at least one field name.");
       return;
     }
+    if (destination === "existing" && !existingSheetUrl.trim()) {
+      setError("Enter your existing Google Sheet URL or ID.");
+      return;
+    }
 
     const normalizedFields: FieldSchema[] = usableFields.map((field, index) => {
       const header = field.name;
@@ -136,10 +396,10 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
         label: header,
         type: field.type,
         options: field.options,
-        required: false,
+        required: field.required ?? false,
         order: index,
         column_index: index,
-        placeholder: `Enter ${header.toLowerCase()}`,
+        placeholder: field.placeholder?.trim() || `Enter ${header.toLowerCase()}`,
       };
     });
 
@@ -154,306 +414,663 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
     await onSubmit({
       formTitle: trimmedTitle,
       worksheetName: trimmedWorksheet,
+      destination,
+      existingSheetUrl: destination === "existing" ? existingSheetUrl.trim() : undefined,
       fields: normalizedFields,
       uiConfig,
     });
   }
 
   return (
-    <div className="space-y-8 animate-in pb-12">
-      {/* Hero Section */}
-      <div className="relative overflow-hidden rounded-2xl border border-zinc-200 bg-transparent p-6 shadow-sm">
-        <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
-          <svg className="w-32 h-32" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2v4h4v12H6V4h7zM8 12h8v2H8v-2zm0 4h8v2H8v-2z" />
-          </svg>
-        </div>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mb-3">
-          Create new form
-        </p>
-        <h2 className="text-[24px] font-medium text-zinc-950 leading-tight tracking-tight">
-          Start with a blank Google Sheet
-        </h2>
-        <p className="text-[14px] text-zinc-600 mt-2 leading-relaxed max-w-[90%]">
-          Design your form, configure the aesthetics, and we&apos;ll instantly deploy a shareable PWA linked directly to a fresh Google Sheet.
-        </p>
-      </div>
-
-      {/* Main Settings */}
-      <div className="space-y-5">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <div className="group">
-            <label className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-1.5 transition-colors group-focus-within:text-zinc-900">
-              Form title
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                value={formTitle}
-                onChange={(e) => setFormTitle(e.target.value)}
-                className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3.5 pr-10 text-[16px] min-h-[52px] shadow-sm transition-shadow focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-950"
-                placeholder="e.g. Feedback Survey"
-              />
-              {formTitle && <ClearButton onClick={() => setFormTitle("")} right={12} ariaLabel="Clear title" />}
-            </div>
+    <div className="space-y-6 animate-in pb-12 max-w-4xl mx-auto">
+      {/* Top Header & Mode Toggle */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-zinc-950 text-white shadow-xl border border-zinc-800">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-emerald-400 font-semibold">
+              Form Builder Studio
+            </span>
           </div>
-
-          <div className="group">
-            <label className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-1.5 transition-colors group-focus-within:text-zinc-900">
-              Subsheet (Tab) Name
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                value={worksheetName}
-                onChange={(e) => setWorksheetName(e.target.value)}
-                className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3.5 pr-10 text-[16px] min-h-[52px] shadow-sm transition-shadow focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-950"
-                placeholder="e.g. Sheet1"
-              />
-              {worksheetName !== "Sheet1" && worksheetName !== "" && (
-                <ClearButton onClick={() => setWorksheetName("Sheet1")} right={12} ariaLabel="Reset subsheet name" />
-              )}
-            </div>
-          </div>
+          <h2 className="text-[20px] font-bold text-white tracking-tight mt-1">
+            Create & Deploy Form
+          </h2>
+          <p className="text-[12px] text-zinc-400 mt-0.5">
+            Turn blank or existing Google Sheets into fast, mobile-friendly forms.
+          </p>
         </div>
 
-        {/* UI/UX Configuration Toggle */}
-        <div className="rounded-xl border border-zinc-200 bg-transparent transition-all duration-300">
+        {/* View Switcher: Editor vs Live Mobile Preview */}
+        <div className="inline-flex items-center p-1 rounded-xl bg-zinc-900 border border-zinc-800 self-start sm:self-auto">
           <button
             type="button"
-            onClick={() => setShowConfig(!showConfig)}
-            className={`w-full flex items-center justify-between p-4 bg-zinc-50 transition-colors ${showConfig ? 'rounded-t-xl' : 'rounded-xl'}`}
+            onClick={() => setActiveTab("editor")}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              activeTab === "editor"
+                ? "bg-white text-zinc-950 shadow-sm"
+                : "text-zinc-400 hover:text-white"
+            }`}
           >
-            <div className="flex items-center gap-2.5">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-200 text-zinc-700">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-                </svg>
-              </span>
-              <span className="text-[14px] font-medium text-zinc-950">Form UI & UX Configuration</span>
-            </div>
-            <svg
-              className={`w-5 h-5 text-zinc-500 transition-transform duration-300 ${showConfig ? "rotate-180" : ""}`}
-              fill="none" viewBox="0 0 24 24" stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
+            <span>✏️</span>
+            <span>Editor</span>
           </button>
-          
-          {showConfig && (
-            <div className="p-4 pt-4 border-t border-zinc-200 bg-transparent animate-in slide-in-from-top-2">
-              {/* Design Picker */}
-              <div className="mb-5">
+          <button
+            type="button"
+            onClick={() => setActiveTab("preview")}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              activeTab === "preview"
+                ? "bg-white text-zinc-950 shadow-sm"
+                : "text-zinc-400 hover:text-white"
+            }`}
+          >
+            <span>📱</span>
+            <span>Live Preview ({fields.filter((f) => f.name.trim()).length})</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ───────────────────────────────────────────────────────────────
+          EDITOR TAB
+         ─────────────────────────────────────────────────────────────── */}
+      {activeTab === "editor" && (
+        <div className="space-y-6">
+          {/* Quick Starters & Templates */}
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">
+                ⚡ Ready-Made Templates (1-Tap Load)
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowBulkPasteModal(true)}
+                className="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 underline underline-offset-2"
+              >
+                <span>📋</span> Paste Bulk Headers
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+              {FORM_TEMPLATES.map((tpl) => (
+                <button
+                  key={tpl.id}
+                  type="button"
+                  onClick={() => loadTemplate(tpl)}
+                  className="p-3 text-left rounded-xl border border-zinc-200 bg-white hover:border-zinc-950 hover:shadow-md transition-all active:scale-[0.98] group flex flex-col justify-between"
+                >
+                  <div className="text-xl mb-1.5">{tpl.icon}</div>
+                  <div>
+                    <p className="text-[12px] font-bold text-zinc-900 group-hover:text-emerald-600 transition-colors leading-tight truncate">
+                      {tpl.name}
+                    </p>
+                    <p className="text-[10px] text-zinc-400 mt-0.5 line-clamp-1">
+                      {tpl.fields.length} fields
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Destination Selector: New Sheet vs Existing Sheet */}
+          <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-xs space-y-4">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-500">
+              Where will the data be stored?
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setDestination("new")}
+                className={`p-3.5 text-left rounded-xl border transition-all ${
+                  destination === "new"
+                    ? "border-zinc-950 bg-zinc-50/80 shadow-xs ring-1 ring-zinc-950"
+                    : "border-zinc-200 hover:border-zinc-300"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">✨</span>
+                  <span className="text-[13px] font-bold text-zinc-950">Create New Google Sheet</span>
+                </div>
+                <p className="text-[11px] text-zinc-500 mt-1 pl-7">
+                  We&apos;ll automatically generate a brand new Google Spreadsheet linked to this form.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDestination("existing")}
+                className={`p-3.5 text-left rounded-xl border transition-all ${
+                  destination === "existing"
+                    ? "border-zinc-950 bg-zinc-50/80 shadow-xs ring-1 ring-zinc-950"
+                    : "border-zinc-200 hover:border-zinc-300"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🔗</span>
+                  <span className="text-[13px] font-bold text-zinc-950">Add Tab to Existing Sheet</span>
+                </div>
+                <p className="text-[11px] text-zinc-500 mt-1 pl-7">
+                  Paste your existing Google Sheet link and we&apos;ll insert a fresh tab for this form.
+                </p>
+              </button>
+            </div>
+
+            {destination === "existing" && (
+              <div className="pt-2 animate-in fade-in">
+                <label className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-600 mb-1.5">
+                  Existing Google Sheet URL or ID <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={existingSheetUrl}
+                  onChange={(e) => setExistingSheetUrl(e.target.value)}
+                  placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
+                  className="w-full rounded-xl border border-zinc-300 bg-white px-3.5 py-2.5 text-[14px] text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-950 focus:border-transparent"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Form Title & Subsheet Name */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                Form Title
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={formTitle}
+                  onChange={(e) => setFormTitle(e.target.value)}
+                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50/50 px-3.5 py-2.5 pr-10 text-[15px] font-semibold text-zinc-950 focus:border-zinc-950 focus:bg-white focus:outline-none focus:ring-2 focus:ring-zinc-950 transition-all"
+                  placeholder="e.g. Daily Attendance"
+                />
+                {formTitle && <ClearButton onClick={() => setFormTitle("")} right={12} ariaLabel="Clear title" />}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                Subsheet (Tab) Name
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={worksheetName}
+                  onChange={(e) => setWorksheetName(e.target.value)}
+                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50/50 px-3.5 py-2.5 pr-10 text-[15px] font-semibold text-zinc-950 focus:border-zinc-950 focus:bg-white focus:outline-none focus:ring-2 focus:ring-zinc-950 transition-all"
+                  placeholder="e.g. Sheet1"
+                />
+                {worksheetName !== "Sheet1" && worksheetName !== "" && (
+                  <ClearButton onClick={() => setWorksheetName("Sheet1")} right={12} ariaLabel="Reset subsheet name" />
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* UI/UX Appearance Drawer */}
+          <div className="rounded-2xl border border-zinc-200 bg-white overflow-hidden shadow-xs">
+            <button
+              type="button"
+              onClick={() => setShowConfig(!showConfig)}
+              className="w-full flex items-center justify-between p-4 bg-zinc-50/50 hover:bg-zinc-100/60 transition-colors"
+            >
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-900 text-white text-xs">
+                  🎨
+                </span>
+                <span className="text-[13px] font-bold text-zinc-950">Theme, Fonts & Layout Configuration</span>
+              </div>
+              <svg
+                className={`w-4 h-4 text-zinc-500 transition-transform duration-200 ${showConfig ? "rotate-180" : ""}`}
+                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {showConfig && (
+              <div className="p-4 pt-3 border-t border-zinc-100 space-y-4 bg-white animate-in fade-in">
                 <FormDesignPicker value={formDesign} onChange={setFormDesign} />
-              </div>
-
-              <hr className="border-zinc-200 mb-4" />
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-1.5">
-                    Form Theme
-                  </label>
-                  <MobileDropdown
-                    size="sm"
-                    value={formTheme}
-                    options={THEME_OPTIONS}
-                    onChange={(val) => setFormTheme(val)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-1.5">
-                    Typography
-                  </label>
-                  <MobileDropdown
-                    size="sm"
-                    value={formFont}
-                    options={FONT_OPTIONS}
-                    onChange={(val) => setFormFont(val)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-1.5">
-                    Form Layout
-                  </label>
-                  <MobileDropdown
-                    size="sm"
-                    value={formLayout}
-                    options={LAYOUT_OPTIONS}
-                    onChange={(val) => setFormLayout(val)}
-                  />
-                </div>
-              </div>
-              <p className="text-[12px] text-zinc-500 mt-3 flex items-center gap-1.5">
-                <svg className="w-3.5 h-3.5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                These settings will apply to the public form URL.
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <hr className="om-rule" />
-
-      {/* Fields Builder */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between gap-3 px-1">
-          <div>
-            <h3 className="text-[15px] font-medium text-zinc-950">Form Fields</h3>
-            <p className="text-[13px] text-zinc-500 mt-0.5">Define the columns for your spreadsheet.</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setFields((prev) => [...prev, createDraftField()])}
-            className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-transparent px-4 py-2.5 text-[13px] font-medium text-zinc-800 hover:bg-zinc-50 hover:shadow-sm transition-all min-h-[40px]"
-          >
-            <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            Add Field
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          {fields.map((field, index) => (
-            <div 
-              key={field.id} 
-              className="group relative rounded-xl border border-zinc-200 bg-transparent p-4 shadow-sm transition-all hover:border-zinc-300 hover:shadow-md"
-            >
-              <div className="grid grid-cols-1 sm:grid-cols-[1fr_200px_auto] gap-4 items-end">
-                <div className="flex-1">
-                  <label className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-1.5 transition-colors group-focus-within:text-zinc-900">
-                    Field name
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={field.name}
-                      onChange={(e) => updateField(field.id, { name: e.target.value })}
-                      className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 pr-9 text-[14px] text-zinc-950 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-950 transition-all"
-                      placeholder={`e.g. ${index === 0 ? 'Full Name' : index === 1 ? 'Email Address' : 'Comments'}`}
-                    />
-                    {field.name && (
-                      <ClearButton
-                        onClick={() => updateField(field.id, { name: "" })}
-                        right={8}
-                        ariaLabel="Clear field name"
-                      />
-                    )}
+                <hr className="border-zinc-100" />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                      Theme
+                    </label>
+                    <MobileDropdown size="sm" value={formTheme} options={THEME_OPTIONS} onChange={setFormTheme} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                      Font
+                    </label>
+                    <MobileDropdown size="sm" value={formFont} options={FONT_OPTIONS} onChange={setFormFont} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                      Layout
+                    </label>
+                    <MobileDropdown size="sm" value={formLayout} options={LAYOUT_OPTIONS} onChange={setFormLayout} />
                   </div>
                 </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-1.5">
-                    Type
-                  </label>
-                  <MobileDropdown
-                    size="sm"
-                    value={field.type}
-                    options={FIELD_TYPES}
-                    onChange={(val) => updateField(field.id, { type: val as FieldType })}
-                    placeholder="Select type"
-                  />
-                </div>
-
-                <div className="flex items-center gap-1.5 pb-[2px] sm:pb-0">
-                  <button
-                    type="button"
-                    onClick={() => moveField(field.id, -1)}
-                    disabled={index === 0}
-                    className="inline-flex h-[42px] w-10 items-center justify-center rounded-lg border border-zinc-200 bg-transparent text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700 disabled:opacity-30 transition-colors"
-                    aria-label="Move up"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => moveField(field.id, 1)}
-                    disabled={index === fields.length - 1}
-                    className="inline-flex h-[42px] w-10 items-center justify-center rounded-lg border border-zinc-200 bg-transparent text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700 disabled:opacity-30 transition-colors"
-                    aria-label="Move down"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => removeField(field.id)}
-                    className="ml-2 inline-flex h-[42px] w-10 items-center justify-center rounded-lg border border-red-100 bg-red-50 text-red-500 hover:bg-red-100 disabled:opacity-30 transition-colors"
-                    disabled={fields.length === 1}
-                    aria-label="Remove field"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
               </div>
+            )}
+          </div>
 
-              {field.type === "select" && (
-                <div className="mt-3 pt-3 border-t border-zinc-100">
-                  <label className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-1.5">
-                    Dropdown Choices (comma-separated)
-                  </label>
-                  <input
-                    type="text"
-                    value={(field.options || []).join(", ")}
-                    onChange={(e) => {
-                      const parsed = e.target.value
-                        .split(",")
-                        .map((s) => s.trim())
-                        .filter(Boolean);
-                      updateField(field.id, { options: parsed });
-                    }}
-                    placeholder="e.g. Yes, No, Maybe or High, Medium, Low"
-                    className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-[13px] font-mono text-zinc-950 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-950"
-                  />
-                  {field.options && field.options.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {field.options.map((opt, i) => (
-                        <span
-                          key={i}
-                          className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono bg-zinc-100 text-zinc-700 border border-zinc-200"
+          {/* Form Fields List */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between px-1">
+              <div>
+                <h3 className="text-[14px] font-bold text-zinc-950">
+                  Form Fields ({fields.length})
+                </h3>
+                <p className="text-[11px] text-zinc-500">These will become the column headers in your Google Sheet.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowBulkPasteModal(true)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-[12px] font-semibold text-zinc-700 hover:bg-zinc-50 shadow-2xs transition-all"
+                >
+                  <span>📋</span>
+                  <span>Bulk Paste</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFields((prev) => [...prev, createDraftField()])}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-zinc-950 text-white px-3.5 py-2 text-[12px] font-semibold hover:bg-zinc-800 shadow-sm transition-all active:scale-[0.98]"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                  <span>Add Field</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {fields.map((field, index) => (
+                <div
+                  key={field.id}
+                  className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-2xs hover:shadow-xs transition-shadow space-y-3"
+                >
+                  {/* Field Header & Controls Bar */}
+                  <div className="flex items-center justify-between gap-2 pb-2 border-b border-zinc-100">
+                    <div className="flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-md bg-zinc-100 text-zinc-600 text-[10px] font-mono font-bold flex items-center justify-center">
+                        #{index + 1}
+                      </span>
+                      <span className="text-[12px] font-semibold text-zinc-800">
+                        {field.name.trim() || <span className="text-zinc-400 italic">Untitled Field</span>}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      {/* Required Toggle */}
+                      <button
+                        type="button"
+                        onClick={() => updateField(field.id, { required: !field.required })}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1 ${
+                          field.required
+                            ? "bg-red-50 text-red-600 border border-red-200"
+                            : "bg-zinc-100 text-zinc-500 hover:text-zinc-700"
+                        }`}
+                        title="Toggle required status"
+                      >
+                        <span className="text-red-500">*</span>
+                        <span>Required</span>
+                      </button>
+
+                      {/* Move Up */}
+                      <button
+                        type="button"
+                        onClick={() => moveField(field.id, -1)}
+                        disabled={index === 0}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 disabled:opacity-20"
+                        title="Move Up"
+                      >
+                        ↑
+                      </button>
+
+                      {/* Move Down */}
+                      <button
+                        type="button"
+                        onClick={() => moveField(field.id, 1)}
+                        disabled={index === fields.length - 1}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 disabled:opacity-20"
+                        title="Move Down"
+                      >
+                        ↓
+                      </button>
+
+                      {/* Duplicate */}
+                      <button
+                        type="button"
+                        onClick={() => duplicateField(field.id)}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100"
+                        title="Duplicate Field"
+                      >
+                        ⎘
+                      </button>
+
+                      {/* Delete */}
+                      <button
+                        type="button"
+                        onClick={() => removeField(field.id)}
+                        disabled={fields.length === 1}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-20"
+                        title="Delete Field"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Field Inputs Row */}
+                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_180px] gap-3 items-start">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                        Field Label (Column Header)
+                      </label>
+                      <input
+                        type="text"
+                        value={field.name}
+                        onChange={(e) => updateField(field.id, { name: e.target.value })}
+                        placeholder={`e.g. ${index === 0 ? "Full Name" : index === 1 ? "Mobile Number" : "Status"}`}
+                        className="w-full rounded-xl border border-zinc-200 bg-zinc-50/50 px-3 py-2 text-[13px] font-medium text-zinc-950 focus:border-zinc-950 focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-950"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                        Field Type
+                      </label>
+                      <MobileDropdown
+                        size="sm"
+                        value={field.type}
+                        options={FIELD_TYPES.map((t) => ({ value: t.value, label: `${t.icon} ${t.label}` }))}
+                        onChange={(val) => updateField(field.id, { type: val as FieldType })}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Placeholder Input */}
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                      Custom Placeholder (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={field.placeholder || ""}
+                      onChange={(e) => updateField(field.id, { placeholder: e.target.value })}
+                      placeholder={`e.g. Enter ${field.name ? field.name.toLowerCase() : "value"}`}
+                      className="w-full rounded-xl border border-zinc-200 bg-zinc-50/30 px-3 py-1.5 text-[12px] text-zinc-700 focus:border-zinc-950 focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-950"
+                    />
+                  </div>
+
+                  {/* Dropdown Options Manager (if type is select) */}
+                  {field.type === "select" && (
+                    <div className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-3.5 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-zinc-700">
+                          Dropdown Choices ({field.options?.length || 0})
+                        </label>
+                        <span className="text-[10px] text-zinc-400">Type option and click &apos;+ Add&apos;</span>
+                      </div>
+
+                      {/* Add Option Input */}
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={newOptionInputs[field.id] || ""}
+                          onChange={(e) => setNewOptionInputs({ ...newOptionInputs, [field.id]: e.target.value })}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              addOptionToField(field.id);
+                            }
+                          }}
+                          placeholder="Type option name (e.g. Completed)"
+                          className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-[12px] text-zinc-950 focus:outline-none focus:ring-2 focus:ring-zinc-950"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => addOptionToField(field.id)}
+                          className="px-3 py-1.5 rounded-lg bg-zinc-900 text-white text-[11px] font-semibold hover:bg-zinc-800 transition-colors"
                         >
-                          {opt}
-                        </span>
-                      ))}
+                          + Add
+                        </button>
+                      </div>
+
+                      {/* Chips List */}
+                      {field.options && field.options.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {field.options.map((opt) => (
+                            <span
+                              key={opt}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-white border border-zinc-200 text-zinc-800 shadow-2xs"
+                            >
+                              <span>{opt}</span>
+                              <button
+                                type="button"
+                                onClick={() => removeOptionFromField(field.id, opt)}
+                                className="text-zinc-400 hover:text-red-500 font-bold text-xs"
+                                title="Remove option"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-amber-600 italic">
+                          ⚠️ No choices added yet. Add at least 1-2 options for this dropdown.
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
 
-        {error && (
-          <div className="rounded-lg bg-red-50 p-3 flex items-start gap-2 border border-red-100 animate-in">
-            <svg className="w-4 h-4 text-red-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <p className="text-[13px] text-red-700 font-medium" role="alert">
-              {error}
+          {error && (
+            <div className="rounded-xl bg-red-50 border border-red-200 p-3.5 flex items-start gap-2.5 text-red-700 text-xs font-semibold">
+              <span>⚠️</span>
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div className="pt-2">
+            <SubmitButton
+              label={destination === "existing" ? "Add Tab & Deploy Form" : "Create Sheet & Deploy Form"}
+              submitting={submitting}
+              onClick={handleSubmit}
+              disabled={!canSubmit || submitting}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ───────────────────────────────────────────────────────────────
+          LIVE PREVIEW TAB
+         ─────────────────────────────────────────────────────────────── */}
+      {activeTab === "preview" && (
+        <div className="space-y-4">
+          <div className="text-center">
+            <p className="text-[13px] font-semibold text-zinc-900">
+              Interactive Mobile Preview
+            </p>
+            <p className="text-[11px] text-zinc-400">
+              This is exactly how respondents will see your form on their smartphones.
             </p>
           </div>
-        )}
-      </div>
 
-      <div className="pt-4">
-        <SubmitButton
-          label="Create Sheet & Form"
-          submitting={submitting}
-          onClick={handleSubmit}
-          disabled={!canSubmit}
-        />
-        <p className="text-center text-[11px] text-zinc-400 mt-4 uppercase tracking-widest font-medium">
-          A new spreadsheet will be added to your Drive
-        </p>
-      </div>
+          {/* Smartphone Frame Mockup */}
+          <div className="w-full max-w-[380px] mx-auto rounded-[38px] border-[8px] border-zinc-900 bg-zinc-900 shadow-2xl overflow-hidden p-1">
+            <div className="rounded-[30px] bg-white min-h-[580px] max-h-[680px] overflow-y-auto flex flex-col justify-between">
+              {/* Phone Header / Dynamic Island */}
+              <div className="pt-3 px-6 pb-2 border-b border-zinc-100 flex items-center justify-between">
+                <span className="text-[10px] font-mono text-zinc-400 font-bold">9:41</span>
+                <div className="w-20 h-4 bg-zinc-950 rounded-full" />
+                <span className="text-[10px] text-zinc-400 font-bold">100%</span>
+              </div>
+
+              {/* Form Content Inside Mockup */}
+              <div className="p-5 space-y-4 flex-1">
+                <div>
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                    {worksheetName || "Sheet1"}
+                  </span>
+                  <h1 className="text-[18px] font-bold text-zinc-950 mt-1.5 leading-snug">
+                    {formTitle || "Untitled Form"}
+                  </h1>
+                </div>
+
+                <div className="space-y-3.5">
+                  {fields
+                    .filter((f) => f.name.trim().length > 0)
+                    .map((f, i) => (
+                      <div key={f.id || i} className="space-y-1">
+                        <label className="block text-[11px] font-bold text-zinc-700">
+                          {f.name}
+                          {f.required && <span className="text-red-500 font-bold ml-1">*</span>}
+                        </label>
+
+                        {f.type === "checkbox" ? (
+                          <div className="flex items-center gap-2 pt-1">
+                            <input type="checkbox" className="w-4 h-4 rounded text-zinc-950" />
+                            <span className="text-xs text-zinc-600">Yes, confirm</span>
+                          </div>
+                        ) : f.type === "select" ? (
+                          <div className="relative">
+                            <select className="w-full px-3 py-2 text-xs rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-800">
+                              <option value="">— Select an option —</option>
+                              {(f.options || []).map((o) => (
+                                <option key={o} value={o}>
+                                  {o}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        ) : f.type === "textarea" ? (
+                          <textarea
+                            rows={2}
+                            placeholder={f.placeholder || `Enter ${f.name.toLowerCase()}`}
+                            className="w-full px-3 py-2 text-xs rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-800 resize-none"
+                            disabled
+                          />
+                        ) : f.type === "file" ? (
+                          <div className="border border-dashed border-zinc-300 rounded-lg p-3 text-center bg-zinc-50">
+                            <span className="text-xs text-zinc-500">📎 Tap to attach photo / PDF</span>
+                          </div>
+                        ) : (
+                          <input
+                            type={f.type === "number" ? "number" : f.type === "date" ? "date" : f.type === "time" ? "time" : "text"}
+                            placeholder={f.placeholder || `Enter ${f.name.toLowerCase()}`}
+                            className="w-full px-3 py-2 text-xs rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-800"
+                            disabled
+                          />
+                        )}
+                      </div>
+                    ))}
+
+                  {fields.filter((f) => f.name.trim()).length === 0 && (
+                    <p className="text-xs text-zinc-400 italic text-center py-8">
+                      No fields added yet. Go back to Editor to add fields.
+                    </p>
+                  )}
+                </div>
+
+                <div className="pt-2">
+                  <div className="w-full py-2.5 rounded-xl bg-zinc-950 text-white text-center text-xs font-semibold shadow-sm">
+                    Submit Entry
+                  </div>
+                </div>
+              </div>
+
+              {/* Phone Home Bar */}
+              <div className="p-2 pb-3 flex justify-center">
+                <div className="w-28 h-1 bg-zinc-300 rounded-full" />
+              </div>
+            </div>
+          </div>
+
+          <div className="text-center pt-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab("editor")}
+              className="px-4 py-2 text-xs font-semibold rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-800 transition-colors"
+            >
+              ← Back to Editor
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ───────────────────────────────────────────────────────────────
+          BULK PASTE MODAL
+         ─────────────────────────────────────────────────────────────── */}
+      {showBulkPasteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="w-full max-w-[500px] bg-white rounded-3xl shadow-2xl p-6 space-y-4 border border-zinc-200 animate-scale-up">
+            <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
+              <div>
+                <h3 className="text-[16px] font-bold text-zinc-950">📋 Bulk Paste Column Headers</h3>
+                <p className="text-[12px] text-zinc-500">Paste headers from Excel, Google Sheets, or WhatsApp</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBulkPasteModal(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-500">
+                Paste Columns (1 per line, or comma-separated)
+              </label>
+              <textarea
+                rows={7}
+                value={bulkPasteText}
+                onChange={(e) => setBulkPasteText(e.target.value)}
+                placeholder={`Student Name\nPhone Number\nGender (Male, Female, Other)\nFees Amount (Number)\nFee Receipt (File)\nRemarks`}
+                className="w-full font-mono text-xs rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-950"
+              />
+              <p className="text-[11px] text-zinc-400">
+                💡 Tip: Add parentheses for dropdowns like <code>Status (Active, Inactive)</code>.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100">
+              <button
+                type="button"
+                onClick={() => setShowBulkPasteModal(false)}
+                className="px-3 py-2 text-xs font-semibold text-zinc-600 hover:bg-zinc-100 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyBulkPaste("append")}
+                disabled={!bulkPasteText.trim()}
+                className="px-3.5 py-2 text-xs font-semibold bg-zinc-100 hover:bg-zinc-200 text-zinc-800 rounded-xl disabled:opacity-50"
+              >
+                + Append to Existing
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyBulkPaste("replace")}
+                disabled={!bulkPasteText.trim()}
+                className="px-4 py-2 text-xs font-semibold bg-zinc-950 hover:bg-zinc-800 text-white rounded-xl shadow-xs disabled:opacity-50"
+              >
+                Replace All Fields
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

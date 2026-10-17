@@ -22,6 +22,7 @@ import {
   createSheet,
   previewSheet,
   createForm,
+  addSheetTab,
   getPublicConfig,
   listFormLibrary,
   listWorksheets,
@@ -413,19 +414,46 @@ export default function Dashboard() {
     return `${diffDays}d ago`;
   }
 
-  async function handleCreateNewForm(payload: { formTitle: string; worksheetName?: string; fields: FieldSchema[]; uiConfig?: Record<string, any> }) {
+  async function handleCreateNewForm(payload: {
+    formTitle: string;
+    worksheetName?: string;
+    destination?: "new" | "existing";
+    existingSheetUrl?: string;
+    fields: FieldSchema[];
+    uiConfig?: Record<string, any>;
+  }) {
     setSaving(true);
     setError(null);
     try {
-      const sheet = await createSheet({
-        form_title: payload.formTitle,
-        worksheet_name: payload.worksheetName,
-        fields: payload.fields,
-      });
+      let sheetUrl: string;
+      let spreadsheetId: string;
+      let worksheetName: string;
+
+      if (payload.destination === "existing" && payload.existingSheetUrl) {
+        const headers = payload.fields.map((f) => f.label || f.source_header);
+        const tabRes = await addSheetTab({
+          sheet_url: payload.existingSheetUrl,
+          tab_name: payload.worksheetName || "Sheet1",
+          headers,
+        });
+        sheetUrl = payload.existingSheetUrl;
+        spreadsheetId = tabRes.spreadsheet_id;
+        worksheetName = tabRes.worksheet_name;
+      } else {
+        const sheet = await createSheet({
+          form_title: payload.formTitle,
+          worksheet_name: payload.worksheetName,
+          fields: payload.fields,
+        });
+        sheetUrl = sheet.sheet_url;
+        spreadsheetId = sheet.spreadsheet_id;
+        worksheetName = sheet.worksheet_name;
+      }
+
       const result = await createForm({
-        sheet_url: sheet.sheet_url,
-        spreadsheet_id: sheet.spreadsheet_id,
-        worksheet_name: sheet.worksheet_name,
+        sheet_url: sheetUrl,
+        spreadsheet_id: spreadsheetId,
+        worksheet_name: worksheetName,
         form_title: payload.formTitle,
         fields: payload.fields,
         custom_keywords: [],
