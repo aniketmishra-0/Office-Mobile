@@ -98,6 +98,7 @@ export interface PublicFormResponse {
   fields: FieldSchema[];
   autofill_columns: string[];
   ui_config?: Record<string, any> | null;
+  can_edit?: boolean;
 }
 
 /** Returned by GET /api/forms/:id/edit?token=… */

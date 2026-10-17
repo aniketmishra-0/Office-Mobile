@@ -1049,6 +1049,8 @@ async def lookup_forms_by_sheet(sheet_url: str) -> dict:
 @router.get("/forms/{form_id}", response_model=PublicFormResponse)
 async def get_public_form(form_id: str) -> PublicFormResponse:
     record = await _get_record_or_404_async(form_id)
+    session_key = get_current_oauth_session_key()
+    is_owner = bool(session_key and record.get("oauth_key") == session_key)
     try:
         return PublicFormResponse(
             id=record["id"],
@@ -1058,6 +1060,7 @@ async def get_public_form(form_id: str) -> PublicFormResponse:
             fields=[FieldSchema(**f.model_dump()) for f in record["fields"]],
             autofill_columns=record.get("autofill_columns") or [],
             ui_config=record.get("ui_config"),
+            can_edit=is_owner,
         )
     except Exception as exc:
         logger.exception("get_public_form serialization FAILED form_id=%s", form_id)

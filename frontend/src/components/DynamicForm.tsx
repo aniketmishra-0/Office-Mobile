@@ -254,7 +254,7 @@ const DynamicForm = forwardRef<DynamicFormHandle, Props>(function DynamicForm({
   // Progress
   const filledCount = sortedFields.filter((f) => values[f.key]?.trim()).length;
   const totalCount = sortedFields.length;
-  const progress = totalCount > 0 ? (filledCount / totalCount) * 100 : 0;
+  const progress = totalCount > 0 ? Math.round((filledCount / totalCount) * 100) : 0;
 
   return (
     <form

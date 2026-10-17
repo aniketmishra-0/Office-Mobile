@@ -625,6 +625,7 @@ function ComboboxControl({
   onDropdownOpenChange?: (open: boolean) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -654,25 +655,34 @@ function ComboboxControl({
     return list;
   }, [options]);
 
-  // Filter options as user types
+  const isExactOptionMatch = useMemo(() => {
+    const val = value.trim().toLowerCase();
+    return cleanOptions.some((opt) => opt.trim().toLowerCase() === val);
+  }, [cleanOptions, value]);
+
+  // Filter options as user types. If not actively typing or if current value is an exact selected option, show ALL options!
   const filteredOptions = useMemo(() => {
-    if (!value.trim()) return cleanOptions;
+    if (!isTyping || isExactOptionMatch || !value.trim()) {
+      return cleanOptions;
+    }
     const q = value.trim().toLowerCase();
     const matches = cleanOptions.filter((opt) => opt.toLowerCase().includes(q));
     return matches.length > 0 ? matches : cleanOptions;
-  }, [cleanOptions, value]);
+  }, [cleanOptions, value, isTyping, isExactOptionMatch]);
 
   // Close dropdown on outside click, touch, or escape key
   useEffect(() => {
     if (!isOpen) return;
     const handleClick = (e: MouseEvent | TouchEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsTyping(false);
         setDropdownOpen(false);
         onBlur();
       }
     };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        setIsTyping(false);
         setDropdownOpen(false);
       }
     };
@@ -696,13 +706,16 @@ function ComboboxControl({
           value={value}
           onChange={(e) => {
             onChange(e.target.value);
+            setIsTyping(true);
             if (!isOpen && cleanOptions.length > 0) setDropdownOpen(true);
           }}
           onFocus={() => {
             onFocus();
+            setIsTyping(false);
             if (cleanOptions.length > 0) setDropdownOpen(true);
           }}
           onClick={() => {
+            setIsTyping(false);
             if (cleanOptions.length > 0 && !isOpen) setDropdownOpen(true);
           }}
           placeholder={placeholder || (cleanOptions.length > 0 ? "Select or type…" : "Enter text…")}
@@ -724,6 +737,7 @@ function ComboboxControl({
               onClick={(e) => {
                 e.stopPropagation();
                 onChange("");
+                setIsTyping(false);
                 inputRef.current?.focus();
               }}
             >
@@ -742,6 +756,7 @@ function ComboboxControl({
               }}
               onClick={(e) => {
                 e.stopPropagation();
+                setIsTyping(false);
                 setDropdownOpen(!isOpen);
               }}
             >
@@ -798,6 +813,7 @@ function ComboboxControl({
                     }}
                     onClick={() => {
                       onChange(opt);
+                      setIsTyping(false);
                       setDropdownOpen(false);
                       onBlur();
                     }}
@@ -1679,27 +1695,47 @@ function FileControl({
           </div>
         </div>
       ) : manualMode ? (
-        <div className="om-file__manual">
-          <input
-            id={id}
-            type="text"
-            required={required}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onFocus={onFocus}
-            placeholder="Paste link (Google Drive, Doc, URL) or type manually..."
-            className="om-input"
-          />
-          <div className="flex items-center justify-between mt-1.5">
-            <span className="text-[11px] text-zinc-400 font-mono">
-              Manual link entry mode
+        <div className="om-file__manual-card">
+          <div className="om-file__manual-row">
+            <span className="om-file__manual-icon" aria-hidden>🔗</span>
+            <input
+              id={id}
+              type="url"
+              required={required}
+              value={value}
+              onChange={(e) => {
+                onChange(e.target.value);
+                setUploadedFileName("");
+              }}
+              onFocus={onFocus}
+              placeholder="Paste link (Google Drive, Dropbox, portfolio, doc)..."
+              className="om-file__manual-input"
+              autoFocus
+            />
+            {value && (
+              <button
+                type="button"
+                onClick={() => {
+                  onChange("");
+                  setUploadedFileName("");
+                }}
+                className="om-file__manual-clear"
+                title="Clear link"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          <div className="om-file__manual-footer">
+            <span className="om-file__manual-hint">
+              Paste any shareable URL or document link
             </span>
             <button
               type="button"
               onClick={() => setManualMode(false)}
-              className="om-file__mode-link"
+              className="om-file__switch-btn"
             >
-              switch to file upload ↑
+              ↑ Upload file instead
             </button>
           </div>
         </div>
@@ -1757,19 +1793,6 @@ function FileControl({
               or paste link manually ✎
             </button>
           </div>
-        </div>
-      )}
-
-      {manualMode && value && (
-        <div className="mt-2">
-          <input
-            type="text"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onFocus={onFocus}
-            placeholder="Edit link or text..."
-            className="om-input text-xs"
-          />
         </div>
       )}
 
@@ -1976,6 +1999,95 @@ function FileControl({
           font-size: 12px;
           font-weight: 500;
           color: #ef4444;
+        }
+        .om-file__manual-card {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          padding: 12px 14px;
+          border-radius: 12px;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1.5px solid var(--rule);
+          transition: border-color 200ms ease, box-shadow 200ms ease;
+        }
+        .om-file__manual-card:focus-within {
+          border-color: var(--ft-accent, var(--clay));
+          box-shadow: 0 0 0 3px rgba(200, 98, 58, 0.12);
+        }
+        .om-file__manual-row {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          width: 100%;
+        }
+        .om-file__manual-icon {
+          font-size: 16px;
+          line-height: 1;
+          opacity: 0.8;
+          flex-shrink: 0;
+        }
+        .om-file__manual-input {
+          flex: 1;
+          min-width: 0;
+          font-family: inherit;
+          font-size: 14px;
+          line-height: 1.5;
+          color: var(--ft-input-text, var(--ink)) !important;
+          -webkit-text-fill-color: var(--ft-input-text, var(--ink)) !important;
+          background: transparent;
+          border: none;
+          outline: none;
+          padding: 4px 0;
+        }
+        .om-file__manual-input::placeholder {
+          color: var(--ft-placeholder-color, var(--stone)) !important;
+          -webkit-text-fill-color: var(--ft-placeholder-color, var(--stone)) !important;
+          opacity: 0.6;
+        }
+        .om-file__manual-clear {
+          background: rgba(255, 255, 255, 0.1);
+          border: 0;
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 11px;
+          color: var(--ft-placeholder-color, var(--stone));
+          cursor: pointer;
+          flex-shrink: 0;
+          transition: all 140ms ease;
+        }
+        .om-file__manual-clear:hover {
+          background: rgba(239, 68, 68, 0.18);
+          color: #ef4444;
+        }
+        .om-file__manual-footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding-top: 6px;
+          border-top: 1px solid var(--rule);
+        }
+        .om-file__manual-hint {
+          font-size: 11px;
+          color: var(--ft-placeholder-color, var(--stone));
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+        }
+        .om-file__switch-btn {
+          background: transparent;
+          border: 0;
+          padding: 2px 6px;
+          color: var(--ft-accent, var(--clay));
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-size: 11px;
+          cursor: pointer;
+          border-radius: 4px;
+          transition: opacity 150ms ease;
+        }
+        .om-file__switch-btn:hover {
+          text-decoration: underline;
         }
       `}</style>
     </div>

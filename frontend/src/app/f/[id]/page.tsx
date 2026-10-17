@@ -38,21 +38,31 @@ export default function FillFormPage() {
   const [aiData, setAiData] = useState<AiSuggestionsResponse | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
-  // Company Logo Modal state
   const [showLogoModal, setShowLogoModal] = useState(false);
+  const [isCreator, setIsCreator] = useState(false);
 
-  // Persist token from URL query string if present
+  // Check creator status via URL token or stored token
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
         const sp = new URLSearchParams(window.location.search);
         const qToken = sp.get("token");
+        const storedToken = window.localStorage.getItem(`om_edit_token_${id}`);
         if (qToken) {
           window.localStorage.setItem(`om_edit_token_${id}`, qToken);
+          setIsCreator(true);
+        } else if (storedToken) {
+          setIsCreator(true);
         }
       } catch {}
     }
   }, [id]);
+
+  useEffect(() => {
+    if (formData?.can_edit) {
+      setIsCreator(true);
+    }
+  }, [formData]);
 
   const handleSaveLogo = useCallback(
     async (payload: { logoUrl: string; formTitle?: string; companyName?: string }) => {
@@ -286,7 +296,45 @@ export default function FillFormPage() {
   return (
     <FormThemeWrapper designId={formData!.ui_config?.design}>
       <div className="flex flex-col min-h-screen">
-        <AppHeader title={formData!.form_title || "Office Mobile"} showBack onBack={() => safeBack(router)} />
+        {/* Only show Creator Navigation Bar if verified as the form creator */}
+        {isCreator && (
+          <div
+            className="w-full border-b px-4 py-2.5 flex items-center justify-between text-xs transition-all"
+            style={{
+              borderColor: "var(--rule, rgba(0,0,0,0.08))",
+              background: "var(--ft-card-bg, #FFFFFF)",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => safeBack(router)}
+              className="font-medium flex items-center gap-1 hover:underline cursor-pointer"
+              style={{ color: "var(--ft-text-color, var(--ink))" }}
+            >
+              <span>← Dashboard</span>
+            </button>
+            <div className="flex items-center gap-2.5">
+              <span
+                className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md border"
+                style={{
+                  borderColor: "var(--rule, rgba(0,0,0,0.12))",
+                  background: "rgba(0,0,0,0.03)",
+                  color: "var(--ft-meta-color, var(--stone))",
+                }}
+              >
+                <span>🛡️</span> Creator Mode
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowLogoModal(true)}
+                className="font-semibold hover:underline cursor-pointer text-[11px]"
+                style={{ color: "var(--ft-accent, var(--clay))" }}
+              >
+                ✎ Edit Branding
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-8 overflow-y-auto">
           {/* Branded Form Hero Section */}
@@ -313,16 +361,18 @@ export default function FillFormPage() {
                       className="max-h-full max-w-full object-contain"
                     />
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowLogoModal(true)}
-                    className="text-[11px] font-semibold flex items-center gap-1 hover:underline cursor-pointer"
-                    style={{ color: "var(--ft-accent, var(--clay))" }}
-                  >
-                    <span>✎ Edit branding</span>
-                  </button>
+                  {isCreator && (
+                    <button
+                      type="button"
+                      onClick={() => setShowLogoModal(true)}
+                      className="text-[11px] font-semibold flex items-center gap-1 hover:underline cursor-pointer"
+                      style={{ color: "var(--ft-accent, var(--clay))" }}
+                    >
+                      <span>✎ Edit branding</span>
+                    </button>
+                  )}
                 </div>
-              ) : (
+              ) : isCreator ? (
                 <button
                   type="button"
                   onClick={() => setShowLogoModal(true)}
@@ -336,7 +386,7 @@ export default function FillFormPage() {
                   <span className="text-sm">🏢</span>
                   <span className="text-[11px] font-semibold">+ Add Logo & Branding</span>
                 </button>
-              )}
+              ) : null}
 
               {/* Verified / Cloud-Synced Badge */}
               <div

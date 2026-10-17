@@ -69,6 +69,7 @@ class PublicFormResponse(BaseModel):
     fields: list[FieldSchema]
     autofill_columns: list[str] = Field(default_factory=list)
     ui_config: dict | None = None
+    can_edit: bool = False
 
 
 class EditFormResponse(BaseModel):
