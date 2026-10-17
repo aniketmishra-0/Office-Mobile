@@ -9,11 +9,19 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.config import get_settings
 from app.limiter import limiter
-from app.routers import auth, forms, health, jobs, preferences, saved_sheets, upload, websocket
-from app.services.session_context import OAUTH_SESSION_COOKIE, reset_oauth_session_key, set_oauth_session_key
+from app.routers import auth, forms, health, jobs, preferences, saved_sheets, tenants, upload, websocket
+from app.services.session_context import (
+    OAUTH_SESSION_COOKIE,
+    TENANT_HEADER,
+    reset_oauth_session_key,
+    reset_tenant_id,
+    set_oauth_session_key,
+    set_tenant_id,
+)
 from app.services.form_store import init_db
 from app.routers.saved_sheets import init_saved_sheets_table
 from app.services.job_store import init_jobs_table
+from app.services.tenant_store import init_tenants_tables
 from app.db import close_pool
 from app.utils.error_responses import ErrorCode
 from fastapi.exceptions import RequestValidationError
@@ -78,6 +86,7 @@ async def lifespan(app: FastAPI):
     init_db()
     init_saved_sheets_table()
     init_jobs_table()
+    init_tenants_tables()
     sweeper_task = asyncio.create_task(_periodic_queue_sweeper())
     try:
         yield
@@ -152,11 +161,14 @@ async def attach_oauth_session(request: Request, call_next):
     session_key = request.cookies.get(OAUTH_SESSION_COOKIE) or request.headers.get(
         "x-session-key"
     )
-    token = set_oauth_session_key(session_key)
+    tenant_id = request.headers.get(TENANT_HEADER)
+    oauth_token = set_oauth_session_key(session_key)
+    tenant_token = set_tenant_id(tenant_id)
     try:
         response = await call_next(request)
     finally:
-        reset_oauth_session_key(token)
+        reset_tenant_id(tenant_token)
+        reset_oauth_session_key(oauth_token)
     return response
 
 
@@ -286,3 +298,4 @@ app.include_router(preferences.router)
 app.include_router(saved_sheets.router)
 app.include_router(websocket.router)
 app.include_router(jobs.router)
+app.include_router(tenants.router)

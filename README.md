@@ -422,6 +422,12 @@ Predicts field values based on submission history.
 - **Chunked Writes & Crash Resilience:** Batch writes are executed in chunks of 50. Progress is committed after each chunk; if an API quota or network error occurs mid-job, the sheet remains uncorrupted, the error is recorded, and `processed_count` preserves exact progress for inspection.
 - **Why BackgroundTasks vs Celery/RQ:** For the single GCP Compute Engine VM, Celery or RQ introduces excessive daemon overhead (broker process, separate worker pools, split-brain states). FastAPI `BackgroundTasks` backed by durable PostgreSQL state provides low-latency execution and zero extra memory footprint without external broker dependencies.
 
+### Multi-Tenancy & Workspace Architecture
+- **Workspace Scoping:** Each team, organization, or user operates within a tenant boundary (`tenants` table).
+- **Membership & RBAC:** Users are linked to workspaces via `tenant_members` with roles (`owner`, `admin`, `editor`, `viewer`, `member`).
+- **Data Isolation:** All entities (`forms`, `saved_sheets`, `jobs`, `user_preferences`) include a `tenant_id` column. Tenant context is passed via `X-Tenant-ID` header or session context, isolating team resources while preserving zero sheet row data storage.
+- **Default Personal Workspace:** Individual users without an explicit organization automatically provision a personal workspace for seamless onboarding.
+
 ---
 
 ## API Endpoints
@@ -441,9 +447,11 @@ Predicts field values based on submission history.
 | GET | `/api/forms/library` | List all user's forms |
 | GET | `/api/forms/{id}` | Get public form (for filling) |
 | GET | `/api/forms/{id}/edit` | Get form for editing (requires token) |
-| PATCH | `/api/forms/{id}` | Update form config |
+| PUT | `/api/forms/{id}` | Update form definition & sync sheet headers |
+| PATCH | `/api/forms/{id}` | Partially update form config |
 | DELETE | `/api/forms/{id}` | Delete a form |
 | POST | `/api/forms/{id}/submit` | Submit form data |
+| GET | `/api/forms/{id}/submissions` | List recent form submissions |
 | GET | `/api/forms/{id}/suggestions` | Get autofill suggestions |
 | GET | `/api/forms/{id}/ai-suggestions` | Get AI predictions |
 | GET | `/api/forms/lookup/by-sheet` | List all tabs for a sheet |
@@ -478,6 +486,15 @@ Predicts field values based on submission history.
 | POST | `/api/jobs/bulk-delete` | Enqueue background bulk delete of up to 2,000 rows in descending chunks |
 | POST | `/api/jobs/duplicate-scan` | Enqueue background duplicate rows scan with optional key column matching |
 
+### Multi-Tenancy & Workspaces
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/tenants` | List all workspaces accessible to current user |
+| POST | `/api/tenants` | Create a new team or organization workspace |
+| GET | `/api/tenants/{tenant_id}/members` | List members and their roles in a workspace |
+| POST | `/api/tenants/{tenant_id}/members` | Add or invite a member with a role (`admin`, `editor`, `viewer`, `member`) |
+| DELETE | `/api/tenants/{tenant_id}/members/{email}` | Remove a member from a workspace |
+
 ### Other
 | Method | Path | Description |
 |--------|------|-------------|
@@ -485,6 +502,7 @@ Predicts field values based on submission history.
 | GET | `/api/config/public` | Public config (service account email) |
 | GET/PUT | `/api/preferences` | User preferences |
 | GET/POST/DELETE | `/api/saved-sheets` | Bookmarked sheets |
+| POST | `/api/upload` | Multipart file upload (images/documents up to 25 MB) |
 
 ---
 
@@ -507,6 +525,12 @@ pip install -r requirements.txt
 # Copy and fill environment variables
 cp .env.example .env
 # Edit .env with your credentials
+
+# Run database migrations (optional; tables auto-initialize on startup)
+alembic upgrade head
+
+# Run tests
+pytest tests
 
 # Run the server
 uvicorn app.main:app --reload --port 8000
@@ -566,6 +590,8 @@ Open [http://localhost:3000](http://localhost:3000)
 | `RATE_LIMIT_SUBMIT` | Rate limit for `/api/forms/{id}/submit` (default: `30/minute`) |
 | `RATE_LIMIT_BATCH` | Rate limit for `/api/sheet/batch-*` (default: `10/minute`) |
 | `RATE_LIMIT_DEFAULT` | Default rate limit for other routes (default: `120/minute`) |
+| `REDIS_URL` | Optional Redis connection string for caching reads (`redis://...`). App gracefully falls back if omitted. |
+| `CACHE_TTL_SHEETS` | Cache TTL in seconds for read-only Sheets queries (default: `60`) |
 | `DEBUG_MODE` | Set to `true` to enable diagnostic endpoints. Must be `false` in production. |
 
 ### Frontend (`frontend/.env.local`)

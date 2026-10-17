@@ -40,3 +40,28 @@ def oauth_session_context(key: str | None) -> Iterator[None]:
         yield
     finally:
         reset_oauth_session_key(token)
+
+
+TENANT_HEADER = "x-tenant-id"
+_tenant_id_context: ContextVar[str | None] = ContextVar("tenant_id_context", default=None)
+
+
+def get_current_tenant_id() -> str | None:
+    return _tenant_id_context.get()
+
+
+def set_tenant_id(tenant_id: str | None) -> Token:
+    return _tenant_id_context.set(tenant_id)
+
+
+def reset_tenant_id(token: Token) -> None:
+    _tenant_id_context.reset(token)
+
+
+@contextmanager
+def tenant_context(tenant_id: str | None) -> Iterator[None]:
+    token = set_tenant_id(tenant_id)
+    try:
+        yield
+    finally:
+        reset_tenant_id(token)
