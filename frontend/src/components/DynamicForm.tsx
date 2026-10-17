@@ -18,6 +18,7 @@ interface Props {
   onAutofillOpen?: () => void;
   onRetrySuggestions?: () => void;
   folderName?: string;
+  formId?: string;
 }
 
 export interface DynamicFormHandle {
@@ -36,6 +37,7 @@ const DynamicForm = forwardRef<DynamicFormHandle, Props>(function DynamicForm({
   onAutofillOpen,
   onRetrySuggestions,
   folderName,
+  formId,
 }, ref) {
   const sortedFields = useMemo(
     () => [...fields].sort((a, b) => a.order - b.order),
@@ -327,6 +329,7 @@ const DynamicForm = forwardRef<DynamicFormHandle, Props>(function DynamicForm({
             error={errors[field.key]}
             touched={touched.has(field.key)}
             folderName={folderName}
+            formId={formId}
             suggestions={fieldSuggestionsMap[field.key] || field.options || []}
             calculatedFormula={calculationRulesMap[field.key]}
           />

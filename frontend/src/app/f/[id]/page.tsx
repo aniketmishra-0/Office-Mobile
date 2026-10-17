@@ -317,6 +317,7 @@ export default function FillFormPage() {
               void loadSuggestions();
             }}
             folderName={formData!.worksheet_name || formData!.form_title}
+            formId={id}
           />
         </div>
         <SubmitButton submitting={submitting} form="dynamic-form" />

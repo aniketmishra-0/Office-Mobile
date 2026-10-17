@@ -15,6 +15,7 @@ interface Props {
   error?: string;
   touched?: boolean;
   folderName?: string;
+  formId?: string;
   suggestions?: string[];
   calculatedFormula?: string;
 }
@@ -40,6 +41,7 @@ export default function FieldRenderer({
   error,
   touched,
   folderName,
+  formId,
   suggestions,
   calculatedFormula,
 }: Props) {
@@ -82,6 +84,7 @@ export default function FieldRenderer({
           onBlur={handleBlur}
           showError={showError}
           folderName={folderName}
+          formId={formId}
           suggestions={suggestions}
         />
       </div>
@@ -153,6 +156,13 @@ export default function FieldRenderer({
    Switchboard for the individual control type.
    ──────────────────────────────────────────────────────────────────── */
 
+function isPhoneField(field?: FieldSchema) {
+  if (!field) return false;
+  if (field.type === "tel") return true;
+  const s = `${field.label || ""} ${field.key || ""}`.toLowerCase();
+  return s.includes("mobile") || s.includes("phone") || s.includes("contact");
+}
+
 function FieldControl({
   id,
   field,
@@ -162,6 +172,7 @@ function FieldControl({
   onBlur,
   showError,
   folderName,
+  formId,
   suggestions,
 }: {
   id: string;
@@ -172,6 +183,7 @@ function FieldControl({
   onBlur: () => void;
   showError: boolean;
   folderName?: string;
+  formId?: string;
   suggestions?: string[];
 }) {
   const set = (v: string) => onChange(field.key, v);
@@ -264,24 +276,27 @@ function FieldControl({
           onFocus={onFocus}
           required={field.required}
           folderName={folderName}
+          formId={formId}
         />
       );
-    default:
+    default: {
+      const isPhone = isPhoneField(field);
       return (
         <TextInput
           id={id}
-          type={textTypeFor(field.type)}
+          type={isPhone ? "tel" : textTypeFor(field.type)}
           value={value}
           onChange={set}
           onFocus={onFocus}
           onBlur={onBlur}
           placeholder={field.placeholder}
           required={field.required}
-          inputMode={inputModeFor(field.type)}
+          inputMode={isPhone ? "tel" : inputModeFor(field.type)}
           autoComplete={autoCompleteFor(field.type)}
           suggestions={suggestions}
         />
       );
+    }
   }
 }
 
@@ -1101,9 +1116,7 @@ function DateTriple({
   onFocus: () => void;
   onBlur: () => void;
 }) {
-  // Parse incoming value — accept "YYYY-MM-DD" or anything the Date
-  // constructor can cope with, fall back to empty parts otherwise.
-  const parts = (() => {
+  const parsedParts = useMemo(() => {
     if (!value) return { dd: "", mm: "", yyyy: "" };
     const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
     if (iso) return { dd: iso[3], mm: iso[2], yyyy: iso[1] };
@@ -1116,22 +1129,28 @@ function DateTriple({
       };
     }
     return { dd: "", mm: "", yyyy: "" };
-  })();
+  }, [value]);
+
+  const [localParts, setLocalParts] = useState(parsedParts);
+
+  useEffect(() => {
+    setLocalParts(parsedParts);
+  }, [parsedParts]);
 
   const ddRef = useRef<HTMLInputElement>(null);
   const mmRef = useRef<HTMLInputElement>(null);
   const yyRef = useRef<HTMLInputElement>(null);
+  const hiddenDateRef = useRef<HTMLInputElement>(null);
 
-  function commit(next: { dd?: string; mm?: string; yyyy?: string }) {
-    const dd = next.dd ?? parts.dd;
-    const mm = next.mm ?? parts.mm;
-    const yyyy = next.yyyy ?? parts.yyyy;
-    if (dd && mm && yyyy && yyyy.length === 4) {
-      onChange(`${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`);
-    } else if (!dd && !mm && !yyyy) {
+  function updatePart(key: "dd" | "mm" | "yyyy", val: string) {
+    const next = { ...localParts, [key]: val };
+    setLocalParts(next);
+    if (next.dd && next.mm && next.yyyy && next.yyyy.length === 4) {
+      onChange(`${next.yyyy}-${next.mm.padStart(2, "0")}-${next.dd.padStart(2, "0")}`);
+    } else if (!next.dd && !next.mm && !next.yyyy) {
       onChange("");
     } else {
-      // Partial — keep raw value as empty so validation still fires.
+      // Partial typing is kept in localParts, so typing isn't wiped out!
       onChange("");
     }
   }
@@ -1150,10 +1169,10 @@ function DateTriple({
           placeholder="DD"
           inputMode="numeric"
           maxLength={2}
-          value={parts.dd}
+          value={localParts.dd}
           onChange={(e) => {
             const v = e.target.value.replace(/\D/g, "").slice(0, 2);
-            commit({ dd: v });
+            updatePart("dd", v);
             if (v.length === 2) mmRef.current?.focus();
           }}
         />
@@ -1164,10 +1183,10 @@ function DateTriple({
           placeholder="MM"
           inputMode="numeric"
           maxLength={2}
-          value={parts.mm}
+          value={localParts.mm}
           onChange={(e) => {
             const v = e.target.value.replace(/\D/g, "").slice(0, 2);
-            commit({ mm: v });
+            updatePart("mm", v);
             if (v.length === 2) yyRef.current?.focus();
           }}
         />
@@ -1178,12 +1197,41 @@ function DateTriple({
           placeholder="YYYY"
           inputMode="numeric"
           maxLength={4}
-          value={parts.yyyy}
+          value={localParts.yyyy}
           onChange={(e) => {
             const v = e.target.value.replace(/\D/g, "").slice(0, 4);
-            commit({ yyyy: v });
+            updatePart("yyyy", v);
           }}
         />
+        <input
+          ref={hiddenDateRef}
+          type="date"
+          tabIndex={-1}
+          style={{ position: "absolute", opacity: 0, width: 0, height: 0, pointerEvents: "none" }}
+          value={value}
+          onChange={(e) => {
+            if (e.target.value) {
+              onChange(e.target.value);
+            }
+          }}
+        />
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={() => {
+            if (hiddenDateRef.current) {
+              if (typeof hiddenDateRef.current.showPicker === "function") {
+                hiddenDateRef.current.showPicker();
+              } else {
+                hiddenDateRef.current.focus();
+              }
+            }
+          }}
+          className="om-date__cal-btn"
+          title="Pick date from calendar"
+        >
+          📅
+        </button>
       </div>
       <button
         type="button"
@@ -1242,12 +1290,30 @@ function DateTriple({
           font-size: 14px;
           user-select: none;
         }
+        .om-date__cal-btn {
+          background: transparent;
+          border: 0;
+          cursor: pointer;
+          font-size: 16px;
+          padding: 4px;
+          border-radius: 4px;
+          opacity: 0.7;
+          transition: opacity 150ms ease;
+        }
+        .om-date__cal-btn:hover {
+          opacity: 1;
+        }
         .om-date__hint {
           font-family: var(--font-plex-mono), ui-monospace, monospace;
           font-weight: 300;
           font-size: 10px;
           color: var(--stone);
           letter-spacing: 0.04em;
+          background: transparent;
+          border: 0;
+          padding: 0;
+          text-align: left;
+          cursor: pointer;
         }
       `}</style>
     </div>
@@ -1255,7 +1321,8 @@ function DateTriple({
 }
 
 /* ────────────────────────────────────────────────────────────────────
-   File upload — editorial drop zone.
+   File upload — editorial drop zone with form owner Google Drive integration
+   and manual URL/link entry support.
    ──────────────────────────────────────────────────────────────────── */
 
 function FileControl({
@@ -1265,6 +1332,7 @@ function FileControl({
   onFocus,
   required,
   folderName,
+  formId,
 }: {
   id: string;
   value: string;
@@ -1272,9 +1340,22 @@ function FileControl({
   onFocus: () => void;
   required?: boolean;
   folderName?: string;
+  formId?: string;
 }) {
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [manualMode, setManualMode] = useState(() => {
+    return Boolean(value && !value.includes("drive.google.com"));
+  });
+
+  const resolvedFormId = useMemo(() => {
+    if (formId) return formId;
+    if (typeof window !== "undefined") {
+      const match = window.location.pathname.match(/\/f\/([a-zA-Z0-9_-]+)/);
+      if (match) return match[1];
+    }
+    return undefined;
+  }, [formId]);
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -1286,18 +1367,34 @@ function FileControl({
     if (folderName) {
       formData.append("folder_name", folderName);
     }
+    if (resolvedFormId) {
+      formData.append("form_id", resolvedFormId);
+    }
     try {
       const headers: Record<string, string> = {};
       const sessionKey = typeof window !== "undefined" ? window.localStorage.getItem("om_session") : null;
       if (sessionKey) headers["X-Session-Key"] = sessionKey;
 
-      const res = await fetch(`${API_BASE}/api/upload`, { method: "POST", body: formData, credentials: "include", headers });
-      if (!res.ok) throw new Error("upload failed");
+      const res = await fetch(`${API_BASE}/api/upload`, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+        headers,
+      });
+      if (!res.ok) {
+        let errMsg = "Upload failed";
+        try {
+          const errorData = await res.json();
+          errMsg = errorData.detail || errMsg;
+        } catch {}
+        throw new Error(errMsg);
+      }
       const data = await res.json();
-      if (!data.url) throw new Error("no url returned");
+      if (!data.url) throw new Error("No URL returned from upload");
       onChange(data.url);
+      setManualMode(false);
     } catch (e: any) {
-      setErr(e.message || "upload failed");
+      setErr(e.message || "Upload failed. You can paste a link or enter text manually.");
     } finally {
       setUploading(false);
     }
@@ -1306,45 +1403,162 @@ function FileControl({
   return (
     <div className="om-file">
       {value ? (
-        <div className="om-file__attached">
-          <span className="om-file__mark" aria-hidden>✓</span>
-          <span className="om-file__label">file attached</span>
-          <button type="button" onClick={() => onChange("")} className="om-file__remove">
-            remove
+        <div className="om-file__attached-box">
+          <div className="om-file__attached">
+            <span className="om-file__mark" aria-hidden>✓</span>
+            <span className="om-file__label" title={value}>
+              {value.startsWith("http") ? (
+                <a
+                  href={value}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="om-file__link"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {value.length > 35 ? `${value.slice(0, 32)}…` : value} ↗
+                </a>
+              ) : (
+                value
+              )}
+            </span>
+            <button
+              type="button"
+              onClick={() => onChange("")}
+              className="om-file__remove"
+              title="Remove file"
+            >
+              remove
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => setManualMode(!manualMode)}
+            className="om-file__mode-link"
+          >
+            {manualMode ? "hide edit box" : "edit link/text manually"}
           </button>
         </div>
-      ) : (
-        <label className={`om-file__drop ${uploading ? "is-uploading" : ""} ${err ? "has-error" : ""}`}>
+      ) : manualMode ? (
+        <div className="om-file__manual">
           <input
             id={id}
-            type="file"
+            type="text"
             required={required}
-            accept="image/*,application/pdf"
-            capture="environment"
-            onChange={handleFile}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
             onFocus={onFocus}
-            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer" }}
+            placeholder="Paste link (Google Drive, Doc, URL) or type manually..."
+            className="om-input"
           />
-          {uploading ? (
-            <>
-              <span className="login-spinner" aria-hidden style={{ borderColor: "var(--ink)", borderTopColor: "transparent" }} />
-              <span className="om-file__cta">uploading</span>
-            </>
-          ) : (
-            <>
-              <span className="om-file__arrow" aria-hidden>↑</span>
-              <span className="om-file__cta">tap to attach</span>
-            </>
-          )}
-        </label>
+          <div className="flex items-center justify-between mt-1.5">
+            <span className="text-[10px] text-stone-500 font-mono">
+              Manual entry mode
+            </span>
+            <button
+              type="button"
+              onClick={() => setManualMode(false)}
+              className="om-file__mode-link"
+            >
+              switch to file upload ↑
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <label className={`om-file__drop ${uploading ? "is-uploading" : ""} ${err ? "has-error" : ""}`}>
+            <input
+              id={id}
+              type="file"
+              required={required}
+              accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+              capture="environment"
+              onChange={handleFile}
+              onFocus={onFocus}
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer" }}
+            />
+            {uploading ? (
+              <>
+                <span className="login-spinner" aria-hidden style={{ borderColor: "var(--ink)", borderTopColor: "transparent" }} />
+                <span className="om-file__cta">uploading to Google Drive...</span>
+              </>
+            ) : (
+              <>
+                <span className="om-file__arrow" aria-hidden>↑</span>
+                <span className="om-file__cta">tap to attach (photo, PDF, doc)</span>
+              </>
+            )}
+          </label>
+          <div className="flex items-center justify-between mt-1 px-0.5">
+            <span className="text-[10px] text-stone-400 font-mono">
+              Files save directly to form sheet&apos;s folder
+            </span>
+            <button
+              type="button"
+              onClick={() => setManualMode(true)}
+              className="om-file__mode-link"
+            >
+              or paste link manually ✎
+            </button>
+          </div>
+        </div>
       )}
-      {err && <p className="om-file__err">✕ {err}</p>}
+
+      {manualMode && value && (
+        <div className="mt-2">
+          <input
+            type="text"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onFocus={onFocus}
+            placeholder="Edit link or text..."
+            className="om-input text-xs"
+          />
+        </div>
+      )}
+
+      {err && (
+        <div className="om-file__err-box">
+          <p className="om-file__err">✕ {err}</p>
+          <button
+            type="button"
+            onClick={() => setManualMode(true)}
+            className="om-file__mode-link underline ml-2"
+          >
+            Enter link manually instead
+          </button>
+        </div>
+      )}
 
       <style jsx>{`
         .om-file {
           display: flex;
           flex-direction: column;
           gap: 6px;
+        }
+        .om-file__manual {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .om-file__mode-link {
+          background: transparent;
+          border: 0;
+          padding: 0;
+          color: var(--clay);
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-size: 10px;
+          letter-spacing: 0.04em;
+          cursor: pointer;
+          transition: opacity 150ms ease;
+        }
+        .om-file__mode-link:hover {
+          opacity: 0.8;
+          text-decoration: underline;
+        }
+        .om-file__attached-box {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
         }
         .om-file__drop {
           position: relative;
@@ -1398,6 +1612,13 @@ function FileControl({
         .om-file__label {
           flex: 1;
           letter-spacing: 0.04em;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .om-file__link {
+          color: var(--clay);
+          text-decoration: underline;
         }
         .om-file__remove {
           background: transparent;
@@ -1413,6 +1634,12 @@ function FileControl({
         }
         .om-file__remove:hover {
           color: var(--error);
+        }
+        .om-file__err-box {
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 4px;
         }
         .om-file__err {
           margin: 0;
