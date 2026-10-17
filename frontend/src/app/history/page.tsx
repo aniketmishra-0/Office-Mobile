@@ -9,6 +9,12 @@ import ClearButton from "@/components/ClearButton";
 import SubmitButton from "@/components/SubmitButton";
 import FieldRenderer from "@/components/FieldRenderer";
 import SubsheetSearchModal from "@/components/SubsheetSearchModal";
+import HistorySettingsModal, {
+  loadSavedHistorySettings,
+  saveHistorySettings,
+  DEFAULT_HISTORY_SETTINGS,
+  type HistorySettings,
+} from "@/components/HistorySettingsModal";
 import type { FieldSchema } from "@/types/field";
 import { safeBack } from "@/lib/navigation";
 import { useStepHistory } from "@/lib/useStepHistory";
@@ -72,6 +78,44 @@ function setCachedTabs(url: string, data: TabOption[]) {
   } catch {}
 }
 
+function getWeekdayName(dateStr: string): string | null {
+  if (!dateStr || !dateStr.trim()) return null;
+  const trimmed = dateStr.trim();
+  const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+  // YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const [y, m, d] = trimmed.split("-").map(Number);
+    const dt = new Date(y, m - 1, d);
+    if (!isNaN(dt.getTime())) return weekdays[dt.getDay()];
+  }
+  // DD/MM/YYYY or DD-MM-YYYY
+  const slashMatch = trimmed.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/);
+  if (slashMatch) {
+    const dt = new Date(+slashMatch[3], +slashMatch[2] - 1, +slashMatch[1]);
+    if (!isNaN(dt.getTime())) return weekdays[dt.getDay()];
+  }
+  const dt = new Date(trimmed);
+  if (!isNaN(dt.getTime())) return weekdays[dt.getDay()];
+  return null;
+}
+
+function findWeekdayFieldKey(fields: FieldSchema[]): string | null {
+  const match = fields.find((f) => {
+    const k = f.key.toLowerCase().trim();
+    const l = f.label.toLowerCase().trim();
+    return (
+      k === "day" ||
+      k === "weekday" ||
+      l === "day" ||
+      l === "weekday" ||
+      k.endsWith("_day") ||
+      k.endsWith("_weekday")
+    );
+  });
+  return match?.key ?? null;
+}
+
 export default function HistoryPage() {
   return (
     <Suspense fallback={<LoadingOverlay message="Loading..." />}>
@@ -113,6 +157,43 @@ function HistoryPageInner() {
   const [tabSearch, setTabSearch] = useState("");
   const [showSubsheetModal, setShowSubsheetModal] = useState(false);
   const [allDiscoveredTabs, setAllDiscoveredTabs] = useState<TabOption[]>([]);
+
+  // User configurable preferences (saved per-user in localStorage)
+  const [settings, setSettings] = useState<HistorySettings>(DEFAULT_HISTORY_SETTINGS);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+  // Load user settings on mount
+  useEffect(() => {
+    setSettings(loadSavedHistorySettings());
+  }, []);
+
+  const updateSetting = useCallback(<K extends keyof HistorySettings>(key: K, value: HistorySettings[K]) => {
+    setSettings((prev) => {
+      const updated = { ...prev, [key]: value };
+      saveHistorySettings(updated);
+      return updated;
+    });
+  }, []);
+
+  const handleResetSettings = useCallback(() => {
+    setSettings(DEFAULT_HISTORY_SETTINGS);
+    saveHistorySettings(DEFAULT_HISTORY_SETTINGS);
+  }, []);
+
+  const handleToggleSort = useCallback((key: string) => {
+    if (!settings.enableColumnSorting) return;
+    setSortColumn((currentCol) => {
+      if (currentCol === key) {
+        setSortDirection((prevDir) => (prevDir === "asc" ? "desc" : "asc"));
+        return key;
+      } else {
+        setSortDirection("asc");
+        return key;
+      }
+    });
+  }, [settings.enableColumnSorting]);
 
   const filteredTabs = useMemo(() => {
     if (!availableTabs) return [];
@@ -527,8 +608,53 @@ function HistoryPageInner() {
       );
     }
 
+    // Apply column sorting if enabled
+    if (settings.enableColumnSorting && sortColumn) {
+      filtered = [...filtered].sort((a, b) => {
+        const valA = (a[sortColumn] ?? "").trim();
+        const valB = (b[sortColumn] ?? "").trim();
+
+        if (!valA && !valB) return 0;
+        if (!valA) return 1;
+        if (!valB) return -1;
+
+        // Try numeric sort
+        const cleanA = valA.replace(/,/g, "");
+        const cleanB = valB.replace(/,/g, "");
+        const numA = Number(cleanA);
+        const numB = Number(cleanB);
+        if (!isNaN(numA) && !isNaN(numB) && !isNaN(parseFloat(cleanA)) && !isNaN(parseFloat(cleanB))) {
+          return sortDirection === "asc" ? numA - numB : numB - numA;
+        }
+
+        // Try date sort
+        const dateA = parseDate(valA);
+        const dateB = parseDate(valB);
+        if (dateA && dateB) {
+          return sortDirection === "asc" ? dateA.getTime() - dateB.getTime() : dateB.getTime() - dateA.getTime();
+        }
+
+        // Text sort
+        return sortDirection === "asc"
+          ? valA.localeCompare(valB, undefined, { numeric: true, sensitivity: "base" })
+          : valB.localeCompare(valA, undefined, { numeric: true, sensitivity: "base" });
+      });
+    }
+
     return filtered;
-  }, [loaded, searchQuery, columnFilters, selectedMonth, dateFrom, dateTo, dateFieldKey, parseDate]);
+  }, [
+    loaded,
+    searchQuery,
+    columnFilters,
+    selectedMonth,
+    dateFrom,
+    dateTo,
+    dateFieldKey,
+    parseDate,
+    settings.enableColumnSorting,
+    sortColumn,
+    sortDirection,
+  ]);
 
   // Get unique values per column for filter dropdowns
   const columnUniqueValues = useMemo(() => {
@@ -776,8 +902,43 @@ function HistoryPageInner() {
     }
   };
 
-  const handleSaveNewRow = async () => {
+  const handleNewRowFieldChange = useCallback((key: string, val: string) => {
+    setNewRowValues((prev) => {
+      const next = { ...prev, [key]: val };
+      if (settings.enableAutoWeekday && loaded) {
+        const isDateKey = key.toLowerCase().includes("date") || loaded.fields.find((f) => f.key === key)?.type === "date";
+        if (isDateKey) {
+          const weekday = getWeekdayName(val);
+          const weekdayKey = findWeekdayFieldKey(loaded.fields);
+          if (weekday && weekdayKey && weekdayKey !== key) {
+            next[weekdayKey] = weekday;
+          }
+        }
+      }
+      return next;
+    });
+  }, [settings.enableAutoWeekday, loaded]);
+
+  const handleEditRowFieldChange = useCallback((key: string, val: string) => {
+    setRowEditValues((prev) => {
+      const next = { ...prev, [key]: val };
+      if (settings.enableAutoWeekday && loaded) {
+        const isDateKey = key.toLowerCase().includes("date") || loaded.fields.find((f) => f.key === key)?.type === "date";
+        if (isDateKey) {
+          const weekday = getWeekdayName(val);
+          const weekdayKey = findWeekdayFieldKey(loaded.fields);
+          if (weekday && weekdayKey && weekdayKey !== key) {
+            next[weekdayKey] = weekday;
+          }
+        }
+      }
+      return next;
+    });
+  }, [settings.enableAutoWeekday, loaded]);
+
+  const handleSaveNewRow = async (opts?: { addAnother?: boolean }) => {
     if (!loaded) return;
+    const addAnother = !!opts?.addAnother;
     setIsSavingNewRow(true);
     setRowSaveError(null);
     try {
@@ -798,9 +959,18 @@ function HistoryPageInner() {
         return { ...prev, rows: [...prev.rows, addedRow] };
       });
 
-      setIsAddingNewRow(false);
-      setRowSaveSuccess("✓ New row appended successfully to Google Sheet!");
-      setTimeout(() => setRowSaveSuccess(null), 4000);
+      if (addAnother) {
+        // Keep form open, clear fields for continuous entry
+        const blank: Record<string, string> = {};
+        loaded.fields.forEach((f) => { blank[f.key] = ""; });
+        setNewRowValues(blank);
+        setRowSaveSuccess("✓ Row appended! Ready for next entry.");
+        setTimeout(() => setRowSaveSuccess(null), 3500);
+      } else {
+        setIsAddingNewRow(false);
+        setRowSaveSuccess("✓ New row appended successfully to Google Sheet!");
+        setTimeout(() => setRowSaveSuccess(null), 4000);
+      }
     } catch (err: any) {
       setRowSaveError(err.message || "Failed to add row to Google Sheet");
     } finally {
@@ -964,6 +1134,67 @@ function HistoryPageInner() {
             </button>
           </div>
 
+          {/* Pre-fill from Last Entry helper */}
+          {settings.enablePreFillLastRow && loaded.rows.length > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const lastRow = loaded.rows[loaded.rows.length - 1];
+                  const filled: Record<string, string> = {};
+                  loaded.fields.forEach((f) => {
+                    filled[f.key] = lastRow[f.key] ?? "";
+                  });
+                  setNewRowValues(filled);
+                  const rNum = lastRow._row_index || loaded.rows.length + 1;
+                  setRowSaveSuccess(`⚡ Pre-filled from Row #${rNum}!`);
+                  setTimeout(() => setRowSaveSuccess(null), 3000);
+                }}
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  background: "rgba(200, 98, 58, 0.08)",
+                  border: "1px dashed rgba(200, 98, 58, 0.45)",
+                  borderRadius: 0,
+                  fontFamily: "var(--font-plex-mono), monospace",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "var(--clay)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  transition: "background 0.15s ease",
+                }}
+                title="Copy all values from the previous entry into this form"
+              >
+                <span>⚡</span>
+                <span>Pre-fill from Last Entry (Row #{loaded.rows[loaded.rows.length - 1]._row_index || loaded.rows.length + 1})</span>
+              </button>
+            </div>
+          )}
+
+          {/* Success alert */}
+          {rowSaveSuccess && (
+            <div style={{
+              background: "#ecfdf5",
+              border: "1px solid #a7f3d0",
+              color: "#065f46",
+              padding: "10px 14px",
+              borderRadius: 0,
+              fontSize: 12,
+              fontFamily: "var(--font-plex-mono), monospace",
+              marginBottom: 14,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}>
+              <span>✓</span>
+              <span>{rowSaveSuccess}</span>
+            </div>
+          )}
+
           {/* Field search input */}
           {enrichedFields.length > 4 && (
             <div style={{ marginBottom: 12, position: "relative" }}>
@@ -1039,9 +1270,7 @@ function HistoryPageInner() {
                 key={field.key}
                 field={field}
                 value={newRowValues[field.key] ?? ""}
-                onChange={(key, val) => {
-                  setNewRowValues((prev) => ({ ...prev, [key]: val }));
-                }}
+                onChange={handleNewRowFieldChange}
               />
             ))}
             {displayFields.length === 0 && (
@@ -1086,29 +1315,59 @@ function HistoryPageInner() {
               ← Cancel
             </button>
 
-            <button
-              type="button"
-              onClick={handleSaveNewRow}
-              disabled={isSavingNewRow}
-              style={{
-                fontFamily: "var(--font-plex-mono), monospace",
-                fontSize: 11,
-                fontWeight: 600,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                padding: "9px 18px",
-                borderRadius: 0,
-                background: "var(--ink)",
-                color: "var(--on-ink)",
-                border: 0,
-                cursor: isSavingNewRow ? "not-allowed" : "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
-              {isSavingNewRow ? "Appending..." : "+ Append to Sheet"}
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              {settings.enableSaveAndAddAnother && (
+                <button
+                  type="button"
+                  onClick={() => handleSaveNewRow({ addAnother: true })}
+                  disabled={isSavingNewRow}
+                  style={{
+                    fontFamily: "var(--font-plex-mono), monospace",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    letterSpacing: "0.04em",
+                    textTransform: "uppercase",
+                    padding: "9px 14px",
+                    borderRadius: 0,
+                    background: "var(--paper)",
+                    color: "var(--ink)",
+                    border: "1px solid var(--rule)",
+                    cursor: isSavingNewRow ? "not-allowed" : "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                  }}
+                  title="Save this entry and immediately open a fresh form for the next row"
+                >
+                  <span>+</span>
+                  <span>Save &amp; Add Another</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => handleSaveNewRow({ addAnother: false })}
+                disabled={isSavingNewRow}
+                style={{
+                  fontFamily: "var(--font-plex-mono), monospace",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  padding: "9px 18px",
+                  borderRadius: 0,
+                  background: "var(--ink)",
+                  color: "var(--on-ink)",
+                  border: 0,
+                  cursor: isSavingNewRow ? "not-allowed" : "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                {isSavingNewRow ? "Appending..." : "+ Append to Sheet"}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1446,7 +1705,7 @@ function HistoryPageInner() {
                   field={field}
                   value={rowEditValues[field.key] ?? ""}
                   onChange={(key, val) => {
-                    setRowEditValues((prev) => ({ ...prev, [key]: val }));
+                    handleEditRowFieldChange(key, val);
                     setRowSaveSuccess(null);
                     setRowSaveError(null);
                   }}
@@ -1520,23 +1779,71 @@ function HistoryPageInner() {
             gap: 12,
             zIndex: 10,
           }}>
-            <button
-              type="button"
-              onClick={() => setSelectedRow(null)}
-              style={{
-                fontFamily: "var(--font-plex-mono), monospace",
-                fontSize: 11,
-                fontWeight: 500,
-                color: "var(--stone)",
-                background: "transparent",
-                border: "1px solid var(--rule)",
-                borderRadius: 0,
-                padding: "8px 14px",
-                cursor: "pointer",
-              }}
-            >
-              ← Back to Table
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => setSelectedRow(null)}
+                style={{
+                  fontFamily: "var(--font-plex-mono), monospace",
+                  fontSize: 11,
+                  fontWeight: 500,
+                  color: "var(--stone)",
+                  background: "transparent",
+                  border: "1px solid var(--rule)",
+                  borderRadius: 0,
+                  padding: "8px 14px",
+                  cursor: "pointer",
+                }}
+              >
+                ← Back to Table
+              </button>
+
+              {settings.enableBottomRowNav && (
+                <div style={{ display: "inline-flex", border: "1px solid var(--rule)" }}>
+                  <button
+                    type="button"
+                    onClick={goToPrev}
+                    disabled={!hasPrev || savingRow}
+                    aria-label="Previous row"
+                    style={{
+                      fontFamily: "var(--font-plex-mono), monospace",
+                      fontSize: 11,
+                      color: hasPrev && !savingRow ? "var(--ink)" : "var(--stone)",
+                      background: "var(--cream)",
+                      border: 0,
+                      borderRight: "1px solid var(--rule)",
+                      borderRadius: 0,
+                      padding: "8px 10px",
+                      cursor: hasPrev && !savingRow ? "pointer" : "not-allowed",
+                      opacity: hasPrev && !savingRow ? 1 : 0.4,
+                    }}
+                    title="Previous row"
+                  >
+                    ← Prev
+                  </button>
+                  <button
+                    type="button"
+                    onClick={goToNext}
+                    disabled={!hasNext || savingRow}
+                    aria-label="Next row"
+                    style={{
+                      fontFamily: "var(--font-plex-mono), monospace",
+                      fontSize: 11,
+                      color: hasNext && !savingRow ? "var(--ink)" : "var(--stone)",
+                      background: "var(--cream)",
+                      border: 0,
+                      borderRadius: 0,
+                      padding: "8px 10px",
+                      cursor: hasNext && !savingRow ? "pointer" : "not-allowed",
+                      opacity: hasNext && !savingRow ? 1 : 0.4,
+                    }}
+                    title="Next row"
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
+            </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               {hasEditPermission && (
@@ -1980,6 +2287,79 @@ function HistoryPageInner() {
               <span>Click row to open as Form</span>
             </div>
 
+            {/* View Mode Toggle (Table vs Cards) */}
+            <div style={{
+              display: "inline-flex",
+              border: "1px solid var(--rule)",
+              background: "var(--paper)",
+              borderRadius: 0,
+              overflow: "hidden",
+            }}>
+              <button
+                type="button"
+                onClick={() => updateSetting("tableViewMode", "table")}
+                title="Spreadsheet Table View"
+                style={{
+                  fontFamily: "var(--font-plex-mono), monospace",
+                  fontSize: 10,
+                  fontWeight: 500,
+                  letterSpacing: "0.04em",
+                  padding: "6px 9px",
+                  background: settings.tableViewMode === "table" ? "var(--ink)" : "transparent",
+                  color: settings.tableViewMode === "table" ? "var(--on-ink)" : "var(--charcoal)",
+                  border: 0,
+                  cursor: "pointer",
+                }}
+              >
+                ▦ Table
+              </button>
+              <button
+                type="button"
+                onClick={() => updateSetting("tableViewMode", "cards")}
+                title="Mobile Editorial Cards View"
+                style={{
+                  fontFamily: "var(--font-plex-mono), monospace",
+                  fontSize: 10,
+                  fontWeight: 500,
+                  letterSpacing: "0.04em",
+                  padding: "6px 9px",
+                  background: settings.tableViewMode === "cards" ? "var(--ink)" : "transparent",
+                  color: settings.tableViewMode === "cards" ? "var(--on-ink)" : "var(--charcoal)",
+                  border: 0,
+                  cursor: "pointer",
+                }}
+              >
+                ▤ Cards
+              </button>
+            </div>
+
+            {/* Settings Modal Button */}
+            <button
+              type="button"
+              onClick={() => setShowSettingsModal(true)}
+              title="Personal Preferences & Settings"
+              style={{
+                fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                fontSize: 10,
+                fontWeight: 500,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                color: "var(--charcoal)",
+                background: "var(--paper)",
+                border: "1px solid var(--rule)",
+                borderRadius: 0,
+                padding: "6px 10px",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+              }}
+            >
+              <span>⚙</span>
+              <span>Settings</span>
+            </button>
+
             {/* Filter button */}
             <button
               type="button"
@@ -2177,7 +2557,154 @@ function HistoryPageInner() {
           )}
 
           {loaded.rows.length > 0 && matches.length > 0 && (
-            <div style={{ flex: 1, overflow: "auto", position: "relative" }}>
+            settings.tableViewMode === "cards" ? (
+              /* Mobile Cards View */
+              <div style={{ flex: 1, overflow: "auto", position: "relative", padding: "16px" }}>
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))",
+                  gap: 12,
+                  maxWidth: 1400,
+                  margin: "0 auto",
+                }}>
+                  {visibleMatches.map((row, rowIdx) => {
+                    const rowNum = row._row_index || rowIdx + 1;
+                    const primaryField = sortedFields[0];
+                    const primaryVal = primaryField ? row[primaryField.key] : "";
+                    const previewFields = sortedFields.slice(1, 7);
+
+                    return (
+                      <div
+                        key={rowIdx}
+                        onClick={() => handleOpenRowForm(row)}
+                        style={{
+                          background: "var(--paper)",
+                          border: "1px solid var(--rule)",
+                          borderRadius: 0,
+                          padding: "14px 16px",
+                          cursor: "pointer",
+                          display: "flex",
+                          flexDirection: "column",
+                          justifyContent: "space-between",
+                          gap: 12,
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+                          transition: "border-color 0.15s ease",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = "var(--ink)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = "var(--rule)";
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                            <span style={{
+                              fontFamily: "var(--font-plex-mono), monospace",
+                              fontSize: 10,
+                              fontWeight: 600,
+                              letterSpacing: "0.06em",
+                              textTransform: "uppercase",
+                              background: "var(--ink)",
+                              color: "var(--on-ink)",
+                              padding: "2px 6px",
+                              borderRadius: 0,
+                            }}>
+                              Row #{rowNum}
+                            </span>
+                            <span style={{
+                              fontFamily: "var(--font-plex-mono), monospace",
+                              fontSize: 10,
+                              color: "var(--clay)",
+                              fontWeight: 600,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 2,
+                            }}>
+                              Open Form →
+                            </span>
+                          </div>
+
+                          {primaryField && (
+                            <div style={{
+                              fontFamily: "var(--font-newsreader), Georgia, serif",
+                              fontSize: 16,
+                              fontWeight: 500,
+                              color: "var(--ink)",
+                              marginBottom: 10,
+                              wordBreak: "break-word",
+                            }}>
+                              {primaryVal ? highlightCell(primaryVal) : <span style={{ color: "var(--stone)", fontStyle: "italic" }}>—</span>}
+                            </div>
+                          )}
+
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 12px" }}>
+                            {previewFields.map((f) => {
+                              const v = row[f.key] ?? "";
+                              return (
+                                <div key={f.key} style={{ minWidth: 0 }}>
+                                  <div style={{
+                                    fontFamily: "var(--font-plex-mono), monospace",
+                                    fontSize: 9,
+                                    fontWeight: 500,
+                                    letterSpacing: "0.06em",
+                                    textTransform: "uppercase",
+                                    color: "var(--stone)",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                  }}>
+                                    {f.label}
+                                  </div>
+                                  <div style={{
+                                    fontFamily: "var(--font-plex-mono), monospace",
+                                    fontSize: 11,
+                                    color: v ? "var(--ink)" : "var(--stone)",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                    fontStyle: v ? "normal" : "italic",
+                                  }}>
+                                    {v ? highlightCell(v) : "—"}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Load more cards */}
+                {visibleCount < matches.length && (
+                  <div style={{ padding: "16px", textAlign: "center" }}>
+                    <button
+                      type="button"
+                      onClick={() => setVisibleCount((c) => Math.min(c + ROWS_PER_PAGE, matches.length))}
+                      style={{
+                        fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+                        fontSize: 11,
+                        fontWeight: 500,
+                        color: "var(--charcoal)",
+                        background: "var(--paper)",
+                        border: "1px solid var(--rule)",
+                        borderRadius: 0,
+                        padding: "8px 16px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Show {Math.min(ROWS_PER_PAGE, matches.length - visibleCount)} more cards
+                      <span style={{ color: "var(--stone)", marginLeft: 6 }}>
+                        · {(matches.length - visibleCount).toLocaleString()} remaining
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ flex: 1, overflow: "auto", position: "relative" }}>
               <table style={{
                 width: "100%",
                 minWidth: sortedFields.length * 150,
@@ -2226,30 +2753,45 @@ function HistoryPageInner() {
                     }}>
                       Form
                     </th>
-                    {sortedFields.map((field, colIdx) => (
-                      <th
-                        key={field.key}
-                        style={{
-                          position: "sticky",
-                          top: 0,
-                          zIndex: 20,
-                          background: "var(--ink)",
-                          color: "var(--on-ink)",
-                          fontWeight: 500,
-                          fontSize: 10,
-                          letterSpacing: "0.06em",
-                          textTransform: "uppercase",
-                          padding: "10px 12px",
-                          textAlign: "left",
-                          whiteSpace: "nowrap",
-                          borderRight: colIdx < sortedFields.length - 1 ? "1px solid rgba(255,255,255,0.1)" : "none",
-                          minWidth: 120,
-                          maxWidth: 280,
-                        }}
-                      >
-                        {field.label}
-                      </th>
-                    ))}
+                    {sortedFields.map((field, colIdx) => {
+                      const isSorted = sortColumn === field.key;
+                      return (
+                        <th
+                          key={field.key}
+                          onClick={() => handleToggleSort(field.key)}
+                          style={{
+                            position: "sticky",
+                            top: 0,
+                            zIndex: 20,
+                            background: isSorted ? "var(--clay)" : "var(--ink)",
+                            color: "var(--on-ink)",
+                            fontWeight: 500,
+                            fontSize: 10,
+                            letterSpacing: "0.06em",
+                            textTransform: "uppercase",
+                            padding: "10px 12px",
+                            textAlign: "left",
+                            whiteSpace: "nowrap",
+                            borderRight: colIdx < sortedFields.length - 1 ? "1px solid rgba(255,255,255,0.1)" : "none",
+                            minWidth: 120,
+                            maxWidth: 280,
+                            cursor: settings.enableColumnSorting ? "pointer" : "default",
+                            userSelect: "none",
+                            transition: "background-color 0.15s ease",
+                          }}
+                          title={settings.enableColumnSorting ? `Click to sort by ${field.label}` : undefined}
+                        >
+                          <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                            <span>{field.label}</span>
+                            {settings.enableColumnSorting && (
+                              <span style={{ fontSize: 9, opacity: isSorted ? 1 : 0.4 }}>
+                                {isSorted ? (sortDirection === "asc" ? "▲" : "▼") : "⇅"}
+                              </span>
+                            )}
+                          </div>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
@@ -2366,6 +2908,7 @@ function HistoryPageInner() {
                 </div>
               )}
             </div>
+            )
           )}
         </div>
 
@@ -2376,6 +2919,14 @@ function HistoryPageInner() {
           currentWorksheet={loaded.worksheet_name}
           preloadedWorksheets={allDiscoveredTabs.map((t) => t.worksheet_name || t.form_title).filter(Boolean)}
           onSelectWorksheet={handleSwitchWorksheet}
+        />
+
+        <HistorySettingsModal
+          isOpen={showSettingsModal}
+          onClose={() => setShowSettingsModal(false)}
+          settings={settings}
+          onUpdateSetting={updateSetting}
+          onResetDefaults={handleResetSettings}
         />
 
         <ErrorToast message={error} onDismiss={() => setError(null)} />
@@ -2944,6 +3495,14 @@ function HistoryPageInner() {
         currentWorksheet={null}
         preloadedWorksheets={allDiscoveredTabs.map((t) => t.worksheet_name || t.form_title).filter(Boolean)}
         onSelectWorksheet={handleSwitchWorksheet}
+      />
+
+      <HistorySettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        settings={settings}
+        onUpdateSetting={updateSetting}
+        onResetDefaults={handleResetSettings}
       />
 
       <ErrorToast message={error} onDismiss={() => setError(null)} />
