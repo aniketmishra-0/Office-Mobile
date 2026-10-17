@@ -108,6 +108,8 @@ def init_db() -> None:
             cur.execute("ALTER TABLE submissions ADD COLUMN IF NOT EXISTS retry_count INT NOT NULL DEFAULT 0")
             cur.execute("ALTER TABLE submissions ADD COLUMN IF NOT EXISTS last_error TEXT")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_submissions_pending ON submissions(sync_status) WHERE sync_status = 'pending_sync'")
+            # Zero Space Mode: Remove already synced submissions from DB
+            cur.execute("DELETE FROM submissions WHERE sync_status = 'synced'")
 
 
 # ---------------------------------------------------------------------------
@@ -401,6 +403,14 @@ def update_submission_sync_status(
         )
     except Exception as exc:
         logger.warning("update_submission_sync_status failed for %s: %s", submission_id, exc)
+
+
+def delete_submission(submission_id: str) -> None:
+    """Delete a submission record once synced to Google Sheets (Zero Space Mode)."""
+    try:
+        execute("DELETE FROM submissions WHERE id = %s", (submission_id,))
+    except Exception as exc:
+        logger.warning("delete_submission failed for %s: %s", submission_id, exc)
 
 
 def increment_submission_retry(submission_id: str, error_msg: str | None = None) -> None:

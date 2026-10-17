@@ -51,10 +51,9 @@ async def _periodic_queue_sweeper():
 
                         rng = await asyncio.to_thread(_do_sync)
                         if rng:
-                            await asyncio.to_thread(
-                                form_store.update_submission_sync_status, sub_id, "synced", rng, None
-                            )
-                            logger.info("Sweeper successfully synced submission %s", sub_id)
+                            # Zero Space Mode: Remove from DB immediately once synced
+                            await asyncio.to_thread(form_store.delete_submission, sub_id)
+                            logger.info("Sweeper successfully synced and deleted submission %s from DB", sub_id)
                     except Exception as sweeper_exc:
                         logger.warning("Sweeper retry failed for %s: %s", sub_id, sweeper_exc)
                         await asyncio.to_thread(

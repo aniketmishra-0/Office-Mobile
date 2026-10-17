@@ -1155,16 +1155,14 @@ async def _background_retry_submission(
         try:
             rng = await asyncio.to_thread(_do_append)
             if rng:
+                # Zero Space Mode: Remove immediately once synced to Google Sheets
                 await asyncio.to_thread(
-                    form_store.update_submission_sync_status,
+                    form_store.delete_submission,
                     submission_id,
-                    "synced",
-                    rng,
-                    None,
                 )
                 logger.info(
-                    "Background sync succeeded for submission %s on attempt %d: %s",
-                    submission_id, attempt, rng
+                    "Background sync succeeded and deleted from DB for submission %s: %s",
+                    submission_id, rng
                 )
                 return
         except Exception as retry_exc:
@@ -1241,7 +1239,8 @@ async def submit_form(form_id: str, payload: SubmitFormRequest) -> SubmitFormRes
                 raise _sheet_error(exc) from exc
         # No credentials — Sheets write was skipped; fall through to DB save.
 
-    # Always persist the submission locally in Postgres.
+    # Persist the submission locally in Postgres.
+    # In Zero Space Mode, if already synced directly to Sheets, we do not retain it in DB.
     sub_record = await asyncio.to_thread(
         partial(
             form_store.save_submission,
@@ -1252,6 +1251,10 @@ async def submit_form(form_id: str, payload: SubmitFormRequest) -> SubmitFormRes
             last_error=last_err,
         )
     )
+
+    if not queued and updated_range and sub_record:
+        # Zero Space Mode: Synced immediately to Google Sheets -> remove from DB right away
+        await asyncio.to_thread(form_store.delete_submission, sub_record["id"])
 
     if queued and sub_record:
         asyncio.create_task(
