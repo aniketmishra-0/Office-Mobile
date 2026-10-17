@@ -593,10 +593,10 @@ function ComboboxControl({
       }
     };
     document.addEventListener("mousedown", handleClick);
-    document.addEventListener("touchstart", handleClick);
+    document.addEventListener("touchend", handleClick);
     return () => {
       document.removeEventListener("mousedown", handleClick);
-      document.removeEventListener("touchstart", handleClick);
+      document.removeEventListener("touchend", handleClick);
     };
   }, [isOpen]);
 
@@ -632,8 +632,7 @@ function ComboboxControl({
               tabIndex={-1}
               aria-label="Clear"
               className="om-combobox-btn"
-              onMouseDown={(e) => {
-                e.preventDefault();
+              onClick={() => {
                 onChange("");
                 inputRef.current?.focus();
               }}
@@ -674,16 +673,6 @@ function ComboboxControl({
                   type="button"
                   key={opt}
                   className={`om-combobox-option ${isSelected ? "is-selected" : ""}`}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    onChange(opt);
-                    setIsOpen(false);
-                  }}
-                  onPointerDown={(e) => {
-                    e.preventDefault();
-                    onChange(opt);
-                    setIsOpen(false);
-                  }}
                   onClick={() => {
                     onChange(opt);
                     setIsOpen(false);
@@ -770,6 +759,8 @@ function ComboboxControl({
           max-height: 240px;
           overflow-y: auto;
           -webkit-overflow-scrolling: touch;
+          touch-action: pan-y;
+          overscroll-behavior: contain;
           background: var(--paper, #ffffff);
           border: 1px solid var(--rule, #e4e4e7);
           border-radius: 4px;
@@ -785,7 +776,7 @@ function ComboboxControl({
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 10px 14px;
+          padding: 11px 14px;
           font-family: var(--font-plex-mono), ui-monospace, monospace;
           font-size: 13px;
           color: var(--ink);
@@ -794,6 +785,9 @@ function ComboboxControl({
           border-bottom: 1px solid var(--rule, #e4e4e7);
           background: transparent;
           text-align: left;
+          touch-action: pan-y;
+          user-select: none;
+          -webkit-user-select: none;
           transition: background 120ms ease;
         }
         .om-combobox-option:last-child {
