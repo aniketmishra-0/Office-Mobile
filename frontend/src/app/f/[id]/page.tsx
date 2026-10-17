@@ -86,11 +86,10 @@ export default function FillFormPage() {
     }
   }, [id]);
 
-  // Pre-load suggestions as soon as the form is known to have filterable
-  // columns. Without this, users who type directly into a filter field
-  // (without tapping the autofill bar first) would see an empty state.
+  // Pre-load suggestions in the background as soon as the form is loaded
+  // so that smart field-level autocomplete chips and autofill are ready immediately!
   useEffect(() => {
-    if (formData && (formData.autofill_columns?.length ?? 0) > 0) {
+    if (formData) {
       void loadSuggestions();
     }
   }, [formData, loadSuggestions]);

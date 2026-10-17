@@ -2,6 +2,7 @@
 
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import type { FieldSchema } from "@/types/field";
+import { detectCalculationRules, applyCalculations } from "@/lib/calculations";
 import FieldRenderer from "./FieldRenderer";
 import AutofillBar from "./AutofillBar";
 
@@ -49,7 +50,40 @@ const DynamicForm = forwardRef<DynamicFormHandle, Props>(function DynamicForm({
   const [autofilled, setAutofilled] = useState(false);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
+  const [manualOverrides, setManualOverrides] = useState<Set<string>>(new Set());
   const formRef = useRef<HTMLFormElement>(null);
+
+  // Auto-calculation rules
+  const calculationRules = useMemo(() => detectCalculationRules(fields), [fields]);
+  const calculationRulesMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const r of calculationRules) {
+      map[r.targetKey] = r.formulaDesc;
+    }
+    return map;
+  }, [calculationRules]);
+
+  // Extract unique past values per field from sheet suggestions (most frequent first)
+  const fieldSuggestionsMap = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    if (!suggestions || suggestions.length === 0) return map;
+
+    for (const field of fields) {
+      const counts: Record<string, number> = {};
+      for (const row of suggestions) {
+        const raw = row[field.key];
+        if (raw && typeof raw === "string") {
+          const val = raw.trim();
+          if (val && val.length <= 80 && !val.startsWith("#")) {
+            counts[val] = (counts[val] || 0) + 1;
+          }
+        }
+      }
+      const sortedVals = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+      map[field.key] = sortedVals;
+    }
+    return map;
+  }, [suggestions, fields]);
 
   // Expose applyValues to parent via ref (for AI Auto-Fill)
   useImperativeHandle(ref, () => ({
@@ -75,18 +109,37 @@ const DynamicForm = forwardRef<DynamicFormHandle, Props>(function DynamicForm({
     setAutofilled(false);
     setActiveFilters([]);
     setActiveFieldKey(null);
+    setManualOverrides(new Set());
   }, [resetKey, fields]);
 
   const handleChange = useCallback((key: string, val: string) => {
-    setValues((prev) => ({ ...prev, [key]: val }));
+    setValues((prev) => {
+      const updated = { ...prev, [key]: val };
+
+      // Update manual overrides for calculated fields
+      setManualOverrides((prevOverrides) => {
+        const nextOverrides = new Set(prevOverrides);
+        const isTarget = calculationRules.some((r) => r.targetKey === key);
+        if (isTarget) {
+          if (!val.trim()) nextOverrides.delete(key);
+          else nextOverrides.add(key);
+        }
+        return nextOverrides;
+      });
+
+      if (calculationRules.length > 0) {
+        return applyCalculations(calculationRules, updated, manualOverrides);
+      }
+      return updated;
+    });
+
     setErrors((prev) => {
       if (!prev[key]) return prev;
       const next = { ...prev };
       delete next[key];
       return next;
     });
-    // If user edits after autofill, that's fine — they can change anything
-  }, []);
+  }, [calculationRules, manualOverrides]);
 
   const handleBlur = useCallback((key: string) => {
     setTouched((prev) => new Set(prev).add(key));
@@ -274,6 +327,8 @@ const DynamicForm = forwardRef<DynamicFormHandle, Props>(function DynamicForm({
             error={errors[field.key]}
             touched={touched.has(field.key)}
             folderName={folderName}
+            suggestions={fieldSuggestionsMap[field.key] || field.options || []}
+            calculatedFormula={calculationRulesMap[field.key]}
           />
           {activeFieldKey === field.key && activeFilters.includes(field.key) && (
             <div className="mt-3">

@@ -19,6 +19,7 @@ import {
   checkSheetAccess,
   getProtectedColumns,
 } from "@/lib/api";
+import { detectCalculationRules, applyCalculations } from "@/lib/calculations";
 
 interface TabOption {
   id: string | null;
@@ -126,6 +127,61 @@ function DataFillPageInner() {
   const [bulkFieldKey, setBulkFieldKey] = useState<string>("");
   const [bulkValue, setBulkValue] = useState<string>("");
   const [bulkIsSubmitting, setBulkIsSubmitting] = useState(false);
+
+  // Auto-calculation & smart suggestion states
+  const calculationRules = useMemo(() => (loaded ? detectCalculationRules(loaded.fields) : []), [loaded]);
+  const calculationRulesMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const r of calculationRules) {
+      map[r.targetKey] = r.formulaDesc;
+    }
+    return map;
+  }, [calculationRules]);
+
+  const [calcOverrides, setCalcOverrides] = useState<Set<string>>(new Set());
+
+  // Extract unique past values per field from loaded sheet rows (most frequent first)
+  const fieldSuggestionsMap = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    if (!loaded || !loaded.rows || loaded.rows.length === 0) return map;
+
+    for (const field of loaded.fields) {
+      const counts: Record<string, number> = {};
+      for (const row of loaded.rows) {
+        const raw = row[field.key];
+        if (raw && typeof raw === "string") {
+          const val = raw.trim();
+          if (val && val.length <= 80 && !val.startsWith("#")) {
+            counts[val] = (counts[val] || 0) + 1;
+          }
+        }
+      }
+      const sortedVals = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+      map[field.key] = sortedVals;
+    }
+    return map;
+  }, [loaded]);
+
+  function handleFieldValueChange(fieldKey: string, newValue: string) {
+    setEditValues((prev) => {
+      const updated = { ...prev, [fieldKey]: newValue };
+
+      setCalcOverrides((prevOverrides) => {
+        const nextOverrides = new Set(prevOverrides);
+        const isTarget = calculationRules.some((r) => r.targetKey === fieldKey);
+        if (isTarget) {
+          if (!newValue.trim()) nextOverrides.delete(fieldKey);
+          else nextOverrides.add(fieldKey);
+        }
+        return nextOverrides;
+      });
+
+      if (calculationRules.length > 0) {
+        return applyCalculations(calculationRules, updated, calcOverrides);
+      }
+      return updated;
+    });
+  }
 
   // Pagination
   const ROWS_PER_PAGE = 100;
@@ -573,14 +629,32 @@ function DataFillPageInner() {
 
     const rowIndicesArray = Array.from(selectedRowIndices);
 
+    const getRowUpdatedValues = (r: Record<string, string>) => {
+      let vals = { ...r, [bulkFieldKey]: bulkValue };
+      if (calculationRules.length > 0) {
+        vals = applyCalculations(calculationRules, vals, new Set());
+      }
+      return vals;
+    };
+
     if (saveImmediately) {
       setBulkIsSubmitting(true);
       setError(null);
       try {
-        const updates = rowIndicesArray.map((rIdx) => ({
-          row_index: rIdx,
-          values: { [bulkFieldKey]: bulkValue },
-        }));
+        const updates = rowIndicesArray.map((rIdx) => {
+          const existingRow = loaded.rows.find((r) => getRowSheetIndex(r) === rIdx) || {};
+          const fullUpdated = getRowUpdatedValues(existingRow);
+          const changedFields: Record<string, string> = { [bulkFieldKey]: bulkValue };
+          for (const rule of calculationRules) {
+            if (rule.sourceKeys.includes(bulkFieldKey) && fullUpdated[rule.targetKey] !== undefined) {
+              changedFields[rule.targetKey] = fullUpdated[rule.targetKey];
+            }
+          }
+          return {
+            row_index: rIdx,
+            values: changedFields,
+          };
+        });
 
         const res = await batchUpdateRows(sheetUrl, loaded.worksheet_name, updates);
         const count = res.updated_count || rowIndicesArray.length;
@@ -588,7 +662,7 @@ function DataFillPageInner() {
         const updatedRows = loaded.rows.map((r) => {
           const sIdx = getRowSheetIndex(r);
           if (selectedRowIndices.has(sIdx)) {
-            return { ...r, [bulkFieldKey]: bulkValue };
+            return getRowUpdatedValues(r);
           }
           return r;
         });
@@ -597,7 +671,15 @@ function DataFillPageInner() {
           const next = { ...prev };
           for (const idx of rowIndicesArray) {
             if (next[idx]) {
-              next[idx] = { ...next[idx], [bulkFieldKey]: bulkValue };
+              const existingRow = loaded.rows.find((r) => getRowSheetIndex(r) === idx) || {};
+              const fullUpdated = getRowUpdatedValues(existingRow);
+              const changedFields: Record<string, string> = { [bulkFieldKey]: bulkValue };
+              for (const rule of calculationRules) {
+                if (rule.sourceKeys.includes(bulkFieldKey) && fullUpdated[rule.targetKey] !== undefined) {
+                  changedFields[rule.targetKey] = fullUpdated[rule.targetKey];
+                }
+              }
+              next[idx] = { ...next[idx], ...changedFields };
             }
           }
           return next;
@@ -618,7 +700,15 @@ function DataFillPageInner() {
       setPendingUpdates((prev) => {
         const next = { ...prev };
         for (const rIdx of rowIndicesArray) {
-          next[rIdx] = { ...(next[rIdx] || {}), [bulkFieldKey]: bulkValue };
+          const existingRow = loaded.rows.find((r) => getRowSheetIndex(r) === rIdx) || {};
+          const fullUpdated = getRowUpdatedValues(existingRow);
+          const changedFields: Record<string, string> = { [bulkFieldKey]: bulkValue };
+          for (const rule of calculationRules) {
+            if (rule.sourceKeys.includes(bulkFieldKey) && fullUpdated[rule.targetKey] !== undefined) {
+              changedFields[rule.targetKey] = fullUpdated[rule.targetKey];
+            }
+          }
+          next[rIdx] = { ...(next[rIdx] || {}), ...changedFields };
         }
         return next;
       });
@@ -626,7 +716,7 @@ function DataFillPageInner() {
       const updatedRows = loaded.rows.map((r) => {
         const sIdx = getRowSheetIndex(r);
         if (selectedRowIndices.has(sIdx)) {
-          return { ...r, [bulkFieldKey]: bulkValue };
+          return getRowUpdatedValues(r);
         }
         return r;
       });
@@ -931,6 +1021,11 @@ function DataFillPageInner() {
                       <svg className="w-3.5 h-3.5 text-red-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
                     )}
                     <p className="text-[11px] font-medium text-zinc-500 uppercase tracking-wide">{field.label}</p>
+                    {calculationRulesMap[field.key] && (
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 font-medium" title={calculationRulesMap[field.key]}>
+                        fx {calculationRulesMap[field.key]}
+                      </span>
+                    )}
                     {isProtected && <span className="text-[10px] font-medium text-amber-600 ml-auto">RESTRICTED</span>}
                     {!isProtected && isMissing && !editMode && <span className="text-[10px] font-medium text-red-500 ml-auto">MISSING</span>}
                   </div>
@@ -951,7 +1046,7 @@ function DataFillPageInner() {
                         aria-checked={(editValues[field.key] ?? "").toUpperCase() === "TRUE"}
                         onClick={() => {
                           const current = (editValues[field.key] ?? "").toUpperCase() === "TRUE";
-                          setEditValues({ ...editValues, [field.key]: current ? "FALSE" : "TRUE" });
+                          handleFieldValueChange(field.key, current ? "FALSE" : "TRUE");
                         }}
                         className={`mt-1 inline-flex items-center gap-3 px-0 py-2 bg-transparent border-0 cursor-pointer outline-none`}
                       >
@@ -966,7 +1061,7 @@ function DataFillPageInner() {
                       <div className="mt-1">
                         <select
                           value={editValues[field.key] ?? ""}
-                          onChange={(e) => setEditValues({ ...editValues, [field.key]: e.target.value })}
+                          onChange={(e) => handleFieldValueChange(field.key, e.target.value)}
                           className={`w-full px-3 py-2 text-[14px] rounded-md border ${isMissing ? "border-red-300 bg-red-50/30" : "border-zinc-200"} bg-white focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent`}
                         >
                           <option value="">— Select an option —</option>
@@ -982,7 +1077,7 @@ function DataFillPageInner() {
                               <button
                                 key={opt}
                                 type="button"
-                                onClick={() => setEditValues({ ...editValues, [field.key]: opt })}
+                                onClick={() => handleFieldValueChange(field.key, opt)}
                                 className={`px-2.5 py-1 text-xs rounded-full border transition-all ${
                                   editValues[field.key] === opt
                                     ? "bg-zinc-900 text-white border-zinc-900"
@@ -996,12 +1091,50 @@ function DataFillPageInner() {
                         )}
                       </div>
                     ) : (
-                    <input ref={(el) => { editFieldRefs.current[fieldIdx] = el; }}
-                      type={field.type === "number" ? "number" : field.type === "email" ? "email" : field.type === "tel" ? "tel" : field.type === "url" ? "url" : "text"}
-                      value={editValues[field.key] ?? ""}
-                      onChange={(e) => setEditValues({ ...editValues, [field.key]: e.target.value })}
-                      placeholder={field.placeholder || `Enter ${field.label}`}
-                      className={`w-full mt-1 px-3 py-2 text-[14px] rounded-md border ${isMissing ? "border-red-300 bg-red-50/30" : "border-zinc-200"} focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent`} />
+                      <div>
+                        <input
+                          ref={(el) => { editFieldRefs.current[fieldIdx] = el; }}
+                          type={field.type === "number" ? "number" : field.type === "email" ? "email" : field.type === "tel" ? "tel" : field.type === "url" ? "url" : "text"}
+                          list={`df-dl-${field.key}`}
+                          value={editValues[field.key] ?? ""}
+                          onChange={(e) => handleFieldValueChange(field.key, e.target.value)}
+                          placeholder={field.placeholder || `Enter ${field.label}`}
+                          className={`w-full mt-1 px-3 py-2 text-[14px] rounded-md border ${isMissing ? "border-red-300 bg-red-50/30" : "border-zinc-200"} focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent`}
+                        />
+                        {fieldSuggestionsMap[field.key] && (
+                          <datalist id={`df-dl-${field.key}`}>
+                            {fieldSuggestionsMap[field.key].slice(0, 30).map((sug) => (
+                              <option key={sug} value={sug} />
+                            ))}
+                          </datalist>
+                        )}
+                        {(() => {
+                          const valLower = (editValues[field.key] ?? "").toLowerCase().trim();
+                          const sugs = (fieldSuggestionsMap[field.key] || [])
+                            .filter((s) => s.toLowerCase() !== valLower && (!valLower || s.toLowerCase().includes(valLower)))
+                            .slice(0, 4);
+                          if (sugs.length === 0) return null;
+                          return (
+                            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                              <span className="text-[10px] uppercase font-semibold tracking-wider text-zinc-400">Suggestions:</span>
+                              {sugs.map((sug) => (
+                                <button
+                                  key={sug}
+                                  type="button"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    handleFieldValueChange(field.key, sug);
+                                  }}
+                                  className="px-2 py-0.5 text-[11px] rounded-md bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-medium transition-colors border border-zinc-200 truncate max-w-[200px]"
+                                  title={sug}
+                                >
+                                  + {sug}
+                                </button>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                      </div>
                     )
                   ) : (
                     isCheckboxField ? (
@@ -1523,13 +1656,45 @@ function DataFillPageInner() {
                           ))}
                         </select>
                       ) : (
-                        <input
-                          type={targetField.type === "number" ? "number" : targetField.type === "date" ? "date" : "text"}
-                          value={bulkValue}
-                          onChange={(e) => setBulkValue(e.target.value)}
-                          placeholder={`Enter value for ${targetField.label}`}
-                          className="w-full px-3 py-2 text-[14px] rounded-lg border border-zinc-200 bg-white focus:outline-none focus:ring-2 focus:ring-zinc-900"
-                        />
+                        <div>
+                          <input
+                            type={targetField.type === "number" ? "number" : targetField.type === "date" ? "date" : "text"}
+                            list={`bulk-dl-${targetField.key}`}
+                            value={bulkValue}
+                            onChange={(e) => setBulkValue(e.target.value)}
+                            placeholder={`Enter value for ${targetField.label}`}
+                            className="w-full px-3 py-2 text-[14px] rounded-lg border border-zinc-200 bg-white focus:outline-none focus:ring-2 focus:ring-zinc-900"
+                          />
+                          {fieldSuggestionsMap[targetField.key] && (
+                            <datalist id={`bulk-dl-${targetField.key}`}>
+                              {fieldSuggestionsMap[targetField.key].slice(0, 30).map((sug) => (
+                                <option key={sug} value={sug} />
+                              ))}
+                            </datalist>
+                          )}
+                          {(() => {
+                            const valLower = bulkValue.toLowerCase().trim();
+                            const sugs = (fieldSuggestionsMap[targetField.key] || [])
+                              .filter((s) => s.toLowerCase() !== valLower)
+                              .slice(0, 5);
+                            if (sugs.length === 0) return null;
+                            return (
+                              <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                                <span className="text-[10px] uppercase font-semibold tracking-wider text-zinc-400">Past values:</span>
+                                {sugs.map((sug) => (
+                                  <button
+                                    key={sug}
+                                    type="button"
+                                    onClick={() => setBulkValue(sug)}
+                                    className="px-2 py-0.5 text-[11px] rounded-md bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-medium transition-colors border border-zinc-200 truncate max-w-[200px]"
+                                  >
+                                    + {sug}
+                                  </button>
+                                ))}
+                              </div>
+                            );
+                          })()}
+                        </div>
                       )}
                     </div>
                   );

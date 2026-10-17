@@ -15,6 +15,8 @@ interface Props {
   error?: string;
   touched?: boolean;
   folderName?: string;
+  suggestions?: string[];
+  calculatedFormula?: string;
 }
 
 /**
@@ -38,6 +40,8 @@ export default function FieldRenderer({
   error,
   touched,
   folderName,
+  suggestions,
+  calculatedFormula,
 }: Props) {
   const id = useId();
   const [focused, setFocused] = useState(false);
@@ -56,10 +60,17 @@ export default function FieldRenderer({
     <div
       className={`om-field ${focused ? "is-focused" : ""} ${showError ? "has-error" : ""}`}
     >
-      <label htmlFor={id} className="om-field__label">
-        {field.label}
-        {field.required && <span aria-label="required"> *</span>}
-      </label>
+      <div className="om-field__header">
+        <label htmlFor={id} className="om-field__label">
+          {field.label}
+          {field.required && <span aria-label="required"> *</span>}
+        </label>
+        {calculatedFormula && (
+          <span className="om-field__formula" title={`Auto-calculated: ${calculatedFormula}`}>
+            <span className="om-field__formula-fx">fx</span> {calculatedFormula}
+          </span>
+        )}
+      </div>
 
       <div className="om-field__control">
         <FieldControl
@@ -71,6 +82,7 @@ export default function FieldRenderer({
           onBlur={handleBlur}
           showError={showError}
           folderName={folderName}
+          suggestions={suggestions}
         />
       </div>
 
@@ -86,6 +98,28 @@ export default function FieldRenderer({
           flex-direction: column;
           gap: 8px;
           padding-bottom: 32px;
+        }
+        .om-field__header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+        }
+        .om-field__formula {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 2px 8px;
+          border-radius: 9999px;
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-size: 10px;
+          background: rgba(14, 165, 233, 0.1);
+          color: #0284c7;
+          border: 1px solid rgba(14, 165, 233, 0.25);
+        }
+        .om-field__formula-fx {
+          font-weight: 700;
+          font-style: italic;
         }
         .om-field__label {
           font-family: var(--font-plex-mono), ui-monospace, monospace;
@@ -128,6 +162,7 @@ function FieldControl({
   onBlur,
   showError,
   folderName,
+  suggestions,
 }: {
   id: string;
   field: FieldSchema;
@@ -137,6 +172,7 @@ function FieldControl({
   onBlur: () => void;
   showError: boolean;
   folderName?: string;
+  suggestions?: string[];
 }) {
   const set = (v: string) => onChange(field.key, v);
 
@@ -149,11 +185,12 @@ function FieldControl({
       field.type !== "file");
 
   if (isSelect) {
+    const combinedOptions = Array.from(new Set([...(field.options || []), ...(suggestions || [])]));
     return (
       <ComboboxControl
         id={id}
         value={value}
-        options={field.options || []}
+        options={combinedOptions}
         onChange={set}
         onFocus={onFocus}
         onBlur={onBlur}
@@ -242,6 +279,7 @@ function FieldControl({
           required={field.required}
           inputMode={inputModeFor(field.type)}
           autoComplete={autoCompleteFor(field.type)}
+          suggestions={suggestions}
         />
       );
   }
@@ -289,6 +327,7 @@ function TextInput({
   required,
   inputMode,
   autoComplete,
+  suggestions = [],
 }: {
   id: string;
   type: string;
@@ -300,23 +339,63 @@ function TextInput({
   required?: boolean;
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
   autoComplete?: string;
+  suggestions?: string[];
 }) {
+  const [isFocused, setIsFocused] = useState(false);
+  const datalistId = `dl-${id}`;
+
+  const cleanSuggestions = useMemo(() => {
+    const seen = new Set<string>();
+    const list: string[] = [];
+    for (const s of suggestions) {
+      const trimmed = s ? s.trim() : "";
+      if (trimmed && !isFormulaError(trimmed) && !seen.has(trimmed.toLowerCase())) {
+        seen.add(trimmed.toLowerCase());
+        list.push(trimmed);
+      }
+    }
+    return list;
+  }, [suggestions]);
+
+  const filteredSuggestions = useMemo(() => {
+    if (cleanSuggestions.length === 0) return [];
+    const q = (value || "").trim().toLowerCase();
+    const list = q ? cleanSuggestions.filter((s) => s.toLowerCase().includes(q) && s.toLowerCase() !== q) : cleanSuggestions;
+    return list.slice(0, 5);
+  }, [cleanSuggestions, value]);
+
   return (
     <>
       <div className="om-input-wrap">
         <input
           id={id}
           type={type}
+          list={cleanSuggestions.length > 0 ? datalistId : undefined}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          onFocus={onFocus}
-          onBlur={onBlur}
+          onFocus={() => {
+            setIsFocused(true);
+            onFocus();
+          }}
+          onBlur={() => {
+            setIsFocused(false);
+            onBlur();
+          }}
           placeholder={placeholder}
           required={required}
           inputMode={inputMode}
-          autoComplete={autoComplete}
+          autoComplete={cleanSuggestions.length > 0 ? "off" : autoComplete}
           className="om-input"
         />
+
+        {cleanSuggestions.length > 0 && (
+          <datalist id={datalistId}>
+            {cleanSuggestions.map((sug) => (
+              <option key={sug} value={sug} />
+            ))}
+          </datalist>
+        )}
+
         {value && (
           <button
             type="button"
@@ -333,10 +412,69 @@ function TextInput({
           </button>
         )}
       </div>
+
+      {/* Smart Auto-Complete quick suggestion chips */}
+      {isFocused && filteredSuggestions.length > 0 && (
+        <div className="om-suggestions-row">
+          <span className="om-suggestions-label">Suggestions:</span>
+          {filteredSuggestions.map((sug) => (
+            <button
+              key={sug}
+              type="button"
+              tabIndex={-1}
+              className="om-suggestion-chip"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onChange(sug);
+              }}
+            >
+              + {sug}
+            </button>
+          ))}
+        </div>
+      )}
+
       <style jsx>{`
         .om-input-wrap {
           position: relative;
           width: 100%;
+        }
+        .om-suggestions-row {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          flex-wrap: wrap;
+          margin-top: 6px;
+        }
+        .om-suggestions-label {
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-size: 10px;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          color: var(--stone);
+          margin-right: 2px;
+        }
+        .om-suggestion-chip {
+          display: inline-flex;
+          align-items: center;
+          padding: 3px 8px;
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-size: 11px;
+          color: var(--ink);
+          background: rgba(0, 0, 0, 0.04);
+          border: 1px solid var(--rule);
+          border-radius: 9999px;
+          cursor: pointer;
+          transition: all 120ms ease;
+        }
+        :global(.dark) .om-suggestion-chip {
+          background: rgba(255, 255, 255, 0.06);
+          border-color: rgba(255, 255, 255, 0.12);
+        }
+        .om-suggestion-chip:hover {
+          background: var(--ink);
+          color: var(--paper, #fff);
+          border-color: var(--ink);
         }
         .om-input {
           width: 100%;
