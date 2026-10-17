@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useId, useRef, useState, useMemo, useEffect } from "react";
+import React, { useId, useRef, useState, useMemo, useEffect, useCallback } from "react";
 import type { FieldSchema } from "@/types/field";
 import { getApiBase } from "@/lib/api";
 
@@ -19,6 +19,7 @@ interface Props {
   suggestions?: string[];
   calculatedFormula?: string;
   onUploadingChange?: (key: string, isUploading: boolean) => void;
+  onDropdownOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -40,9 +41,11 @@ export default function FieldRenderer({
   suggestions,
   calculatedFormula,
   onUploadingChange,
+  onDropdownOpenChange,
 }: Props) {
   const id = useId();
   const [focused, setFocused] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const showError = !!error && !!touched;
 
   const handleFocus = () => {
@@ -54,9 +57,14 @@ export default function FieldRenderer({
     onBlur?.(field.key);
   };
 
+  const handleDropdownOpenChange = (open: boolean) => {
+    setDropdownOpen(open);
+    onDropdownOpenChange?.(open);
+  };
+
   return (
     <div
-      className={`om-field ${focused ? "is-focused" : ""} ${showError ? "has-error" : ""}`}
+      className={`om-field ${focused ? "is-focused" : ""} ${dropdownOpen ? "has-open-dropdown" : ""} ${showError ? "has-error" : ""}`}
     >
       <div className="om-field__header">
         <label htmlFor={id} className="om-field__label">
@@ -83,6 +91,7 @@ export default function FieldRenderer({
           formId={formId}
           suggestions={suggestions}
           onUploadingChange={(uploading) => onUploadingChange?.(field.key, uploading)}
+          onDropdownOpenChange={handleDropdownOpenChange}
         />
       </div>
 
@@ -107,14 +116,20 @@ export default function FieldRenderer({
                       box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1),
                       background 200ms ease;
           position: relative;
+          z-index: 1;
         }
         .om-field:hover {
           border-color: var(--ft-accent, var(--clay));
         }
-        .om-field.is-focused {
+        .om-field.is-focused,
+        .om-field:focus-within {
           border-color: var(--ft-accent, var(--clay));
           background: var(--ft-field-focus-bg, var(--ft-card-bg, rgba(255, 255, 255, 0.06)));
           box-shadow: var(--ft-input-focus-ring, 0 0 0 3px rgba(200, 98, 58, 0.18)), 0 4px 14px rgba(0, 0, 0, 0.08);
+          z-index: 30;
+        }
+        .om-field.has-open-dropdown {
+          z-index: 60;
         }
         .om-field.has-error {
           border-color: var(--error, #ef4444) !important;
@@ -197,6 +212,7 @@ function FieldControl({
   formId,
   suggestions,
   onUploadingChange,
+  onDropdownOpenChange,
 }: {
   id: string;
   field: FieldSchema;
@@ -209,6 +225,7 @@ function FieldControl({
   formId?: string;
   suggestions?: string[];
   onUploadingChange?: (uploading: boolean) => void;
+  onDropdownOpenChange?: (open: boolean) => void;
 }) {
   const set = (v: string) => onChange(field.key, v);
 
@@ -232,6 +249,7 @@ function FieldControl({
         onBlur={onBlur}
         placeholder={field.placeholder}
         required={field.required}
+        onDropdownOpenChange={onDropdownOpenChange}
       />
     );
   }
@@ -594,6 +612,7 @@ function ComboboxControl({
   onBlur,
   placeholder,
   required,
+  onDropdownOpenChange,
 }: {
   id: string;
   value: string;
@@ -603,10 +622,25 @@ function ComboboxControl({
   onBlur: () => void;
   placeholder?: string;
   required?: boolean;
+  onDropdownOpenChange?: (open: boolean) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const setDropdownOpen = useCallback(
+    (open: boolean) => {
+      setIsOpen(open);
+      onDropdownOpenChange?.(open);
+    },
+    [onDropdownOpenChange]
+  );
+
+  useEffect(() => {
+    return () => {
+      onDropdownOpenChange?.(false);
+    };
+  }, [onDropdownOpenChange]);
 
   // Clean options: omit sheet formula errors like #REF!, #N/A, #VALUE!
   const cleanOptions = useMemo(() => {
@@ -628,21 +662,29 @@ function ComboboxControl({
     return matches.length > 0 ? matches : cleanOptions;
   }, [cleanOptions, value]);
 
-  // Close dropdown on outside click or touch
+  // Close dropdown on outside click, touch, or escape key
   useEffect(() => {
     if (!isOpen) return;
     const handleClick = (e: MouseEvent | TouchEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
+        setDropdownOpen(false);
+        onBlur();
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setDropdownOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClick);
     document.addEventListener("touchend", handleClick);
+    document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("mousedown", handleClick);
       document.removeEventListener("touchend", handleClick);
+      document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen]);
+  }, [isOpen, onBlur, setDropdownOpen]);
 
   return (
     <div ref={containerRef} className="om-combobox-wrap">
@@ -654,14 +696,14 @@ function ComboboxControl({
           value={value}
           onChange={(e) => {
             onChange(e.target.value);
-            if (!isOpen && cleanOptions.length > 0) setIsOpen(true);
+            if (!isOpen && cleanOptions.length > 0) setDropdownOpen(true);
           }}
           onFocus={() => {
             onFocus();
-            if (cleanOptions.length > 0) setIsOpen(true);
+            if (cleanOptions.length > 0) setDropdownOpen(true);
           }}
           onClick={() => {
-            if (cleanOptions.length > 0) setIsOpen(true);
+            if (cleanOptions.length > 0 && !isOpen) setDropdownOpen(true);
           }}
           placeholder={placeholder || (cleanOptions.length > 0 ? "Select or type…" : "Enter text…")}
           required={required}
@@ -676,7 +718,11 @@ function ComboboxControl({
               tabIndex={-1}
               aria-label="Clear"
               className="om-combobox-btn"
-              onClick={() => {
+              onMouseDown={(e) => {
+                e.preventDefault();
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
                 onChange("");
                 inputRef.current?.focus();
               }}
@@ -691,12 +737,21 @@ function ComboboxControl({
               tabIndex={-1}
               aria-label="Toggle options"
               className="om-combobox-btn om-combobox-arrow"
-              onClick={() => {
-                setIsOpen((prev) => !prev);
-                inputRef.current?.focus();
+              onMouseDown={(e) => {
+                e.preventDefault();
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setDropdownOpen(!isOpen);
               }}
             >
-              <span style={{ transform: isOpen ? "rotate(180deg)" : "none", display: "inline-block", transition: "transform 150ms" }}>
+              <span
+                style={{
+                  transform: isOpen ? "rotate(180deg)" : "none",
+                  display: "inline-block",
+                  transition: "transform 150ms",
+                }}
+              >
                 ▾
               </span>
             </button>
@@ -717,13 +772,29 @@ function ComboboxControl({
                   type="button"
                   key={opt}
                   className={`om-combobox-option ${isSelected ? "is-selected" : ""}`}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                  }}
                   onClick={() => {
                     onChange(opt);
-                    setIsOpen(false);
+                    setDropdownOpen(false);
+                    onBlur();
                   }}
                 >
                   <span className="truncate">{opt}</span>
-                  {isSelected && <span style={{ color: "var(--clay)", fontSize: 13, fontWeight: 700 }}>✓</span>}
+                  {isSelected && (
+                    <span
+                      style={{
+                        color: "var(--ft-accent, var(--clay))",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        marginLeft: 8,
+                        flexShrink: 0,
+                      }}
+                    >
+                      ✓
+                    </span>
+                  )}
                 </button>
               );
             })
@@ -806,17 +877,22 @@ function ComboboxControl({
           top: calc(100% + 6px);
           left: 0;
           right: 0;
-          max-height: 240px;
+          max-height: 250px;
           overflow-y: auto;
           -webkit-overflow-scrolling: touch;
           touch-action: pan-y;
           overscroll-behavior: contain;
-          background: var(--ft-card-bg, #1E293B);
+          background: var(--ft-field-focus-bg, var(--ft-card-bg, #FFFFFF));
           border: 1px solid var(--rule);
           border-radius: 12px;
-          box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
-          z-index: 50;
+          box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.22), 0 4px 12px rgba(0, 0, 0, 0.08);
+          z-index: 100;
           padding: 4px;
+        }
+        :global(.dark) .om-combobox-dropdown {
+          background: #1E293B;
+          border-color: rgba(255, 255, 255, 0.12);
+          box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.3);
         }
         .om-combobox-option {
           width: 100%;
@@ -840,12 +916,12 @@ function ComboboxControl({
         }
         .om-combobox-option:hover,
         .om-combobox-option:focus {
-          background: rgba(56, 189, 248, 0.15);
+          background: rgba(200, 98, 58, 0.12);
           color: var(--ft-accent, var(--clay));
           outline: none;
         }
         .om-combobox-option.is-selected {
-          background: rgba(56, 189, 248, 0.18);
+          background: rgba(200, 98, 58, 0.16);
           font-weight: 600;
           color: var(--ft-accent, var(--clay));
         }

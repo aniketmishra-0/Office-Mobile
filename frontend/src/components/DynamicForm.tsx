@@ -54,6 +54,7 @@ const DynamicForm = forwardRef<DynamicFormHandle, Props>(function DynamicForm({
   const [autofilled, setAutofilled] = useState(false);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
+  const [openDropdownKey, setOpenDropdownKey] = useState<string | null>(null);
   const [manualOverrides, setManualOverrides] = useState<Set<string>>(new Set());
   const [uploadingKeys, setUploadingKeys] = useState<Set<string>>(new Set());
   const formRef = useRef<HTMLFormElement>(null);
@@ -352,27 +353,43 @@ const DynamicForm = forwardRef<DynamicFormHandle, Props>(function DynamicForm({
         </div>
       )}
 
-      {sortedFields.map((field, index) => (
-        <div
-          key={field.key}
-          data-field-key={field.key}
-          className="animate-in"
-          style={{ animationDelay: `${index * 30}ms` }}
-        >
-          <FieldRenderer
-            field={field}
-            value={values[field.key] ?? ""}
-            onChange={handleChange}
-            onBlur={handleBlur}
-            onFocus={handleFocus}
-            error={errors[field.key]}
-            touched={touched.has(field.key)}
-            folderName={folderName}
-            formId={formId}
-            suggestions={fieldSuggestionsMap[field.key] || field.options || []}
-            calculatedFormula={calculationRulesMap[field.key]}
-            onUploadingChange={handleFieldUploading}
-          />
+      {sortedFields.map((field, index) => {
+        const isDropdownOpen = openDropdownKey === field.key;
+        const isCurrentActive = activeFieldKey === field.key;
+        const zIndex = isDropdownOpen
+          ? 100
+          : isCurrentActive
+          ? 50
+          : sortedFields.length - index + 1;
+
+        return (
+          <div
+            key={field.key}
+            data-field-key={field.key}
+            className="animate-in"
+            style={{
+              animationDelay: `${index * 30}ms`,
+              position: "relative",
+              zIndex,
+            }}
+          >
+            <FieldRenderer
+              field={field}
+              value={values[field.key] ?? ""}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              onFocus={handleFocus}
+              error={errors[field.key]}
+              touched={touched.has(field.key)}
+              folderName={folderName}
+              formId={formId}
+              suggestions={fieldSuggestionsMap[field.key] || field.options || []}
+              calculatedFormula={calculationRulesMap[field.key]}
+              onUploadingChange={handleFieldUploading}
+              onDropdownOpenChange={(open) => {
+                setOpenDropdownKey(open ? field.key : null);
+              }}
+            />
           {activeFieldKey === field.key && activeFilters.includes(field.key) && (
             <div className="mt-3">
               {suggestionsLoading && (
@@ -498,7 +515,8 @@ const DynamicForm = forwardRef<DynamicFormHandle, Props>(function DynamicForm({
             </div>
           )}
         </div>
-      ))}
+      );
+    })}
     </form>
   );
 });
