@@ -19,6 +19,7 @@ interface Props {
   onRetrySuggestions?: () => void;
   folderName?: string;
   formId?: string;
+  onUploadingChange?: (isUploading: boolean) => void;
 }
 
 export interface DynamicFormHandle {
@@ -38,6 +39,7 @@ const DynamicForm = forwardRef<DynamicFormHandle, Props>(function DynamicForm({
   onRetrySuggestions,
   folderName,
   formId,
+  onUploadingChange,
 }, ref) {
   const sortedFields = useMemo(
     () => [...fields].sort((a, b) => a.order - b.order),
@@ -53,7 +55,21 @@ const DynamicForm = forwardRef<DynamicFormHandle, Props>(function DynamicForm({
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   const [manualOverrides, setManualOverrides] = useState<Set<string>>(new Set());
+  const [uploadingKeys, setUploadingKeys] = useState<Set<string>>(new Set());
   const formRef = useRef<HTMLFormElement>(null);
+
+  const handleFieldUploading = useCallback((key: string, isUploading: boolean) => {
+    setUploadingKeys((prev) => {
+      const next = new Set(prev);
+      if (isUploading) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    onUploadingChange?.(uploadingKeys.size > 0);
+  }, [uploadingKeys, onUploadingChange]);
 
   // Auto-calculation rules
   const calculationRules = useMemo(() => detectCalculationRules(fields), [fields]);
@@ -198,6 +214,19 @@ const DynamicForm = forwardRef<DynamicFormHandle, Props>(function DynamicForm({
   const handleSubmit = () => {
     if (submitting) return;
 
+    if (uploadingKeys.size > 0) {
+      const firstUploadingKey = Array.from(uploadingKeys)[0];
+      const uploadingField = fields.find((f) => f.key === firstUploadingKey);
+      setErrors((prev) => ({
+        ...prev,
+        [firstUploadingKey]: `Please wait for ${uploadingField?.label || "file"} to finish uploading before submitting.`,
+      }));
+      setTouched((prev) => new Set(prev).add(firstUploadingKey));
+      const el = formRef.current?.querySelector(`[data-field-key="${firstUploadingKey}"]`);
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+
     const newErrors: Record<string, string> = {};
     for (const field of sortedFields) {
       if (field.required && !values[field.key]?.trim()) {
@@ -332,6 +361,7 @@ const DynamicForm = forwardRef<DynamicFormHandle, Props>(function DynamicForm({
             formId={formId}
             suggestions={fieldSuggestionsMap[field.key] || field.options || []}
             calculatedFormula={calculationRulesMap[field.key]}
+            onUploadingChange={handleFieldUploading}
           />
           {activeFieldKey === field.key && activeFilters.includes(field.key) && (
             <div className="mt-3">

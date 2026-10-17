@@ -18,19 +18,14 @@ interface Props {
   formId?: string;
   suggestions?: string[];
   calculatedFormula?: string;
+  onUploadingChange?: (key: string, isUploading: boolean) => void;
 }
 
 /**
- * FieldRenderer — editorial row for a single form field.
+ * FieldRenderer — premium card container for a single form field.
  *
- * Layout: label above, input below. Bottom-border-only. On focus the
- * label and border shift to clay. On error the border turns to a muted
- * red and a small mono message appears.
- *
- * Textareas get a 4px clay left border on focus instead of a bottom
- * border (per the spec's newspaper-column metaphor).
- *
- * Dropdowns and date fields are rendered inline — see `renderControl`.
+ * Each field renders as an elevated, rounded card with high contrast text,
+ * subtle hover accent, glowing focus ring, and clear feedback.
  */
 export default function FieldRenderer({
   field,
@@ -44,6 +39,7 @@ export default function FieldRenderer({
   formId,
   suggestions,
   calculatedFormula,
+  onUploadingChange,
 }: Props) {
   const id = useId();
   const [focused, setFocused] = useState(false);
@@ -65,7 +61,7 @@ export default function FieldRenderer({
       <div className="om-field__header">
         <label htmlFor={id} className="om-field__label">
           {field.label}
-          {field.required && <span aria-label="required"> *</span>}
+          {field.required && <span className="om-field__req" aria-label="required"> *</span>}
         </label>
         {calculatedFormula && (
           <span className="om-field__formula" title={`Auto-calculated: ${calculatedFormula}`}>
@@ -86,6 +82,7 @@ export default function FieldRenderer({
           folderName={folderName}
           formId={formId}
           suggestions={suggestions}
+          onUploadingChange={(uploading) => onUploadingChange?.(field.key, uploading)}
         />
       </div>
 
@@ -99,8 +96,29 @@ export default function FieldRenderer({
         .om-field {
           display: flex;
           flex-direction: column;
-          gap: 8px;
-          padding-bottom: 32px;
+          gap: 10px;
+          margin-bottom: 16px;
+          padding: 16px 18px 18px;
+          background: var(--ft-field-bg, var(--ft-card-bg, rgba(255, 255, 255, 0.04)));
+          border: 1px solid var(--ft-input-border, var(--rule));
+          border-radius: var(--ft-input-radius, 14px);
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+          transition: border-color 200ms cubic-bezier(0.16, 1, 0.3, 1),
+                      box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1),
+                      background 200ms ease;
+          position: relative;
+        }
+        .om-field:hover {
+          border-color: var(--ft-accent, var(--clay));
+        }
+        .om-field.is-focused {
+          border-color: var(--ft-accent, var(--clay));
+          background: var(--ft-field-focus-bg, var(--ft-card-bg, rgba(255, 255, 255, 0.06)));
+          box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18), 0 4px 14px rgba(0, 0, 0, 0.08);
+        }
+        .om-field.has-error {
+          border-color: var(--error, #ef4444) !important;
+          box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
         }
         .om-field__header {
           display: flex;
@@ -126,26 +144,30 @@ export default function FieldRenderer({
         }
         .om-field__label {
           font-family: var(--font-plex-mono), ui-monospace, monospace;
-          font-weight: 500;
-          font-size: 10px;
-          letter-spacing: 0.14em;
+          font-weight: 600;
+          font-size: 11px;
+          letter-spacing: 0.1em;
           text-transform: uppercase;
-          color: var(--stone);
+          color: var(--ft-label-color, var(--stone));
           transition: color 200ms ease-out;
         }
+        .om-field__req {
+          color: var(--ft-accent, var(--clay));
+        }
         .om-field.is-focused .om-field__label {
-          color: var(--clay);
+          color: var(--ft-accent, var(--clay));
         }
         .om-field.has-error .om-field__label {
-          color: var(--error);
+          color: var(--error, #ef4444);
         }
         .om-field__error {
           font-family: var(--font-plex-mono), ui-monospace, monospace;
-          font-weight: 400;
-          font-size: 10px;
-          letter-spacing: 0.04em;
-          color: var(--error);
+          font-weight: 500;
+          font-size: 11px;
+          letter-spacing: 0.02em;
+          color: var(--error, #ef4444);
           animation: fadeIn 150ms ease-out;
+          margin-top: 2px;
         }
       `}</style>
     </div>
@@ -174,6 +196,7 @@ function FieldControl({
   folderName,
   formId,
   suggestions,
+  onUploadingChange,
 }: {
   id: string;
   field: FieldSchema;
@@ -185,6 +208,7 @@ function FieldControl({
   folderName?: string;
   formId?: string;
   suggestions?: string[];
+  onUploadingChange?: (uploading: boolean) => void;
 }) {
   const set = (v: string) => onChange(field.key, v);
 
@@ -277,6 +301,7 @@ function FieldControl({
           required={field.required}
           folderName={folderName}
           formId={formId}
+          onUploadingChange={onUploadingChange}
         />
       );
     default: {
@@ -466,50 +491,54 @@ function TextInput({
         .om-suggestion-chip {
           display: inline-flex;
           align-items: center;
-          padding: 3px 8px;
-          font-family: var(--font-plex-mono), ui-monospace, monospace;
-          font-size: 11px;
-          color: var(--ink);
-          background: rgba(0, 0, 0, 0.04);
+          padding: 4px 10px;
+          font-family: inherit;
+          font-size: 12px;
+          font-weight: 500;
+          color: var(--ft-input-text, var(--ink));
+          background: rgba(255, 255, 255, 0.06);
           border: 1px solid var(--rule);
           border-radius: 9999px;
           cursor: pointer;
-          transition: all 120ms ease;
+          transition: all 140ms ease;
         }
         :global(.dark) .om-suggestion-chip {
-          background: rgba(255, 255, 255, 0.06);
-          border-color: rgba(255, 255, 255, 0.12);
+          background: rgba(255, 255, 255, 0.08);
+          border-color: rgba(255, 255, 255, 0.15);
         }
         .om-suggestion-chip:hover {
-          background: var(--ink);
-          color: var(--paper, #fff);
-          border-color: var(--ink);
+          background: var(--ft-accent, var(--clay));
+          color: #FFFFFF;
+          border-color: var(--ft-accent, var(--clay));
+          transform: translateY(-1px);
         }
         .om-input {
           width: 100%;
-          font-family: var(--font-plex-mono), ui-monospace, monospace;
-          font-weight: 400;
-          font-size: 14px;
+          font-family: inherit;
+          font-weight: 500;
+          font-size: 15px;
           line-height: 1.5;
-          color: var(--ink);
+          color: var(--ft-input-text, var(--ink)) !important;
+          -webkit-text-fill-color: var(--ft-input-text, var(--ink)) !important;
           background: transparent;
           border: 0;
-          border-bottom: 1px solid var(--rule);
+          border-bottom: 1.5px solid var(--rule);
           border-radius: 0;
-          padding: 6px 26px 6px 0;
+          padding: 8px 30px 8px 0;
           outline: none;
           transition: border-color 200ms ease-out, padding 200ms ease-out;
         }
         .om-input::placeholder {
-          color: var(--stone);
-          opacity: 1;
+          color: var(--ft-placeholder-color, var(--stone)) !important;
+          -webkit-text-fill-color: var(--ft-placeholder-color, var(--stone)) !important;
+          opacity: 0.7;
         }
         .om-input:focus {
-          border-bottom: 2px solid var(--clay);
-          padding-bottom: 5px;
+          border-bottom: 2px solid var(--ft-accent, var(--clay));
+          padding-bottom: 7.5px;
         }
         :global(.om-field.has-error) .om-input {
-          border-bottom-color: var(--error) !important;
+          border-bottom-color: var(--error, #ef4444) !important;
         }
         .om-input-clear {
           position: absolute;
@@ -715,25 +744,31 @@ function ComboboxControl({
         }
         .om-combobox-input {
           width: 100%;
-          font-family: var(--font-plex-mono), ui-monospace, monospace;
-          font-weight: 400;
-          font-size: 14px;
+          font-family: inherit;
+          font-weight: 500;
+          font-size: 15px;
           line-height: 1.5;
-          color: var(--ink);
+          color: var(--ft-input-text, var(--ink)) !important;
+          -webkit-text-fill-color: var(--ft-input-text, var(--ink)) !important;
           background: transparent;
           border: 0;
-          border-bottom: 1px solid var(--rule);
+          border-bottom: 1.5px solid var(--rule);
           border-radius: 0;
-          padding: 6px 52px 6px 0;
+          padding: 8px 52px 8px 0;
           outline: none;
           transition: border-color 200ms ease-out, padding 200ms ease-out;
         }
+        .om-combobox-input::placeholder {
+          color: var(--ft-placeholder-color, var(--stone)) !important;
+          -webkit-text-fill-color: var(--ft-placeholder-color, var(--stone)) !important;
+          opacity: 0.7;
+        }
         .om-combobox-input:focus {
-          border-bottom: 2px solid var(--clay);
-          padding-bottom: 5px;
+          border-bottom: 2px solid var(--ft-accent, var(--clay));
+          padding-bottom: 7.5px;
         }
         :global(.om-field.has-error) .om-combobox-input {
-          border-bottom-color: var(--error) !important;
+          border-bottom-color: var(--error, #ef4444) !important;
         }
         .om-combobox-actions {
           position: absolute;
@@ -761,14 +796,14 @@ function ComboboxControl({
           transition: color 150ms ease;
         }
         .om-combobox-btn:hover {
-          color: var(--ink);
+          color: var(--ft-input-text, var(--ink));
         }
         .om-combobox-arrow {
           font-size: 14px;
         }
         .om-combobox-dropdown {
           position: absolute;
-          top: calc(100% + 4px);
+          top: calc(100% + 6px);
           left: 0;
           right: 0;
           max-height: 240px;
@@ -776,47 +811,43 @@ function ComboboxControl({
           -webkit-overflow-scrolling: touch;
           touch-action: pan-y;
           overscroll-behavior: contain;
-          background: var(--paper, #ffffff);
-          border: 1px solid var(--rule, #e4e4e7);
-          border-radius: 4px;
-          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+          background: var(--ft-card-bg, #1E293B);
+          border: 1px solid var(--rule);
+          border-radius: 12px;
+          box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
           z-index: 50;
-        }
-        :global(.dark) .om-combobox-dropdown {
-          background: #18181b;
-          border-color: #27272a;
+          padding: 4px;
         }
         .om-combobox-option {
           width: 100%;
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 11px 14px;
-          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          padding: 10px 14px;
+          font-family: inherit;
           font-size: 13px;
-          color: var(--ink);
+          font-weight: 500;
+          color: var(--ft-input-text, var(--ink));
           cursor: pointer;
           border: 0;
-          border-bottom: 1px solid var(--rule, #e4e4e7);
+          border-radius: 8px;
           background: transparent;
           text-align: left;
           touch-action: pan-y;
           user-select: none;
           -webkit-user-select: none;
-          transition: background 120ms ease;
-        }
-        .om-combobox-option:last-child {
-          border-bottom: 0;
+          transition: all 120ms ease;
         }
         .om-combobox-option:hover,
         .om-combobox-option:focus {
-          background: rgba(200, 98, 58, 0.08);
-          color: var(--clay);
+          background: rgba(56, 189, 248, 0.15);
+          color: var(--ft-accent, var(--clay));
           outline: none;
         }
         .om-combobox-option.is-selected {
-          background: rgba(200, 98, 58, 0.12);
+          background: rgba(56, 189, 248, 0.18);
           font-weight: 600;
+          color: var(--ft-accent, var(--clay));
         }
         .om-combobox-empty {
           padding: 12px 14px;
@@ -1043,32 +1074,35 @@ function TextareaControl({
         }
         .om-textarea {
           width: 100%;
-          min-height: 72px;
-          resize: none;
-          font-family: var(--font-plex-mono), ui-monospace, monospace;
-          font-weight: 400;
-          font-size: 14px;
+          min-height: 80px;
+          resize: vertical;
+          font-family: inherit;
+          font-weight: 500;
+          font-size: 15px;
           line-height: 1.5;
-          color: var(--ink);
+          color: var(--ft-input-text, var(--ink)) !important;
+          -webkit-text-fill-color: var(--ft-input-text, var(--ink)) !important;
           background: transparent;
           border: 0;
-          border-left: 4px solid transparent;
-          border-bottom: 1px solid var(--rule);
+          border-left: 3px solid var(--rule);
+          border-bottom: 1.5px solid var(--rule);
           border-radius: 0;
-          padding: 6px 26px 6px 12px;
+          padding: 8px 30px 8px 12px;
           outline: none;
           transition: border-color 200ms ease-out;
         }
         .om-textarea::placeholder {
-          color: var(--stone);
-          opacity: 1;
+          color: var(--ft-placeholder-color, var(--stone)) !important;
+          -webkit-text-fill-color: var(--ft-placeholder-color, var(--stone)) !important;
+          opacity: 0.7;
         }
         .om-textarea:focus {
-          border-left-color: var(--clay);
+          border-left-color: var(--ft-accent, var(--clay));
+          border-bottom-color: var(--ft-accent, var(--clay));
         }
         .om-textarea.has-error {
-          border-left-color: var(--error);
-          border-bottom-color: var(--error);
+          border-left-color: var(--error, #ef4444);
+          border-bottom-color: var(--error, #ef4444);
         }
         .om-textarea-clear {
           position: absolute;
@@ -1260,29 +1294,31 @@ function DateTriple({
           gap: 10px;
         }
         .om-date__input {
-          width: 56px;
+          width: 58px;
           text-align: center;
-          font-family: var(--font-plex-mono), ui-monospace, monospace;
-          font-weight: 400;
-          font-size: 14px;
-          color: var(--ink);
-          background: transparent;
-          border: 0;
-          border-bottom: 1px solid var(--rule);
-          border-radius: 0;
-          padding: 6px 4px;
+          font-family: inherit;
+          font-weight: 500;
+          font-size: 15px;
+          color: var(--ft-input-text, var(--ink)) !important;
+          -webkit-text-fill-color: var(--ft-input-text, var(--ink)) !important;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid var(--rule);
+          border-radius: 8px;
+          padding: 8px 4px;
           outline: none;
-          transition: border-color 200ms ease-out;
+          transition: all 180ms ease-out;
         }
         .om-date__input:focus {
-          border-bottom: 2px solid var(--clay);
-          padding-bottom: 5px;
+          border-color: var(--ft-accent, var(--clay));
+          box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
         }
         .om-date__input::placeholder {
-          color: var(--stone);
+          color: var(--ft-placeholder-color, var(--stone)) !important;
+          -webkit-text-fill-color: var(--ft-placeholder-color, var(--stone)) !important;
+          opacity: 0.65;
         }
         .om-date__input--year {
-          width: 78px;
+          width: 82px;
         }
         .om-date__sep {
           color: var(--stone);
@@ -1333,6 +1369,7 @@ function FileControl({
   required,
   folderName,
   formId,
+  onUploadingChange,
 }: {
   id: string;
   value: string;
@@ -1341,8 +1378,11 @@ function FileControl({
   required?: boolean;
   folderName?: string;
   formId?: string;
+  onUploadingChange?: (uploading: boolean) => void;
 }) {
   const [uploading, setUploading] = useState(false);
+  const [uploadProgressText, setUploadProgressText] = useState("");
+  const [uploadedFileName, setUploadedFileName] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [manualMode, setManualMode] = useState(() => {
     return Boolean(value && !value.includes("drive.google.com"));
@@ -1361,6 +1401,8 @@ function FileControl({
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
+    onUploadingChange?.(true);
+    setUploadProgressText(`Uploading ${file.name}...`);
     setErr(null);
     const formData = new FormData();
     formData.append("file", file);
@@ -1391,52 +1433,79 @@ function FileControl({
       }
       const data = await res.json();
       if (!data.url) throw new Error("No URL returned from upload");
+      setUploadedFileName(data.file_name || file.name);
       onChange(data.url);
       setManualMode(false);
     } catch (e: any) {
       setErr(e.message || "Upload failed. You can paste a link or enter text manually.");
     } finally {
       setUploading(false);
+      onUploadingChange?.(false);
     }
   }
+
+  // Derive a friendly display name when value exists
+  const displayName = useMemo(() => {
+    if (uploadedFileName) return uploadedFileName;
+    if (!value) return "";
+    if (value.includes("drive.google.com")) {
+      return "Attached Document (Google Drive)";
+    }
+    return value.length > 35 ? `${value.slice(0, 32)}…` : value;
+  }, [uploadedFileName, value]);
 
   return (
     <div className="om-file">
       {value ? (
-        <div className="om-file__attached-box">
-          <div className="om-file__attached">
-            <span className="om-file__mark" aria-hidden>✓</span>
-            <span className="om-file__label" title={value}>
-              {value.startsWith("http") ? (
-                <a
-                  href={value}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="om-file__link"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {value.length > 35 ? `${value.slice(0, 32)}…` : value} ↗
-                </a>
-              ) : (
-                value
-              )}
-            </span>
+        <div className="om-file__success-card">
+          <div className="om-file__success-header">
+            <div className="om-file__success-icon">
+              <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="om-file__success-name" title={uploadedFileName || value}>
+                {displayName}
+              </p>
+              <p className="om-file__success-sub">
+                ✓ Saved to Google Drive folder &ldquo;{folderName || "Uploads"}&rdquo;
+              </p>
+            </div>
+          </div>
+
+          <div className="om-file__success-actions">
+            {value.startsWith("http") && (
+              <a
+                href={value}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="om-file__action-btn om-file__action-btn--primary"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <span>View File</span>
+                <span className="text-xs">↗</span>
+              </a>
+            )}
             <button
               type="button"
-              onClick={() => onChange("")}
-              className="om-file__remove"
-              title="Remove file"
+              onClick={() => {
+                onChange("");
+                setUploadedFileName("");
+              }}
+              className="om-file__action-btn om-file__action-btn--danger"
+              title="Remove attached file"
             >
-              remove
+              Remove
+            </button>
+            <button
+              type="button"
+              onClick={() => setManualMode(!manualMode)}
+              className="om-file__action-btn om-file__action-btn--ghost"
+            >
+              {manualMode ? "Hide edit" : "Edit link ✎"}
             </button>
           </div>
-          <button
-            type="button"
-            onClick={() => setManualMode(!manualMode)}
-            className="om-file__mode-link"
-          >
-            {manualMode ? "hide edit box" : "edit link/text manually"}
-          </button>
         </div>
       ) : manualMode ? (
         <div className="om-file__manual">
@@ -1451,8 +1520,8 @@ function FileControl({
             className="om-input"
           />
           <div className="flex items-center justify-between mt-1.5">
-            <span className="text-[10px] text-stone-500 font-mono">
-              Manual entry mode
+            <span className="text-[11px] text-zinc-400 font-mono">
+              Manual link entry mode
             </span>
             <button
               type="button"
@@ -1474,23 +1543,40 @@ function FileControl({
               capture="environment"
               onChange={handleFile}
               onFocus={onFocus}
-              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer" }}
+              disabled={uploading}
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: uploading ? "not-allowed" : "pointer" }}
             />
             {uploading ? (
-              <>
-                <span className="login-spinner" aria-hidden style={{ borderColor: "var(--ink)", borderTopColor: "transparent" }} />
-                <span className="om-file__cta">uploading to Google Drive...</span>
-              </>
+              <div className="om-file__uploading-state">
+                <span className="om-file__spinner" aria-hidden />
+                <div className="text-center">
+                  <div className="om-file__uploading-title">
+                    {uploadProgressText || "Uploading to Google Drive..."}
+                  </div>
+                  <div className="om-file__uploading-sub">
+                    Saving inside your Google Drive folder &ldquo;{folderName || "Uploads"}&rdquo;
+                  </div>
+                </div>
+              </div>
             ) : (
-              <>
-                <span className="om-file__arrow" aria-hidden>↑</span>
-                <span className="om-file__cta">tap to attach (photo, PDF, doc)</span>
-              </>
+              <div className="om-file__idle-state">
+                <div className="om-file__cloud-icon">
+                  ☁️
+                </div>
+                <div className="text-center">
+                  <div className="om-file__cta-main">
+                    Tap or drag to upload file
+                  </div>
+                  <div className="om-file__cta-sub">
+                    PDF, DOC, Photo · Saves directly to Google Drive
+                  </div>
+                </div>
+              </div>
             )}
           </label>
-          <div className="flex items-center justify-between mt-1 px-0.5">
-            <span className="text-[10px] text-stone-400 font-mono">
-              Files save directly to form sheet&apos;s folder
+          <div className="flex items-center justify-between mt-1.5 px-0.5">
+            <span className="text-[11px] text-zinc-400 font-mono">
+              Original filename preserved in Drive
             </span>
             <button
               type="button"
@@ -1535,118 +1621,190 @@ function FileControl({
           flex-direction: column;
           gap: 6px;
         }
-        .om-file__manual {
+        .om-file__success-card {
+          padding: 14px 16px;
+          border-radius: 12px;
+          background: rgba(16, 185, 129, 0.08);
+          border: 1px solid rgba(16, 185, 129, 0.28);
           display: flex;
           flex-direction: column;
+          gap: 12px;
+        }
+        .om-file__success-header {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+        .om-file__success-icon {
+          width: 36px;
+          height: 36px;
+          border-radius: 10px;
+          background: rgba(16, 185, 129, 0.15);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+        .om-file__success-name {
+          font-weight: 600;
+          font-size: 13px;
+          color: var(--ft-input-text, var(--ink));
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          line-height: 1.4;
+        }
+        .om-file__success-sub {
+          font-size: 11px;
+          color: #10b981;
+          font-weight: 500;
+          margin-top: 2px;
+        }
+        .om-file__success-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+          padding-top: 8px;
+          border-top: 1px solid rgba(16, 185, 129, 0.12);
+        }
+        .om-file__action-btn {
+          display: inline-flex;
+          align-items: center;
           gap: 4px;
+          padding: 6px 12px;
+          border-radius: 8px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 150ms ease;
+          border: 1px solid transparent;
+        }
+        .om-file__action-btn--primary {
+          background: var(--ft-accent, #38bdf8);
+          color: #0F172A;
+        }
+        .om-file__action-btn--primary:hover {
+          opacity: 0.9;
+          transform: translateY(-1px);
+        }
+        .om-file__action-btn--danger {
+          background: rgba(239, 68, 68, 0.12);
+          color: #ef4444;
+          border-color: rgba(239, 68, 68, 0.25);
+        }
+        .om-file__action-btn--danger:hover {
+          background: rgba(239, 68, 68, 0.22);
+        }
+        .om-file__action-btn--ghost {
+          background: transparent;
+          color: var(--ft-placeholder-color, var(--stone));
+          border-color: rgba(255, 255, 255, 0.1);
+        }
+        .om-file__action-btn--ghost:hover {
+          color: var(--ft-input-text, var(--ink));
+        }
+        .om-file__drop {
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 100%;
+          min-height: 96px;
+          padding: 16px;
+          border: 1.5px dashed var(--rule);
+          border-radius: 12px;
+          background: rgba(255, 255, 255, 0.02);
+          cursor: pointer;
+          transition: all 200ms ease;
+        }
+        .om-file__drop:hover {
+          border-color: var(--ft-accent, var(--clay));
+          background: rgba(56, 189, 248, 0.04);
+        }
+        .om-file__drop.is-uploading {
+          border-color: var(--ft-accent, #38bdf8);
+          background: rgba(56, 189, 248, 0.06);
+          cursor: wait;
+        }
+        .om-file__drop.has-error {
+          border-color: var(--error, #ef4444);
+          background: rgba(239, 68, 68, 0.05);
+        }
+        .om-file__uploading-state,
+        .om-file__idle-state {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+        }
+        .om-file__cloud-icon {
+          font-size: 26px;
+          line-height: 1;
+        }
+        .om-file__cta-main {
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--ft-input-text, var(--ink));
+        }
+        .om-file__cta-sub {
+          font-size: 11px;
+          color: var(--ft-placeholder-color, var(--stone));
+          margin-top: 2px;
+        }
+        .om-file__uploading-title {
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--ft-accent, #38bdf8);
+        }
+        .om-file__uploading-sub {
+          font-size: 11px;
+          color: var(--ft-placeholder-color, var(--stone));
+          margin-top: 2px;
+        }
+        .om-file__spinner {
+          width: 24px;
+          height: 24px;
+          border: 2.5px solid rgba(56, 189, 248, 0.25);
+          border-top-color: var(--ft-accent, #38bdf8);
+          border-radius: 50%;
+          animation: spin 700ms linear infinite;
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
         }
         .om-file__mode-link {
           background: transparent;
           border: 0;
           padding: 0;
-          color: var(--clay);
+          color: var(--ft-accent, var(--clay));
           font-family: var(--font-plex-mono), ui-monospace, monospace;
-          font-size: 10px;
-          letter-spacing: 0.04em;
+          font-size: 11px;
+          letter-spacing: 0.02em;
           cursor: pointer;
           transition: opacity 150ms ease;
         }
         .om-file__mode-link:hover {
-          opacity: 0.8;
           text-decoration: underline;
-        }
-        .om-file__attached-box {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-        }
-        .om-file__drop {
-          position: relative;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 10px;
-          width: 100%;
-          min-height: 56px;
-          padding: 12px 16px;
-          border: 1px dashed var(--rule);
-          background: transparent;
-          font-family: var(--font-plex-mono), ui-monospace, monospace;
-          font-weight: 400;
-          font-size: 12px;
-          letter-spacing: 0.08em;
-          text-transform: lowercase;
-          color: var(--ink);
-          cursor: pointer;
-          transition: border-color 200ms ease-out, color 200ms ease-out;
-        }
-        .om-file__drop:hover {
-          border-color: var(--clay);
-          color: var(--clay);
-        }
-        .om-file__drop.has-error {
-          border-color: var(--error);
-          color: var(--error);
-        }
-        .om-file__arrow {
-          font-size: 14px;
-        }
-        .om-file__attached {
-          display: inline-flex;
-          align-items: center;
-          gap: 12px;
-          padding: 12px 16px;
-          border: 1px solid var(--clay);
-          background: transparent;
-          font-family: var(--font-plex-mono), ui-monospace, monospace;
-          font-weight: 400;
-          font-size: 12px;
-          color: var(--ink);
-        }
-        .om-file__mark {
-          color: var(--clay);
-          font-family: var(--font-newsreader), Georgia, serif;
-          font-size: 16px;
-          line-height: 1;
-        }
-        .om-file__label {
-          flex: 1;
-          letter-spacing: 0.04em;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-        .om-file__link {
-          color: var(--clay);
-          text-decoration: underline;
-        }
-        .om-file__remove {
-          background: transparent;
-          border: 0;
-          padding: 0;
-          color: var(--stone);
-          font-family: inherit;
-          font-size: 10px;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          cursor: pointer;
-          transition: color 200ms ease-out;
-        }
-        .om-file__remove:hover {
-          color: var(--error);
         }
         .om-file__err-box {
+          margin-top: 6px;
+          padding: 8px 12px;
+          border-radius: 8px;
+          background: rgba(239, 68, 68, 0.1);
+          border: 1px solid rgba(239, 68, 68, 0.25);
           display: flex;
           align-items: center;
+          justify-content: space-between;
           flex-wrap: wrap;
-          gap: 4px;
+          gap: 6px;
         }
         .om-file__err {
           margin: 0;
-          font-family: var(--font-plex-mono), ui-monospace, monospace;
-          font-size: 10px;
-          letter-spacing: 0.04em;
-          color: var(--error);
+          font-size: 12px;
+          font-weight: 500;
+          color: #ef4444;
         }
       `}</style>
     </div>

@@ -28,6 +28,7 @@ export default function FillFormPage() {
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resetKey, setResetKey] = useState(0);
@@ -318,9 +319,15 @@ export default function FillFormPage() {
             }}
             folderName={formData!.worksheet_name || formData!.form_title}
             formId={id}
+            onUploadingChange={setIsUploadingFiles}
           />
         </div>
-        <SubmitButton submitting={submitting} form="dynamic-form" />
+        <SubmitButton
+          submitting={submitting}
+          disabled={isUploadingFiles}
+          label={isUploadingFiles ? "Uploading File..." : undefined}
+          form="dynamic-form"
+        />
         <ErrorToast message={error} onDismiss={() => setError(null)} />
       </div>
     </FormThemeWrapper>

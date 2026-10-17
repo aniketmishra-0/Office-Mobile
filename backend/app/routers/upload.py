@@ -16,9 +16,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["upload"])
 
-# Hard limits for uploads so a single request can't exhaust memory or Drive quota.
-# 15 MB handles typical photos/receipts/PDFs/documents.
-_MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+# Hard limits for uploads: 25 MB handles typical photos/receipts/PDFs/documents.
+_MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
 # MIME allowlist — media and document types users can reasonably attach to forms.
 _ALLOWED_MIME_TYPES = frozenset({
@@ -243,9 +242,8 @@ async def upload_file(
         target_folder_name = "OfficeMobile Uploads"
 
     safe_name = _safe_filename(file.filename)
-    unique_filename = f"officemobile_{uuid.uuid4().hex[:8]}_{safe_name}"
-
-    file_metadata: dict[str, Any] = {"name": unique_filename}
+    # Store with clean original filename on user's Google Drive (no branding prefix)
+    file_metadata: dict[str, Any] = {"name": safe_name}
 
     try:
         def _do_upload():

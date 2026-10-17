@@ -16,6 +16,12 @@ interface Props {
 export default function FormThemeWrapper({ designId, children }: Props) {
   const theme = useMemo(() => getFormTheme(designId), [designId]);
 
+  const isDark = useMemo(() => {
+    if (["midnight", "neon", "cyberpunk", "terminal", "slate"].includes(theme.id)) return true;
+    const bg = (theme.styles.pageBg || "").toLowerCase();
+    return bg.includes("#0") || bg.includes("#1") || bg.includes("#2") || bg.includes("rgb(1") || bg.includes("rgb(2");
+  }, [theme]);
+
   const cssVars = useMemo(() => ({
     "--ft-page-bg": theme.styles.pageBg,
     "--ft-card-bg": theme.styles.cardBg,
@@ -41,19 +47,31 @@ export default function FormThemeWrapper({ designId, children }: Props) {
     "--ft-progress-fill": theme.styles.progressFill,
     "--ft-accent": theme.styles.accentColor,
     "--ft-meta-color": theme.styles.metaColor,
-  } as React.CSSProperties), [theme]);
+    "--ft-field-bg": isDark ? "rgba(30, 41, 59, 0.7)" : "rgba(255, 255, 255, 0.95)",
+    "--ft-field-focus-bg": isDark ? "rgba(30, 41, 59, 0.95)" : "#FFFFFF",
+    "--ft-field-border": isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.1)",
+    "--ink": isDark ? (theme.styles.inputText || "#F8FAFC") : (theme.styles.textColor || "#0F172A"),
+    "--on-ink": isDark ? "#0F172A" : "#FFFFFF",
+    "--paper": theme.styles.cardBg,
+    "--cream": theme.styles.pageBg,
+    "--rule": theme.styles.inputBorder || (isDark ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.12)"),
+    "--stone": theme.styles.placeholderColor || (isDark ? "#94A3B8" : "#64748B"),
+    "--clay": theme.styles.accentColor || (isDark ? "#38BDF8" : "#C8623A"),
+    colorScheme: isDark ? "dark" : "light",
+  } as React.CSSProperties), [theme, isDark]);
 
   const isGradientBg = theme.styles.pageBg.includes("gradient");
   const isGlassmorphism = theme.id === "glass";
 
   return (
     <div
-      className="form-theme-root min-h-screen"
+      className={`form-theme-root min-h-screen ${isDark ? "dark" : ""}`}
+      data-theme={isDark ? "dark" : "light"}
       style={{
         ...cssVars,
         background: theme.styles.pageBg,
         fontFamily: theme.styles.fontFamily,
-        color: theme.styles.textColor,
+        color: isDark ? (theme.styles.inputText || "#F8FAFC") : (theme.styles.textColor || "#0F172A"),
       }}
     >
       <style>{`
@@ -178,11 +196,47 @@ export default function FormThemeWrapper({ designId, children }: Props) {
           color: ${theme.styles.accentColor};
         }
 
-        /* Override global styles within themed form */
+        /* Override global styles within themed form — crisp high-contrast text */
         .form-theme-root input,
         .form-theme-root select,
-        .form-theme-root textarea {
-          color: ${theme.styles.inputText};
+        .form-theme-root textarea,
+        .form-theme-root .om-input,
+        .form-theme-root .om-combobox-input,
+        .form-theme-root .om-date__input {
+          color: ${theme.styles.inputText || (isDark ? "#F8FAFC" : "#0F172A")} !important;
+          -webkit-text-fill-color: ${theme.styles.inputText || (isDark ? "#F8FAFC" : "#0F172A")} !important;
+        }
+
+        .form-theme-root input::placeholder,
+        .form-theme-root select::placeholder,
+        .form-theme-root textarea::placeholder,
+        .form-theme-root .om-input::placeholder,
+        .form-theme-root .om-combobox-input::placeholder,
+        .form-theme-root .om-date__input::placeholder {
+          color: ${theme.styles.placeholderColor || (isDark ? "#64748B" : "#94A3B8")} !important;
+          -webkit-text-fill-color: ${theme.styles.placeholderColor || (isDark ? "#64748B" : "#94A3B8")} !important;
+          opacity: 1 !important;
+        }
+
+        .form-theme-root .om-field__label {
+          color: ${theme.styles.labelColor || (isDark ? "#94A3B8" : "#475569")} !important;
+        }
+
+        /* Prevent Chrome autofill from rendering an invisible/white box */
+        .form-theme-root input:-webkit-autofill,
+        .form-theme-root input:-webkit-autofill:hover, 
+        .form-theme-root input:-webkit-autofill:focus,
+        .form-theme-root textarea:-webkit-autofill {
+          -webkit-text-fill-color: ${theme.styles.inputText || (isDark ? "#F8FAFC" : "#0F172A")} !important;
+          -webkit-box-shadow: 0 0 0px 1000px ${theme.styles.cardBg || (isDark ? "#1E293B" : "#FFFFFF")} inset !important;
+          box-shadow: 0 0 0px 1000px ${theme.styles.cardBg || (isDark ? "#1E293B" : "#FFFFFF")} inset !important;
+          transition: background-color 5000s ease-in-out 0s;
+        }
+
+        /* High-contrast crisp text selection in themed form */
+        .form-theme-root ::selection {
+          background: ${theme.styles.accentColor || "#38BDF8"};
+          color: ${isDark ? "#0F172A" : "#FFFFFF"};
         }
 
         /* Header override */

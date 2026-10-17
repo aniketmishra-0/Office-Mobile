@@ -104,8 +104,8 @@ app = FastAPI(
 # Reject oversized request bodies at the edge. 2 MB is well above any
 # legitimate form submission and blocks memory-exhaustion attacks.
 _MAX_BODY_BYTES = 2 * 1024 * 1024
-# Upload endpoint needs more headroom for multipart file uploads.
-_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+# Upload endpoint headroom for multipart file uploads (up to 25 MB).
+_MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
 
 @app.middleware("http")
