@@ -53,10 +53,11 @@ def get_pool() -> ConnectionPool:
             # Neon free-tier suspends after inactivity; allow extra time for
             # cold-start reconnections.
             reconnect_timeout=60,
-            # Check connections before handing them out. Neon closes idle
-            # connections aggressively; this ensures we never use a dead one.
+            # Check connections before handing them out (pool_pre_ping equivalent).
+            # Neon closes idle connections aggressively; this ensures we never use a dead one.
             check=ConnectionPool.check_connection,
-            max_idle=300,
+            max_idle=180,
+            max_lifetime=1800,
         )
         _pool.open()
         _pool.wait(timeout=30)

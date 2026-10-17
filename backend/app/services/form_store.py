@@ -82,10 +82,11 @@ CREATE TABLE IF NOT EXISTS sheet_access_cache (
 CREATE_INDEXES_SQL = [
     "CREATE INDEX IF NOT EXISTS idx_forms_spreadsheet_id ON forms(spreadsheet_id)",
     "CREATE INDEX IF NOT EXISTS idx_forms_updated_at ON forms(updated_at DESC)",
-    "CREATE INDEX IF NOT EXISTS idx_submissions_form_id_time "
-    "ON submissions(form_id, submitted_at DESC)",
-    "CREATE INDEX IF NOT EXISTS idx_sheet_access_cache "
-    "ON sheet_access_cache(spreadsheet_id, session_key)",
+    "CREATE INDEX IF NOT EXISTS idx_forms_oauth_key_updated_at ON forms(oauth_key, updated_at DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_forms_spreadsheet_worksheet ON forms(spreadsheet_id, worksheet_name)",
+    "CREATE INDEX IF NOT EXISTS idx_submissions_form_id_time ON submissions(form_id, submitted_at DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_submissions_form_id_sync ON submissions(form_id, sync_status)",
+    "CREATE INDEX IF NOT EXISTS idx_sheet_access_cache ON sheet_access_cache(spreadsheet_id, session_key)",
 ]
 
 

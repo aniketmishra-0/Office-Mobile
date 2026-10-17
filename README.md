@@ -393,21 +393,28 @@ Predicts field values based on submission history.
 │    Frontend      │──────▶│     Backend      │──────▶│  Google Sheets  │
 │ (Vercel/Next.js) │       │ (GCP/FastAPI)    │       │      API        │
 └──────────────────┘       └──────────────────┘       └─────────────────┘
-                                    │
-                                    ▼
-                           ┌──────────────────┐
-                           │   PostgreSQL     │
-                           │    (Neon)        │
-                           └──────────────────┘
+                                 │          │
+                                 ▼          ▼
+                       ┌──────────────┐   ┌────────────────┐
+                       │  PostgreSQL  │   │  Redis Cache   │
+                       │   (Neon)     │   │  (Optional)    │
+                       └──────────────┘   └────────────────┘
 ```
 
-**Data flow:**
-1. Frontend sends requests with session key (cookie + X-Session-Key header)
-2. Backend middleware extracts session key → loads OAuth token from Postgres
-3. Backend uses user's OAuth token to call Google Sheets API
-4. Responses go back to frontend — no sheet data stored on server
-5. Form metadata (field config, edit tokens) stored in Postgres
-6. Submissions logged in Postgres + appended to Google Sheet
+**Data flow & Caching:**
+1. Frontend sends requests with session key (cookie + X-Session-Key header).
+2. Backend middleware extracts session key → loads OAuth token from Postgres.
+3. Read-only queries (`/api/sheet/history`, `/api/sheet/worksheets`, `/api/forms/library`) check Redis with a short TTL (30–60s).
+4. On cache hit, responses return in sub-milliseconds without consuming Google Sheets API quota.
+5. On cache miss, backend calls Google Sheets API using the user's OAuth credentials and caches the result strictly scoped to that user and sheet ID.
+6. Responses go back to frontend — zero spreadsheet row data is ever stored in Postgres.
+7. Any write action (form submission, row edit, batch operation) immediately invalidates the relevant sheet and library cache keys.
+
+### Caching Strategy & Staleness Tradeoff
+- **User & Sheet Isolation:** Every cache key is strictly partitioned by OAuth session and sheet ID (`om:u:{user}:sheet:{sheet_id}:...`). OAuth-scoped data is never shared across users.
+- **Immediate Invalidation on Writes:** All write operations performed through this backend purge affected cache entries immediately.
+- **External Staleness Tradeoff:** Because Google Sheets can be edited directly outside of Office Mobile (e.g., in a separate browser tab or mobile app), changes made externally may take up to 60 seconds (the TTL duration) to reflect in read calls unless an invalidation event or page reload occurs.
+- **Graceful Fallback:** If `REDIS_URL` is not set or Redis is temporarily unavailable, the app automatically falls back to direct API calls with zero downtime or user impact.
 
 ---
 

@@ -38,6 +38,15 @@ from app.models.form import (
 )
 
 from app.services import form_store
+from app.services.cache import (
+    get_json,
+    invalidate_library_cache,
+    invalidate_sheet_cache,
+    make_history_key,
+    make_library_key,
+    make_worksheets_key,
+    set_json,
+)
 from app.services.session_context import DEFAULT_OAUTH_KEY, get_current_oauth_session_key, oauth_session_context
 from app.services.sheets_client import (
     _has_credentials,
@@ -281,7 +290,9 @@ async def create_sheet(payload: CreateSheetRequest) -> CreateSheetResponse:
                 worksheet_name=worksheet.title,
             )
 
-    return await asyncio.to_thread(_do_create)
+    res = await asyncio.to_thread(_do_create)
+    await invalidate_sheet_cache(res.spreadsheet_id)
+    return res
 
 
 @router.post("/sheet/add-tab")
@@ -303,6 +314,7 @@ async def add_sheet_tab(payload: AddTabRequest) -> dict:
     except Exception as exc:
         raise _sheet_error(exc) from exc
 
+    await invalidate_sheet_cache(spreadsheet_id)
     return {"success": True, "worksheet_name": actual_name, "spreadsheet_id": spreadsheet_id}
 
 
@@ -310,8 +322,14 @@ async def add_sheet_tab(payload: AddTabRequest) -> dict:
 @router.get("/forms/library")
 async def list_form_library(limit: int = Query(50, ge=1, le=200)) -> dict:
     oauth_key = get_current_oauth_session_key()
+    user_key = oauth_key or "public"
+    cache_key = make_library_key(user_key)
+    cached = await get_json(cache_key)
+    if cached is not None:
+        return cached
+
     items = await asyncio.to_thread(form_store.list_forms, limit, oauth_key)
-    return {
+    response_data = {
         "items": [
             {
                 "id": item["id"],
@@ -328,6 +346,8 @@ async def list_form_library(limit: int = Query(50, ge=1, le=200)) -> dict:
             for item in items
         ]
     }
+    await set_json(cache_key, response_data, ttl=30)
+    return response_data
 
 
 @router.get("/sheet/access")
@@ -410,7 +430,11 @@ async def list_worksheets(sheet_url: str) -> dict:
     except InvalidGoogleSheetUrl as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    _session_key = get_current_oauth_session_key()
+    _session_key = get_current_oauth_session_key() or "anon"
+    cache_key = make_worksheets_key(_session_key, spreadsheet_id)
+    cached = await get_json(cache_key)
+    if cached is not None:
+        return cached
 
     try:
         from app.services.sheets_client import list_worksheet_names
@@ -437,13 +461,17 @@ async def list_worksheets(sheet_url: str) -> dict:
 
             fallback_names = await asyncio.to_thread(_auth_fallback)
             if fallback_names:
-                return {"items": fallback_names}
+                res = {"items": fallback_names}
+                await set_json(cache_key, res, ttl=get_settings().cache_ttl_sheets)
+                return res
         except Exception:
             pass
 
         raise _sheet_error(exc) from exc
 
-    return {"items": names}
+    res = {"items": names}
+    await set_json(cache_key, res, ttl=get_settings().cache_ttl_sheets)
+    return res
 
 
 @router.post("/sheet/preview", response_model=PreviewResponse)
@@ -526,6 +554,9 @@ async def create_form(payload: CreateFormRequest) -> CreateFormResponse:
     except Exception:
         pass
 
+    await invalidate_library_cache(oauth_key)
+    await invalidate_sheet_cache(payload.spreadsheet_id)
+
     return CreateFormResponse(
         id=record["id"],
         edit_token=record["edit_token"],
@@ -556,7 +587,11 @@ async def get_sheet_history(
     )
 
     # Capture session key before entering thread (ContextVars don't propagate)
-    _history_session_key = get_current_oauth_session_key()
+    _history_session_key = get_current_oauth_session_key() or "anon"
+    cache_key = make_history_key(_history_session_key, spreadsheet_id, worksheet_name)
+    cached = await get_json(cache_key)
+    if cached is not None:
+        return cached
 
     # Fast path: single-pass fetch (1 Google API call instead of 6-8)
     if has_creds():
@@ -570,11 +605,13 @@ async def get_sheet_history(
                     )
 
             _stitle, actual_worksheet, fields, rows = await asyncio.to_thread(_fast_history)
-            return {
+            fast_res = {
                 "worksheet_name": actual_worksheet,
                 "fields": [f.model_dump() for f in fields],
                 "rows": rows,
             }
+            await set_json(cache_key, fast_res, ttl=get_settings().cache_ttl_sheets)
+            return fast_res
         except Exception as exc:
             logger.warning("Fast history read failed, falling back to legacy: %s", exc)
 
@@ -629,11 +666,13 @@ async def get_sheet_history(
             if values and all(v in ("TRUE", "FALSE") for v in values):
                 field.type = "checkbox"
 
-    return {
+    res = {
         "worksheet_name": actual_worksheet,
         "fields": [f.model_dump() for f in fields],
         "rows": rows,
     }
+    await set_json(cache_key, res, ttl=get_settings().cache_ttl_sheets)
+    return res
 
 
 @router.get("/sheet/sections")
@@ -849,6 +888,7 @@ async def update_sheet_row_endpoint(
         )
         raise _sheet_error(exc) from exc
 
+    await invalidate_sheet_cache(spreadsheet_id)
     return {
         "success": True,
         "updated_range": updated_range,
@@ -1042,6 +1082,8 @@ async def delete_form_endpoint(form_id: str, payload: DeleteFormRequest | None =
     success = await asyncio.to_thread(form_store.delete_form, form_id)
     if not success:
         raise HTTPException(status_code=404, detail="Form not found")
+    await invalidate_library_cache(record.get("oauth_key"))
+    await invalidate_sheet_cache(record["spreadsheet_id"])
     return {"success": True}
 
 
@@ -1146,6 +1188,8 @@ async def update_form(form_id: str, payload: UpdateFormRequest) -> UpdateFormRes
     except Exception as exc:
         logger.debug("Could not sync description to Dashboard tab: %s", exc)
 
+    await invalidate_library_cache(updated.get("oauth_key"))
+    await invalidate_sheet_cache(updated["spreadsheet_id"])
     return UpdateFormResponse(success=True, id=form_id)
 
 
@@ -1387,6 +1431,9 @@ async def submit_form(
             )
         )
 
+    await invalidate_sheet_cache(record["spreadsheet_id"])
+    await invalidate_library_cache(record.get("oauth_key"))
+
     return SubmitFormResponse(
         success=True,
         updated_range=updated_range,
@@ -1446,6 +1493,7 @@ async def batch_append(request: Request, payload: BatchAppendRequest = Body(...)
     except Exception as exc:
         raise _sheet_error(exc)
 
+    await invalidate_sheet_cache(spreadsheet_id)
     return BatchAppendResponse(
         success=result["success"],
         appended_count=result["appended_count"],
@@ -1473,6 +1521,7 @@ async def batch_delete_endpoint(request: Request, payload: BatchDeleteRequest = 
             worksheet_name=payload.worksheet_name,
             row_indices=payload.row_indices,
         )
+        await invalidate_sheet_cache(spreadsheet_id)
         return BatchDeleteResponse(success=True, deleted_count=count)
     except Exception as exc:
         raise _sheet_error(exc)
@@ -1516,6 +1565,7 @@ async def batch_update_endpoint(request: Request, payload: BatchUpdateRequest = 
                 )
 
         count = await asyncio.to_thread(_do_batch_update)
+        await invalidate_sheet_cache(spreadsheet_id)
         return BatchUpdateResponse(success=True, updated_count=count)
     except Exception as exc:
         raise _sheet_error(exc)

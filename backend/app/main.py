@@ -85,6 +85,8 @@ async def lifespan(app: FastAPI):
             await sweeper_task
         except asyncio.CancelledError:
             pass
+        from app.services.cache import close_redis
+        await close_redis()
         close_pool()
 
 

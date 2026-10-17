@@ -37,6 +37,10 @@ class Settings(BaseModel):
     # Debug mode — enables diagnostic endpoints like /api/debug/form/{id}.
     debug_mode: bool = False
 
+    # Redis cache layer — optional. If unset, caching falls back to no-op.
+    redis_url: str | None = None
+    cache_ttl_sheets: int = 60
+
 
 DEFAULT_ALLOWED_ORIGINS: List[str] = [
     "https://officemobile.org",
@@ -75,5 +79,7 @@ def get_settings() -> Settings:
         rate_limit_batch=os.getenv("RATE_LIMIT_BATCH", "10/minute"),
         rate_limit_default=os.getenv("RATE_LIMIT_DEFAULT", "120/minute"),
         debug_mode=os.getenv("DEBUG_MODE", "false").lower() in ("true", "1", "yes"),
+        redis_url=os.getenv("REDIS_URL") or None,
+        cache_ttl_sheets=int(os.getenv("CACHE_TTL_SHEETS", "60")),
     )
 
