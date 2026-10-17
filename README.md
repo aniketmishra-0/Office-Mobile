@@ -389,26 +389,47 @@ Predicts field values based on submission history.
 ## Architecture
 
 ```
-┌──────────────────┐       ┌──────────────────┐       ┌─────────────────┐
-│    Frontend      │──────▶│     Backend      │──────▶│  Google Sheets  │
-│ (Vercel/Next.js) │       │ (GCP/FastAPI)    │       │      API        │
-└──────────────────┘       └──────────────────┘       └─────────────────┘
-                                 │          │
-                                 ▼          ▼
-                       ┌──────────────┐   ┌────────────────┐
-                       │  PostgreSQL  │   │  Redis Cache   │
-                       │   (Neon)     │   │  (Optional)    │
-                       └──────────────┘   └────────────────┘
+┌─────────────────────────────────┐                 ┌─────────────────────────────────┐
+│     Frontend (Vercel/Next.js)   │                 │     Google Sheets API (v4)      │
+│  • Public Forms & Dashboard     │                 │  • Sole Source of Truth         │
+│  • Client-side Zero Secrets     │                 │  • OAuth 2.0 User Delegation    │
+└─────────────────────────────────┘                 └─────────────────────────────────┘
+         │               ▲                                   ▲               │
+  HTTPS  │               │ WebSocket                         │ Read/Write    │ Webhook /
+  REST   │               │ /ws/sheet/{id}                    │ Quota-managed │ External Edits
+         ▼               │                                   │               ▼
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                            Backend (GCP / FastAPI)                                  │
+│  ┌───────────────────────┐  ┌───────────────────────┐  ┌─────────────────────────┐  │
+│  │ Security & Limiting   │  │ WebSocket Room Mgr    │  │ Background Job Worker   │  │
+│  │ • SlowAPI rate limits │  │ • Ping/pong heartbeat │  │ • Chunked batch writes  │  │
+│  │ • Formula sanitizer   │  │ • Mutation broadcasts │  │ • Crash resilience      │  │
+│  │ • Strict Pydantic     │  │ • Zero-leak cleanup   │  │ • Async status polling  │  │
+│  └───────────────────────┘  └───────────────────────┘  └─────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+                 │                                        │
+                 ▼                                        ▼
+    ┌─────────────────────────┐              ┌─────────────────────────┐
+    │     PostgreSQL (Neon)   │              │   Redis Cache & Pub/Sub │
+    │ • Forms, Workspaces     │              │ • Read cache (TTL: 60s) │
+    │ • Session tokens, Jobs  │              │ • WS horizontal pub/sub │
+    │ • Zero sheet row data   │              │ • Graceful no-cache mode│
+    └─────────────────────────┘              └─────────────────────────┘
 ```
 
-**Data flow & Caching:**
-1. Frontend sends requests with session key (cookie + X-Session-Key header).
-2. Backend middleware extracts session key → loads OAuth token from Postgres.
-3. Read-only queries (`/api/sheet/history`, `/api/sheet/worksheets`, `/api/forms/library`) check Redis with a short TTL (30–60s).
-4. On cache hit, responses return in sub-milliseconds without consuming Google Sheets API quota.
-5. On cache miss, backend calls Google Sheets API using the user's OAuth credentials and caches the result strictly scoped to that user and sheet ID.
-6. Responses go back to frontend — zero spreadsheet row data is ever stored in Postgres.
-7. Any write action (form submission, row edit, batch operation) immediately invalidates the relevant sheet and library cache keys.
+**End-to-End Data & Event Flow:**
+1. **Frontend Isolation & Zero Secrets:** The frontend never stores database credentials, Google private keys, or OAuth secrets. Client requests go to `/api/*` authenticated via secure `HttpOnly` session cookies.
+2. **Real-Time WebSockets & Mutation Events:**
+   - Clients watching a sheet open a WebSocket connection at `/ws/sheet/{sheet_id}`.
+   - When a row is submitted, updated, or deleted, the backend broadcasts a lightweight event (`{ type, sheet_id, row_index, timestamp }`) to all subscribers.
+   - For multi-instance scaling, Redis Pub/Sub synchronizes events across all backend workers.
+3. **Caching & Staleness Tradeoff:**
+   - Read-heavy queries (`/api/sheet/history`, `/api/sheet/worksheets`, `/api/forms/library`) are cached in Redis for 30–60 seconds, partitioned strictly per user and sheet ID.
+   - Any write mutation through the app immediately invalidates the cache.
+   - **Fault-Tolerant Cache Architecture:** If `REDIS_URL` is omitted or Redis is temporarily down, the app automatically falls back to direct API calls and local memory WebSocket rooms without crashing.
+4. **Heavy Operations via Background Jobs:**
+   - Bulk batch-appends (>100 rows), duplicate scans, and bulk deletions execute asynchronously via FastAPI `BackgroundTasks`.
+   - The persistent PostgreSQL `jobs` table tracks status (`queued`, `running`, `completed`, `failed`) and chunked progress (committed every 50 rows).
 
 ### Caching Strategy & Staleness Tradeoff
 - **User & Sheet Isolation:** Every cache key is strictly partitioned by OAuth session and sheet ID (`om:u:{user}:sheet:{sheet_id}:...`). OAuth-scoped data is never shared across users.
