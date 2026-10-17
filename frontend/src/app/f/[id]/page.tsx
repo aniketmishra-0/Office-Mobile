@@ -95,14 +95,92 @@ export default function FillFormPage() {
     }
   }, [formData, loadSuggestions]);
 
+  const [submitResult, setSubmitResult] = useState<{
+    queued?: boolean;
+    message?: string | null;
+    estimated_sync_seconds?: number | null;
+  } | null>(null);
+
+  // Sync any offline submissions saved in localStorage when internet reconnects
+  useEffect(() => {
+    const flushOfflineSubmissions = async () => {
+      try {
+        const key = `om_offline_queue_${id}`;
+        const raw = localStorage.getItem(key);
+        if (!raw) return;
+        const queue: Record<string, string>[] = JSON.parse(raw);
+        if (!Array.isArray(queue) || queue.length === 0) return;
+
+        const remaining: Record<string, string>[] = [];
+        for (const queuedValues of queue) {
+          try {
+            await submitForm(id, queuedValues);
+          } catch {
+            remaining.push(queuedValues);
+          }
+        }
+        if (remaining.length === 0) {
+          localStorage.removeItem(key);
+        } else {
+          localStorage.setItem(key, JSON.stringify(remaining));
+        }
+      } catch {
+        // Ignore offline flush errors
+      }
+    };
+
+    window.addEventListener("online", flushOfflineSubmissions);
+    void flushOfflineSubmissions();
+    return () => window.removeEventListener("online", flushOfflineSubmissions);
+  }, [id]);
+
   const handleSubmit = useCallback(
     async (values: Record<string, string>) => {
       setSubmitting(true);
       setError(null);
       try {
-        await submitForm(id, values);
+        // If device is offline, save to localStorage queue and show immediate success
+        if (typeof window !== "undefined" && !navigator.onLine) {
+          const key = `om_offline_queue_${id}`;
+          const existing: Record<string, string>[] = JSON.parse(localStorage.getItem(key) || "[]");
+          existing.push(values);
+          localStorage.setItem(key, JSON.stringify(existing));
+          setSubmitResult({
+            queued: true,
+            message: "Offline: entry saved on device, will sync when online!",
+            estimated_sync_seconds: null,
+          });
+          setSubmitted(true);
+          return;
+        }
+
+        const res = await submitForm(id, values);
+        setSubmitResult({
+          queued: res.queued ?? false,
+          message: res.message,
+          estimated_sync_seconds: res.estimated_sync_seconds ?? (res.queued ? 5 : null),
+        });
         setSubmitted(true);
       } catch (e: any) {
+        // Network drop during fetch
+        if (
+          typeof window !== "undefined" &&
+          (!navigator.onLine ||
+            e?.message?.toLowerCase().includes("failed to fetch") ||
+            e?.message?.toLowerCase().includes("network"))
+        ) {
+          const key = `om_offline_queue_${id}`;
+          const existing: Record<string, string>[] = JSON.parse(localStorage.getItem(key) || "[]");
+          existing.push(values);
+          localStorage.setItem(key, JSON.stringify(existing));
+          setSubmitResult({
+            queued: true,
+            message: "Network interrupted: entry saved on device, syncing shortly!",
+            estimated_sync_seconds: 5,
+          });
+          setSubmitted(true);
+          return;
+        }
         setError(e.message ?? "Submission failed. Please try again.");
       } finally {
         setSubmitting(false);
@@ -119,6 +197,7 @@ export default function FillFormPage() {
 
   const handleSubmitAnother = useCallback(() => {
     setSubmitted(false);
+    setSubmitResult(null);
     setResetKey((k) => k + 1);
   }, []);
 
@@ -150,6 +229,7 @@ export default function FillFormPage() {
       <SuccessScreen
         formTitle={formData!.form_title}
         onSubmitAnother={handleSubmitAnother}
+        syncStatus={submitResult}
       />
     );
   }

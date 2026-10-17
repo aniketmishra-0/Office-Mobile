@@ -1132,6 +1132,53 @@ async def get_form_suggestions(form_id: str, limit: int = Query(100000, ge=1, le
     return {"rows": rows}
 
 
+async def _background_retry_submission(
+    submission_id: str,
+    spreadsheet_id: str,
+    worksheet_name: str | None,
+    fields: list[FieldSchema],
+    values: dict[str, Any],
+    oauth_key: str,
+):
+    """Background task to retry syncing queued submissions to Google Sheets with backoff."""
+    delays = [3, 8, 16]
+    for attempt, delay in enumerate(delays, 1):
+        await asyncio.sleep(delay)
+        def _do_append():
+            with oauth_session_context(oauth_key):
+                return append_form_row(
+                    spreadsheet_id=spreadsheet_id,
+                    worksheet_name=worksheet_name,
+                    fields=fields,
+                    values=values,
+                )
+        try:
+            rng = await asyncio.to_thread(_do_append)
+            if rng:
+                await asyncio.to_thread(
+                    form_store.update_submission_sync_status,
+                    submission_id,
+                    "synced",
+                    rng,
+                    None,
+                )
+                logger.info(
+                    "Background sync succeeded for submission %s on attempt %d: %s",
+                    submission_id, attempt, rng
+                )
+                return
+        except Exception as retry_exc:
+            logger.warning(
+                "Background sync attempt %d failed for submission %s: %s",
+                attempt, submission_id, retry_exc
+            )
+            await asyncio.to_thread(
+                form_store.increment_submission_retry,
+                submission_id,
+                str(retry_exc)[:300],
+            )
+
+
 @router.post("/forms/{form_id}/submit", response_model=SubmitFormResponse)
 async def submit_form(form_id: str, payload: SubmitFormRequest) -> SubmitFormResponse:
     record = await _get_record_or_404_async(form_id)
@@ -1145,6 +1192,11 @@ async def submit_form(form_id: str, payload: SubmitFormRequest) -> SubmitFormRes
     # Try to append to Google Sheets (skipped automatically if no credentials).
     updated_range: str | None = None
     oauth_key = record.get("oauth_key") or DEFAULT_OAUTH_KEY
+    queued = False
+    message = "Saved directly to your Google Sheet."
+    sync_status = "synced"
+    last_err: str | None = None
+    estimated_sync_seconds: int | None = None
 
     def _append():
         with oauth_session_context(oauth_key):
@@ -1159,24 +1211,67 @@ async def submit_form(form_id: str, payload: SubmitFormRequest) -> SubmitFormRes
         updated_range = await asyncio.to_thread(_append)
     except Exception as exc:
         with oauth_session_context(oauth_key):
-            if _has_credentials():
+            has_credentials = _has_credentials()
+
+        if has_credentials:
+            import urllib.error
+            status_code, err_msg = map_sheet_exception(exc)
+            exc_str = str(exc).lower()
+            is_quota_or_transient = (
+                status_code in (429, 500, 502, 503, 504)
+                or "rate limit" in exc_str
+                or "quota" in exc_str
+                or "429" in exc_str
+                or "temporarily" in exc_str
+                or "timeout" in exc_str
+                or "too many requests" in exc_str
+                or isinstance(exc, (urllib.error.URLError, TimeoutError))
+            )
+            if is_quota_or_transient:
+                logger.warning(
+                    "Google Sheets rate limit/transient error (status=%s, exc=%s). Queuing submission in DB for background sync.",
+                    status_code, exc
+                )
+                queued = True
+                sync_status = "pending_sync"
+                last_err = str(exc)[:300]
+                estimated_sync_seconds = 5
+                message = "Entry recorded safely! Google Sheets is busy, syncing in ~5 seconds..."
+            else:
                 raise _sheet_error(exc) from exc
         # No credentials — Sheets write was skipped; fall through to DB save.
 
     # Always persist the submission locally in Postgres.
-    await asyncio.to_thread(
+    sub_record = await asyncio.to_thread(
         partial(
             form_store.save_submission,
             form_id=form_id,
             values=complete_values,
             sheets_range=updated_range,
+            sync_status=sync_status,
+            last_error=last_err,
         )
     )
+
+    if queued and sub_record:
+        asyncio.create_task(
+            _background_retry_submission(
+                submission_id=sub_record["id"],
+                spreadsheet_id=record["spreadsheet_id"],
+                worksheet_name=record["worksheet_name"],
+                fields=record["fields"],
+                values=complete_values,
+                oauth_key=oauth_key,
+            )
+        )
 
     return SubmitFormResponse(
         success=True,
         updated_range=updated_range,
         timestamp=datetime.now(timezone.utc).isoformat(),
+        queued=queued,
+        message=message,
+        estimated_sync_seconds=estimated_sync_seconds,
     )
 
 

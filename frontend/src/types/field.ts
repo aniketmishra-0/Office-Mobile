@@ -119,6 +119,9 @@ export interface SubmitFormResponse {
   success: boolean;
   updated_range: string | null;
   timestamp: string;
+  queued?: boolean;
+  message?: string | null;
+  estimated_sync_seconds?: number | null;
 }
 
 // ---------------------------------------------------------------------------

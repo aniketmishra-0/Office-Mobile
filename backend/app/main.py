@@ -13,13 +13,72 @@ from app.routers.saved_sheets import init_saved_sheets_table
 from app.db import close_pool
 
 
+import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+async def _periodic_queue_sweeper():
+    """Periodically drain any pending submissions that were queued during rate limits."""
+    from app.services import form_store
+    from app.models.field import FieldSchema
+    from app.services.session_context import DEFAULT_OAUTH_KEY, oauth_session_context
+    from app.services.sheets_client import append_form_row
+
+    while True:
+        try:
+            await asyncio.sleep(60)
+            pending = await asyncio.to_thread(form_store.get_pending_sync_submissions, 10)
+            if pending:
+                logger.info("Found %d pending submissions to sync with Google Sheets", len(pending))
+                for item in pending:
+                    sub_id = item["id"]
+                    try:
+                        fields_raw = item.get("fields_json")
+                        fields = [FieldSchema(**f) for f in form_store._coerce_json(fields_raw) or []]
+                        values = form_store._coerce_json(item.get("values_json")) or {}
+                        oauth_key = item.get("oauth_key") or DEFAULT_OAUTH_KEY
+
+                        def _do_sync():
+                            with oauth_session_context(oauth_key):
+                                return append_form_row(
+                                    spreadsheet_id=item["spreadsheet_id"],
+                                    worksheet_name=item["worksheet_name"],
+                                    fields=fields,
+                                    values=values,
+                                )
+
+                        rng = await asyncio.to_thread(_do_sync)
+                        if rng:
+                            await asyncio.to_thread(
+                                form_store.update_submission_sync_status, sub_id, "synced", rng, None
+                            )
+                            logger.info("Sweeper successfully synced submission %s", sub_id)
+                    except Exception as sweeper_exc:
+                        logger.warning("Sweeper retry failed for %s: %s", sub_id, sweeper_exc)
+                        await asyncio.to_thread(
+                            form_store.increment_submission_retry, sub_id, str(sweeper_exc)[:300]
+                        )
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.debug("periodic_queue_sweeper error: %s", e)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     init_saved_sheets_table()
+    sweeper_task = asyncio.create_task(_periodic_queue_sweeper())
     try:
         yield
     finally:
+        sweeper_task.cancel()
+        try:
+            await sweeper_task
+        except asyncio.CancelledError:
+            pass
         close_pool()
 
 

@@ -121,3 +121,6 @@ class SubmitFormResponse(BaseModel):
     success: bool
     updated_range: str | None = None
     timestamp: str
+    queued: bool = False
+    message: str | None = None
+    estimated_sync_seconds: int | None = None

@@ -6,6 +6,11 @@ import { usePrefs } from "@/lib/usePrefs";
 interface Props {
   formTitle: string;
   onSubmitAnother: () => void;
+  syncStatus?: {
+    queued?: boolean;
+    message?: string | null;
+    estimated_sync_seconds?: number | null;
+  } | null;
 }
 
 function formatStamp(): string {
@@ -29,9 +34,11 @@ function formatStamp(): string {
  * Large serif checkmark in clay, Newsreader title, mono meta line,
  * single text link to start again. No other UI.
  */
-export default function SuccessScreen({ formTitle, onSubmitAnother }: Props) {
+export default function SuccessScreen({ formTitle, onSubmitAnother, syncStatus }: Props) {
   const { copy } = usePrefs();
   const [stamp, setStamp] = useState("");
+  const isQueued = syncStatus?.queued ?? false;
+  const estimatedSec = syncStatus?.estimated_sync_seconds ?? 5;
 
   useEffect(() => {
     setStamp(formatStamp());
@@ -39,10 +46,18 @@ export default function SuccessScreen({ formTitle, onSubmitAnother }: Props) {
 
   return (
     <div className="om-success" role="status" aria-live="polite">
+      {isQueued && (
+        <div className="om-success__queue-badge">
+          <span className="om-success__pulse-dot" />
+          syncing to sheet in ~{estimatedSec}s
+        </div>
+      )}
       <span className="om-success__check" aria-hidden>✓</span>
       <h1 className="om-success__title">{copy.success_title ?? "entry recorded."}</h1>
       <p className="om-success__meta">
-        sheet updated · {stamp}
+        {isQueued
+          ? "safely saved to database · syncing in background"
+          : `sheet updated · ${stamp}`}
         {formTitle ? <><br />form · {formTitle.toLowerCase()}</> : null}
       </p>
       <button type="button" className="om-success__link" onClick={onSubmitAnother}>
@@ -95,6 +110,44 @@ export default function SuccessScreen({ formTitle, onSubmitAnother }: Props) {
           color: var(--stone);
           letter-spacing: 0.04em;
           margin: 0;
+        }
+        .om-success__queue-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 6px 14px;
+          border-radius: 9999px;
+          background: rgba(234, 179, 8, 0.12);
+          border: 1px solid rgba(202, 138, 4, 0.28);
+          color: #92400e;
+          font-family: var(--font-plex-mono), ui-monospace, monospace;
+          font-size: 11px;
+          font-weight: 500;
+          letter-spacing: 0.02em;
+          margin-bottom: 2px;
+          animation: fadeIn 200ms ease-out;
+        }
+        .om-success__pulse-dot {
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          background: #d97706;
+          box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.5);
+          animation: pulse 1.6s infinite ease-in-out;
+        }
+        @keyframes pulse {
+          0% {
+            transform: scale(0.9);
+            box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.6);
+          }
+          70% {
+            transform: scale(1.15);
+            box-shadow: 0 0 0 6px rgba(217, 119, 6, 0);
+          }
+          100% {
+            transform: scale(0.9);
+            box-shadow: 0 0 0 0 rgba(217, 119, 6, 0);
+          }
         }
         .om-success__link {
           margin-top: 28px;

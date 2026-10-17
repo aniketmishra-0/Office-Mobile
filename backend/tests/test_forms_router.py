@@ -339,6 +339,23 @@ class TestSubmitForm:
         # The field label ("Email") must appear in the message
         assert "email" in detail.lower()
 
+    def test_submission_queues_on_rate_limit(self, client, sample_form):
+        form_id = sample_form["id"]
+
+        with patch("app.routers.forms.append_form_row", side_effect=Exception("429 Quota exceeded rate limit")):
+            response = client.post(
+                f"/api/forms/{form_id}/submit",
+                json={"values": {"full_name": "Jane Doe", "email": "jane@example.com"}},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["queued"] is True
+        assert "sync" in data["message"].lower()
+        assert data["estimated_sync_seconds"] is not None
+
+
 
 # ===========================================================================
 # 8. Update form   (ordered LAST to avoid mutating state consumed by earlier tests)

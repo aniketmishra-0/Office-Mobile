@@ -104,6 +104,10 @@ def init_db() -> None:
             cur.execute("ALTER TABLE forms ADD COLUMN IF NOT EXISTS ui_config_json JSONB DEFAULT '{}'::jsonb")
             cur.execute("ALTER TABLE forms ADD COLUMN IF NOT EXISTS autofill_columns_json JSONB DEFAULT '[]'::jsonb")
             cur.execute("ALTER TABLE forms ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT ''")
+            cur.execute("ALTER TABLE submissions ADD COLUMN IF NOT EXISTS sync_status TEXT NOT NULL DEFAULT 'synced'")
+            cur.execute("ALTER TABLE submissions ADD COLUMN IF NOT EXISTS retry_count INT NOT NULL DEFAULT 0")
+            cur.execute("ALTER TABLE submissions ADD COLUMN IF NOT EXISTS last_error TEXT")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_submissions_pending ON submissions(sync_status) WHERE sync_status = 'pending_sync'")
 
 
 # ---------------------------------------------------------------------------
@@ -356,23 +360,91 @@ def save_submission(
     form_id: str,
     values: dict[str, Any],
     sheets_range: str | None = None,
+    sync_status: str = "synced",
+    last_error: str | None = None,
 ) -> dict[str, Any]:
     sub_id = uuid4().hex
     now = _utc_now_iso()
     execute(
         """
-        INSERT INTO submissions (id, form_id, values_json, sheets_range)
-        VALUES (%s, %s, %s, %s)
+        INSERT INTO submissions (id, form_id, values_json, sheets_range, sync_status, last_error)
+        VALUES (%s, %s, %s, %s, %s, %s)
         """,
-        (sub_id, form_id, Jsonb(values), sheets_range),
+        (sub_id, form_id, Jsonb(values), sheets_range, sync_status, last_error),
     )
-    return {"id": sub_id, "form_id": form_id, "submitted_at": now}
+    return {
+        "id": sub_id,
+        "form_id": form_id,
+        "submitted_at": now,
+        "sync_status": sync_status,
+        "sheets_range": sheets_range,
+    }
+
+
+def update_submission_sync_status(
+    submission_id: str,
+    sync_status: str,
+    sheets_range: str | None = None,
+    last_error: str | None = None,
+) -> None:
+    """Update sync status and sheets range when background sync completes or retries."""
+    try:
+        execute(
+            """
+            UPDATE submissions
+            SET sync_status = %s,
+                sheets_range = COALESCE(%s, sheets_range),
+                last_error = %s
+            WHERE id = %s
+            """,
+            (sync_status, sheets_range, last_error, submission_id),
+        )
+    except Exception as exc:
+        logger.warning("update_submission_sync_status failed for %s: %s", submission_id, exc)
+
+
+def increment_submission_retry(submission_id: str, error_msg: str | None = None) -> None:
+    """Increment retry counter and record error on background sync retry failure."""
+    try:
+        execute(
+            """
+            UPDATE submissions
+            SET retry_count = retry_count + 1,
+                last_error = %s
+            WHERE id = %s
+            """,
+            (error_msg, submission_id),
+        )
+    except Exception as exc:
+        logger.warning("increment_submission_retry failed for %s: %s", submission_id, exc)
+
+
+def get_pending_sync_submissions(limit: int = 20) -> list[dict[str, Any]]:
+    """Fetch pending submissions that need background sync to Google Sheets."""
+    try:
+        rows = fetchall(
+            """
+            SELECT s.id, s.form_id, s.values_json, s.retry_count,
+                   f.spreadsheet_id, f.worksheet_name, f.oauth_key, f.fields_json
+            FROM submissions s
+            JOIN forms f ON s.form_id = f.id
+            WHERE s.sync_status = 'pending_sync' AND s.retry_count < 10
+            ORDER BY s.submitted_at ASC
+            LIMIT %s
+            """,
+            (limit,),
+        )
+        return rows
+    except Exception as exc:
+        logger.warning("get_pending_sync_submissions failed: %s", exc)
+        return []
 
 
 def list_submissions(*, form_id: str, limit: int = 200) -> list[dict[str, Any]]:
     rows = fetchall(
         """
-        SELECT id, form_id, values_json, sheets_range, submitted_at
+        SELECT id, form_id, values_json, sheets_range, submitted_at,
+               COALESCE(sync_status, 'synced') AS sync_status
         FROM submissions
         WHERE form_id = %s
         ORDER BY submitted_at DESC
@@ -389,9 +461,11 @@ def list_submissions(*, form_id: str, limit: int = 200) -> list[dict[str, Any]]:
                 "values": _coerce_json(r.get("values_json")) or {},
                 "sheets_range": r.get("sheets_range"),
                 "submitted_at": _iso(r.get("submitted_at")),
+                "sync_status": r.get("sync_status", "synced"),
             }
         )
     return items
+
 
 
 # ---------------------------------------------------------------------------
