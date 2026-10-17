@@ -323,12 +323,20 @@ def update_form_fields(form_id: str, fields: list[FieldSchema]) -> None:
     )
 
 
-def update_form_ui_config(form_id: str, ui_config: dict) -> dict[str, Any] | None:
-    """Update only the ui_config_json column (e.g. logo_url, design theme)."""
-    execute(
-        "UPDATE forms SET ui_config_json = %s, updated_at = now() WHERE id = %s",
-        (Jsonb(ui_config or {}), form_id),
-    )
+def update_form_ui_config(
+    form_id: str, ui_config: dict, form_title: str | None = None
+) -> dict[str, Any] | None:
+    """Update ui_config_json column (e.g. logo_url, design theme, company_name) and optionally form_title."""
+    if form_title:
+        execute(
+            "UPDATE forms SET ui_config_json = %s, form_title = %s, updated_at = now() WHERE id = %s",
+            (Jsonb(ui_config or {}), form_title, form_id),
+        )
+    else:
+        execute(
+            "UPDATE forms SET ui_config_json = %s, updated_at = now() WHERE id = %s",
+            (Jsonb(ui_config or {}), form_id),
+        )
     return get_form(form_id)
 
 

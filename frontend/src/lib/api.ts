@@ -328,16 +328,18 @@ export async function updateFormBranding(
     edit_token?: string;
     logo_url?: string | null;
     design?: string | null;
+    form_title?: string | null;
+    company_name?: string | null;
     ui_config?: Record<string, any>;
   },
-): Promise<{ success: boolean; id: string; ui_config: Record<string, any> }> {
+): Promise<{ success: boolean; id: string; form_title?: string; ui_config: Record<string, any> }> {
   let editToken = payload.edit_token;
   if (!editToken && typeof window !== "undefined") {
     try {
       editToken = window.localStorage.getItem(`om_edit_token_${id}`) || undefined;
     } catch {}
   }
-  return jsonRequest<{ success: boolean; id: string; ui_config: Record<string, any> }>(
+  return jsonRequest<{ success: boolean; id: string; form_title?: string; ui_config: Record<string, any> }>(
     "PATCH",
     `/forms/${encodeURIComponent(id)}/branding`,
     { ...payload, ...(editToken ? { edit_token: editToken } : {}) },

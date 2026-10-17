@@ -101,6 +101,8 @@ class UpdateBrandingRequest(BaseModel):
     edit_token: str | None = None
     logo_url: str | None = None
     design: str | None = None
+    form_title: str | None = None
+    company_name: str | None = None
     ui_config: dict | None = None
 
 

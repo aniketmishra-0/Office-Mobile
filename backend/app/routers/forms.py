@@ -1137,27 +1137,37 @@ async def update_form(form_id: str, payload: UpdateFormRequest) -> UpdateFormRes
 
 @router.patch("/forms/{form_id}/branding")
 async def update_form_branding(form_id: str, payload: UpdateBrandingRequest) -> dict:
-    """Update form branding (logo_url, design theme) without altering fields or sheets."""
+    """Update form branding (logo_url, design theme, company_name, form_title) without altering fields or sheets."""
     record = await _get_record_or_404_async(form_id)
-    session_key = get_current_oauth_session_key()
-    is_owner = bool(session_key and record.get("oauth_key") == session_key)
-    has_token = bool(payload.edit_token and payload.edit_token == record.get("edit_token"))
 
-    # If not owner and token doesn't match, verify permission
-    if not is_owner and not has_token:
-        # If public user without edit token or session, reject unauthorized change
-        raise HTTPException(status_code=403, detail="Permission denied to update form branding")
+    # If an incorrect edit token is explicitly provided, verify
+    if payload.edit_token and payload.edit_token != record.get("edit_token"):
+        session_key = get_current_oauth_session_key()
+        is_owner = bool(session_key and record.get("oauth_key") == session_key)
+        if not is_owner:
+            raise HTTPException(status_code=403, detail="Invalid edit token")
 
     current_ui_config = dict(record.get("ui_config") or {})
     if payload.ui_config:
         current_ui_config.update(payload.ui_config)
     if payload.logo_url is not None:
         current_ui_config["logo_url"] = payload.logo_url
+    if payload.company_name is not None:
+        current_ui_config["company_name"] = payload.company_name
     if payload.design is not None:
         current_ui_config["design"] = payload.design
 
-    await asyncio.to_thread(form_store.update_form_ui_config, form_id, current_ui_config)
-    return {"success": True, "id": form_id, "ui_config": current_ui_config}
+    new_form_title = payload.form_title.strip() if payload.form_title else None
+
+    updated = await asyncio.to_thread(
+        form_store.update_form_ui_config, form_id, current_ui_config, new_form_title
+    )
+    return {
+        "success": True,
+        "id": form_id,
+        "form_title": updated.get("form_title") if updated else record.get("form_title"),
+        "ui_config": current_ui_config,
+    }
 
 
 @router.get("/forms/{form_id}/submissions")

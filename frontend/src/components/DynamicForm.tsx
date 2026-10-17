@@ -265,16 +265,26 @@ const DynamicForm = forwardRef<DynamicFormHandle, Props>(function DynamicForm({
       }}
       noValidate
     >
-      {/* Progress rule — thin terracotta fill, no percent label */}
-      <div className="om-dform-progress" aria-hidden>
-        <div
-          className="om-dform-progress__fill"
-          style={{ width: `${progress}%` }}
-        />
+      {/* Modern Calm Progress Bar */}
+      <div className="mb-6" aria-hidden>
+        <div className="flex items-center justify-between text-xs mb-1.5 font-medium">
+          <span style={{ color: "var(--ft-meta-color, var(--stone))" }}>
+            {filledCount === totalCount ? "🎉 All questions completed" : `${filledCount} of ${totalCount} completed`}
+          </span>
+          <span className="font-mono text-[11px] font-semibold" style={{ color: "var(--ft-accent, var(--clay))" }}>
+            {progress}%
+          </span>
+        </div>
+        <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: "var(--rule, rgba(0,0,0,0.08))" }}>
+          <div
+            className="h-full rounded-full transition-all duration-300"
+            style={{
+              width: `${Math.max(progress, filledCount > 0 ? 5 : 0)}%`,
+              background: "var(--ft-accent, var(--clay))",
+            }}
+          />
+        </div>
       </div>
-      <p className="om-dform-meta">
-        {String(totalCount).padStart(2, "0")} fields · {filledCount} complete
-      </p>
 
       <style jsx>{`
         .om-dform-progress {

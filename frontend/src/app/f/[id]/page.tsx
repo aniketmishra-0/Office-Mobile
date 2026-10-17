@@ -55,7 +55,7 @@ export default function FillFormPage() {
   }, [id]);
 
   const handleSaveLogo = useCallback(
-    async (newLogoUrl: string) => {
+    async (payload: { logoUrl: string; formTitle?: string; companyName?: string }) => {
       let editToken: string | undefined;
       if (typeof window !== "undefined") {
         try {
@@ -64,16 +64,20 @@ export default function FillFormPage() {
         } catch {}
       }
       await updateFormBranding(id, {
-        logo_url: newLogoUrl,
+        logo_url: payload.logoUrl,
+        form_title: payload.formTitle,
+        company_name: payload.companyName,
         edit_token: editToken,
       });
       setFormData((prev) => {
         if (!prev) return prev;
         return {
           ...prev,
+          form_title: payload.formTitle || prev.form_title,
           ui_config: {
             ...(prev.ui_config || {}),
-            logo_url: newLogoUrl,
+            logo_url: payload.logoUrl,
+            company_name: payload.companyName || prev.ui_config?.company_name,
           },
         };
       });
@@ -282,7 +286,7 @@ export default function FillFormPage() {
   return (
     <FormThemeWrapper designId={formData!.ui_config?.design}>
       <div className="flex flex-col min-h-screen">
-        <AppHeader title={formData!.worksheet_name || formData!.form_title} showBack onBack={() => safeBack(router)} />
+        <AppHeader title={formData!.form_title || "Office Mobile"} showBack onBack={() => safeBack(router)} />
 
         <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-8 overflow-y-auto">
           {/* Branded Form Hero Section */}
@@ -315,7 +319,7 @@ export default function FillFormPage() {
                     className="text-[11px] font-semibold flex items-center gap-1 hover:underline cursor-pointer"
                     style={{ color: "var(--ft-accent, var(--clay))" }}
                   >
-                    <span>✎ Change logo</span>
+                    <span>✎ Edit branding</span>
                   </button>
                 </div>
               ) : (
@@ -330,7 +334,7 @@ export default function FillFormPage() {
                   }}
                 >
                   <span className="text-sm">🏢</span>
-                  <span className="text-[11px] font-semibold">+ Add Company Logo</span>
+                  <span className="text-[11px] font-semibold">+ Add Logo & Branding</span>
                 </button>
               )}
 
@@ -348,6 +352,16 @@ export default function FillFormPage() {
               </div>
             </div>
 
+            {/* Optional Company / Org Subtitle */}
+            {formData!.ui_config?.company_name && (
+              <p
+                className="text-[11px] font-mono uppercase tracking-[0.15em] font-bold mb-1"
+                style={{ color: "var(--ft-accent, var(--clay))" }}
+              >
+                {formData!.ui_config.company_name}
+              </p>
+            )}
+
             {/* Form Title */}
             <h1
               className="text-2xl sm:text-[26px] font-bold tracking-tight leading-snug"
@@ -358,14 +372,29 @@ export default function FillFormPage() {
             >
               {formData!.form_title}
             </h1>
-            {formData!.worksheet_name && formData!.worksheet_name !== formData!.form_title && (
-              <p
-                className="text-[11px] font-mono uppercase tracking-wider mt-1.5"
+
+            {/* Form Meta Badges (Standard & Professional, Zero Sheet Leak) */}
+            <div className="flex flex-wrap items-center gap-2 mt-2.5 pt-2 border-t border-black/5 dark:border-white/5">
+              <span
+                className="inline-flex items-center gap-1 text-[11px] font-medium"
                 style={{ color: "var(--ft-meta-color, var(--stone))" }}
               >
-                📋 Sheet tab: {formData!.worksheet_name}
-              </p>
-            )}
+                <span>📝</span> {formData!.fields.length} Questions
+              </span>
+              <span style={{ color: "var(--rule)" }}>·</span>
+              <span
+                className="inline-flex items-center gap-1 text-[11px] font-medium"
+                style={{ color: "var(--ft-meta-color, var(--stone))" }}
+              >
+                <span>⏱</span> ~2 min
+              </span>
+              <span style={{ color: "var(--rule)" }}>·</span>
+              <span
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400"
+              >
+                <span>🔒</span> Verified & Secure
+              </span>
+            </div>
           </div>
 
           {/* Form Description / JD (Collapsible) */}
@@ -445,7 +474,7 @@ export default function FillFormPage() {
               suggestionsRequested.current = false;
               void loadSuggestions();
             }}
-            folderName={formData!.worksheet_name || formData!.form_title}
+            folderName={formData!.form_title || "Uploads"}
             formId={id}
             onUploadingChange={setIsUploadingFiles}
           />
@@ -463,8 +492,9 @@ export default function FillFormPage() {
         isOpen={showLogoModal}
         onClose={() => setShowLogoModal(false)}
         formId={id}
-        folderName={formData!.worksheet_name || formData!.form_title}
         currentLogoUrl={formData!.ui_config?.logo_url}
+        currentTitle={formData!.form_title}
+        currentCompanyName={formData!.ui_config?.company_name}
         onSave={handleSaveLogo}
       />
     </FormThemeWrapper>

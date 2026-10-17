@@ -530,10 +530,21 @@ export default function EditFormPage() {
         isOpen={showLogoModal}
         onClose={() => setShowLogoModal(false)}
         formId={id}
-        folderName={formData?.worksheet_name || formData?.form_title}
         currentLogoUrl={logoUrl}
-        onSave={async (url) => {
-          setLogoUrl(url);
+        currentTitle={formTitle}
+        currentCompanyName={formData?.ui_config?.company_name}
+        onSave={async ({ logoUrl: newUrl, formTitle: newTitle, companyName: newComp }) => {
+          setLogoUrl(newUrl);
+          if (newTitle) setFormTitle(newTitle);
+          if (newComp && formData) {
+            setFormData({
+              ...formData,
+              ui_config: {
+                ...(formData.ui_config || {}),
+                company_name: newComp,
+              },
+            });
+          }
         }}
       />
     </div>

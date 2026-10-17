@@ -12,7 +12,9 @@ interface Props {
   formId: string;
   folderName?: string;
   currentLogoUrl?: string | null;
-  onSave: (logoUrl: string) => Promise<void>;
+  currentTitle?: string;
+  currentCompanyName?: string;
+  onSave: (payload: { logoUrl: string; formTitle?: string; companyName?: string }) => Promise<void>;
 }
 
 export default function CompanyLogoModal({
@@ -21,18 +23,24 @@ export default function CompanyLogoModal({
   formId,
   folderName,
   currentLogoUrl,
+  currentTitle,
+  currentCompanyName,
   onSave,
 }: Props) {
   const [mode, setMode] = useState<"upload" | "url">("upload");
   const [logoUrl, setLogoUrl] = useState(currentLogoUrl || "");
+  const [formTitle, setFormTitle] = useState(currentTitle || "");
+  const [companyName, setCompanyName] = useState(currentCompanyName || "");
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setLogoUrl(currentLogoUrl || "");
+    setFormTitle(currentTitle || "");
+    setCompanyName(currentCompanyName || "");
     setError(null);
-  }, [currentLogoUrl, isOpen]);
+  }, [currentLogoUrl, currentTitle, currentCompanyName, isOpen]);
 
   if (!isOpen) return null;
 
@@ -44,7 +52,8 @@ export default function CompanyLogoModal({
     setError(null);
     const formData = new FormData();
     formData.append("file", file);
-    if (folderName) formData.append("folder_name", folderName);
+    // Use a clean Drive folder name — never raw tab codes
+    formData.append("folder_name", formTitle || "OfficeMobile Forms");
     if (formId) formData.append("form_id", formId);
 
     try {
@@ -82,10 +91,14 @@ export default function CompanyLogoModal({
     setSaving(true);
     setError(null);
     try {
-      await onSave(logoUrl.trim());
+      await onSave({
+        logoUrl: logoUrl.trim(),
+        formTitle: formTitle.trim() || undefined,
+        companyName: companyName.trim() || undefined,
+      });
       onClose();
     } catch (err: any) {
-      setError(err?.message || "Failed to save logo.");
+      setError(err?.message || "Failed to save branding.");
     } finally {
       setSaving(false);
     }
@@ -99,14 +112,14 @@ export default function CompanyLogoModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-2xl bg-white dark:bg-[#1E1B18] border border-black/10 dark:border-white/10 shadow-2xl p-6 text-left relative overflow-hidden"
+        className="w-full max-w-md rounded-2xl bg-white dark:bg-[#1E1B18] border border-black/10 dark:border-white/10 shadow-2xl p-6 text-left relative overflow-hidden max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
         style={{ color: "var(--ink, #1A1714)" }}
       >
         <div className="flex items-center justify-between pb-3 border-b border-black/5 dark:border-white/5">
           <div className="flex items-center gap-2">
             <span className="text-xl">🏢</span>
-            <h3 className="text-base font-bold font-serif">Company / Organization Logo</h3>
+            <h3 className="text-base font-bold font-serif">Form Branding & Logo</h3>
           </div>
           <button
             type="button"
@@ -118,8 +131,36 @@ export default function CompanyLogoModal({
         </div>
 
         <p className="text-xs text-stone-500 dark:text-stone-400 mt-2.5 leading-relaxed">
-          Displays at the top of your form. Files save directly to your Google Drive folder &ldquo;{folderName || "Uploads"}&rdquo; — never on our server storage.
+          Customize your form title, company name, and logo. Files stream directly to your Google Drive — never saved on our server.
         </p>
+
+        {/* Form Title & Company Name */}
+        <div className="mt-4 space-y-3">
+          <div>
+            <label className="text-[11px] font-mono uppercase tracking-wider text-stone-500 dark:text-stone-400 block mb-1">
+              Form / Position Title
+            </label>
+            <input
+              type="text"
+              value={formTitle}
+              onChange={(e) => setFormTitle(e.target.value)}
+              placeholder="e.g. Job Application, Software Engineer"
+              className="w-full text-sm font-semibold px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-black/30 outline-none focus:border-clay"
+            />
+          </div>
+          <div>
+            <label className="text-[11px] font-mono uppercase tracking-wider text-stone-500 dark:text-stone-400 block mb-1">
+              Company / Organization Name (Optional)
+            </label>
+            <input
+              type="text"
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+              placeholder="e.g. Acme Corp, Tech Innovations"
+              className="w-full text-xs px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-black/30 outline-none focus:border-clay"
+            />
+          </div>
+        </div>
 
         {/* Live Logo Preview Badge */}
         {directPreview ? (
@@ -199,7 +240,7 @@ export default function CompanyLogoModal({
                     Tap to select PNG, SVG, or JPG
                   </span>
                   <span className="text-[11px] text-stone-400">
-                    Saves directly into your Google Drive &ldquo;{folderName || "Uploads"}&rdquo; folder
+                    Saves directly into your personal Google Drive
                   </span>
                 </div>
               )}
@@ -245,7 +286,7 @@ export default function CompanyLogoModal({
             disabled={saving || uploading}
             className="px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider bg-clay text-white hover:opacity-90 active:scale-95 transition-all shadow-xs cursor-pointer disabled:opacity-50"
           >
-            {saving ? "Saving..." : "Apply Logo"}
+            {saving ? "Saving..." : "Apply Branding"}
           </button>
         </div>
       </div>
