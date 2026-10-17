@@ -239,30 +239,59 @@ export default function FillFormPage() {
         <AppHeader title={formData!.worksheet_name || formData!.form_title} showBack onBack={() => safeBack(router)} />
 
         <div className="flex-1 w-full max-w-[560px] mx-auto px-5 pt-8 pb-8 overflow-y-auto">
-          {/* Form Description / JD */}
-          {formData!.description && (
-            <div className="mb-6 rounded-lg p-4" style={{ background: "var(--ft-card-bg, var(--cream))", border: "var(--ft-card-border, 1px solid var(--rule))", borderRadius: "var(--ft-card-radius, 12px)" }}>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--ft-meta-color, var(--stone))" }}>Description</p>
-                <button
-                  type="button"
-                  onClick={() => setDescExpanded(!descExpanded)}
-                  className="text-[11px] font-medium transition-colors px-2 py-1 rounded-md"
-                  style={{ color: "var(--ft-meta-color, var(--stone))" }}
-                >
-                  {descExpanded ? "Hide" : "View All"}
-                </button>
-              </div>
+          {/* Form Description / JD (Collapsible) */}
+          {formData!.description && (() => {
+            const isJobForm = /job|hiring|applicant|recruitment|vacancy|career|role|jd|position/i.test(
+              `${formData!.form_title} ${formData!.worksheet_name} ${formData!.description.slice(0, 120)}`
+            );
+            return (
               <div
-                className={`rich-description text-[14px] leading-relaxed overflow-hidden transition-all duration-300 ${descExpanded ? "" : "max-h-[4.5em]"}`}
-                style={{ color: "var(--ft-text-color, var(--ink))" }}
-                dangerouslySetInnerHTML={{ __html: formData!.description }}
-              />
-              {!descExpanded && formData!.description.length > 150 && (
-                <div className="h-6 -mt-6 relative pointer-events-none" style={{ background: `linear-gradient(to top, var(--ft-card-bg, var(--cream)), transparent)` }} />
-              )}
-            </div>
-          )}
+                className="mb-6 rounded-2xl p-4 shadow-2xs transition-all"
+                style={{
+                  background: "var(--ft-card-bg, var(--cream))",
+                  border: "var(--ft-card-border, 1px solid var(--rule))",
+                  borderRadius: "var(--ft-card-radius, 16px)",
+                }}
+              >
+                <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-black/5 dark:border-white/5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm">{isJobForm ? "💼" : "📋"}</span>
+                    <p
+                      className="text-[11px] font-bold uppercase tracking-wider"
+                      style={{ color: isJobForm ? "rgb(4, 120, 87)" : "var(--ft-meta-color, var(--stone))" }}
+                    >
+                      {isJobForm ? "Job Description (JD)" : "Overview & Details"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDescExpanded(!descExpanded)}
+                    className="text-[11px] font-semibold transition-all px-2.5 py-1 rounded-lg border flex items-center gap-1 shadow-2xs hover:opacity-85 active:scale-95 cursor-pointer"
+                    style={{
+                      color: "var(--ft-meta-color, var(--stone))",
+                      borderColor: "var(--rule, rgba(0,0,0,0.12))",
+                      background: "rgba(255, 255, 255, 0.5)",
+                    }}
+                  >
+                    <span>{descExpanded ? (isJobForm ? "▲ Hide JD" : "▲ Hide") : (isJobForm ? "▼ View Full JD" : "▼ View Details")}</span>
+                  </button>
+                </div>
+                <div
+                  className={`rich-description text-[14px] leading-relaxed overflow-hidden transition-all duration-300 ${
+                    descExpanded ? "" : "max-h-[4.8em]"
+                  }`}
+                  style={{ color: "var(--ft-text-color, var(--ink))" }}
+                  dangerouslySetInnerHTML={{ __html: formData!.description }}
+                />
+                {!descExpanded && formData!.description.length > 120 && (
+                  <div
+                    className="h-7 -mt-7 relative pointer-events-none rounded-b-xl"
+                    style={{ background: `linear-gradient(to top, var(--ft-card-bg, var(--cream)), transparent)` }}
+                  />
+                )}
+              </div>
+            );
+          })()}
 
           <AiAutofillBanner
             fields={formData!.fields}

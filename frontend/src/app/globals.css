@@ -946,6 +946,10 @@ button:active:not(:disabled) {
   margin: 8px 0 4px 0;
 }
 
+.rich-description p {
+  margin: 4px 0;
+}
+
 .rich-description ul {
   list-style: disc;
   padding-left: 18px;

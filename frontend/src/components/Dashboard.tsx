@@ -8,7 +8,7 @@ import LoadingOverlay from "@/components/LoadingOverlay";
 import ErrorToast from "@/components/ErrorToast";
 import KeywordRulesEditor from "@/components/KeywordRulesEditor";
 import FormFieldEditor from "@/components/FormFieldEditor";
-import FormBuilder from "@/components/FormBuilder";
+import FormBuilder, { type FormBuilderSubmitPayload } from "@/components/FormBuilder";
 import FormDesignPicker from "@/components/FormDesignPicker";
 import MobileDropdown from "@/components/MobileDropdown";
 import SubmitButton from "@/components/SubmitButton";
@@ -414,14 +414,7 @@ export default function Dashboard() {
     return `${diffDays}d ago`;
   }
 
-  async function handleCreateNewForm(payload: {
-    formTitle: string;
-    worksheetName?: string;
-    destination?: "new" | "existing";
-    existingSheetUrl?: string;
-    fields: FieldSchema[];
-    uiConfig?: Record<string, any>;
-  }) {
+  async function handleCreateNewForm(payload: FormBuilderSubmitPayload) {
     setSaving(true);
     setError(null);
     try {
@@ -455,6 +448,7 @@ export default function Dashboard() {
         spreadsheet_id: spreadsheetId,
         worksheet_name: worksheetName,
         form_title: payload.formTitle,
+        description: payload.description,
         fields: payload.fields,
         custom_keywords: [],
         autofill_columns: [],

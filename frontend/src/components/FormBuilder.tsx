@@ -6,6 +6,7 @@ import ClearButton from "@/components/ClearButton";
 import SubmitButton from "@/components/SubmitButton";
 import MobileDropdown from "@/components/MobileDropdown";
 import FormDesignPicker from "@/components/FormDesignPicker";
+import RichTextEditor from "@/components/RichTextEditor";
 
 export type DraftField = {
   id: string;
@@ -18,6 +19,7 @@ export type DraftField = {
 
 export interface FormBuilderSubmitPayload {
   formTitle: string;
+  description?: string;
   worksheetName: string;
   destination: "new" | "existing";
   existingSheetUrl?: string;
@@ -44,12 +46,39 @@ export const FIELD_TYPES: Array<{ value: FieldType; label: string; icon: string 
   { value: "url", label: "URL", icon: "🌐" },
 ];
 
+export const DEFAULT_JOB_DESCRIPTION = `<h3>💼 Role Overview</h3>
+<p>We are seeking talented, high-energy professionals to join our growing team. Review the position details below and submit your application with an updated resume.</p>
+
+<h3>🎯 Key Responsibilities</h3>
+<ul>
+  <li>Take end-to-end ownership of project tasks, deliverables, and timelines.</li>
+  <li>Collaborate cross-functionally to design, build, and optimize business solutions.</li>
+  <li>Identify bottlenecks, automate repetitive tasks, and improve overall workflows.</li>
+  <li>Communicate progress proactively and participate actively in sprint and team reviews.</li>
+</ul>
+
+<h3>✨ Candidate Requirements & Skills</h3>
+<ul>
+  <li>Relevant degree or equivalent practical hands-on experience in the field.</li>
+  <li>Strong analytical mindset, problem-solving abilities, and attention to detail.</li>
+  <li>Excellent written and verbal communication skills.</li>
+  <li>Proficiency with modern tools, frameworks, and industry best practices.</li>
+</ul>
+
+<h3>🎁 Compensation & Benefits</h3>
+<ul>
+  <li>Competitive CTC package commensurate with skills and experience.</li>
+  <li>Fast-track career advancement and mentorship opportunities.</li>
+  <li>Flexible work environment with modern high-performance culture.</li>
+</ul>`;
+
 export interface FormTemplate {
   id: string;
   icon: string;
   name: string;
   description: string;
   worksheetName: string;
+  jd?: string;
   fields: Array<{
     name: string;
     type: FieldType;
@@ -60,6 +89,78 @@ export interface FormTemplate {
 }
 
 export const FORM_TEMPLATES: FormTemplate[] = [
+  {
+    id: "job-application",
+    icon: "💼",
+    name: "Job Application & Hiring",
+    description: "Screen candidates, collect resumes & screening details",
+    worksheetName: "Applicants",
+    jd: DEFAULT_JOB_DESCRIPTION,
+    fields: [
+      { name: "Full Name", type: "text", required: true, placeholder: "e.g. Rahul Sharma" },
+      { name: "Mobile / WhatsApp Number", type: "tel", required: true, placeholder: "+91 98765 43210" },
+      { name: "Email Address", type: "email", required: true, placeholder: "rahul@example.com" },
+      {
+        name: "Role / Position Applying For",
+        type: "select",
+        required: true,
+        options: [
+          "Software Engineer / Developer",
+          "Frontend / UI Developer",
+          "Backend / API Engineer",
+          "Full Stack Developer",
+          "Product Designer / UI-UX",
+          "Product Manager",
+          "Sales & Business Development",
+          "Digital Marketing Specialist",
+          "Operations / HR Associate",
+          "Customer Support / Success",
+          "Intern / Trainee",
+        ],
+      },
+      {
+        name: "Total Experience",
+        type: "select",
+        required: true,
+        options: [
+          "Fresher / 0-1 Year",
+          "1-3 Years",
+          "3-5 Years",
+          "5-8 Years",
+          "8+ Years (Lead / Senior)",
+        ],
+      },
+      { name: "Current CTC / Salary ₹", type: "text", placeholder: "e.g. ₹6,00,000 (or NA for fresher)" },
+      { name: "Expected CTC / Salary ₹", type: "text", required: true, placeholder: "e.g. ₹8,50,000" },
+      {
+        name: "Notice Period",
+        type: "select",
+        required: true,
+        options: [
+          "Immediate Joiner",
+          "15 Days or less",
+          "30 Days (1 Month)",
+          "45 Days",
+          "60 Days (2 Months)",
+          "90 Days (3 Months)",
+        ],
+      },
+      { name: "Current City / Location", type: "text", required: true, placeholder: "e.g. Mumbai, Bengaluru, Delhi NCR" },
+      {
+        name: "Work Preference",
+        type: "select",
+        options: [
+          "Work from Office",
+          "Remote / Work from Home",
+          "Hybrid",
+          "Flexible",
+        ],
+      },
+      { name: "Resume / CV Upload", type: "file", required: true, placeholder: "Upload PDF or Word document" },
+      { name: "LinkedIn / Portfolio URL", type: "url", placeholder: "https://linkedin.com/in/username" },
+      { name: "Why are you a good fit?", type: "textarea", placeholder: "Briefly highlight your achievements and why you want to join..." },
+    ],
+  },
   {
     id: "attendance",
     icon: "📋",
@@ -227,12 +328,12 @@ function parseBulkColumnsText(rawText: string): DraftField[] {
       else if (/email|mail/.test(lower)) type = "email";
       else if (/date|dob|birth|joining|deadline|schedule/.test(lower)) type = "date";
       else if (/time|slot|hour/.test(lower)) type = "time";
-      else if (/price|amount|rate|cost|fee|qty|quantity|count|budget|total|salary|score|percentage|percent/.test(lower)) type = "number";
-      else if (/photo|image|picture|file|receipt|bill|doc|document|attachment|pdf|proof/.test(lower)) type = "file";
+      else if (/price|amount|rate|cost|fee|qty|quantity|count|budget|total|salary|ctc|score|percentage|percent/.test(lower)) type = "number";
+      else if (/resume|cv|photo|image|picture|file|receipt|bill|doc|document|attachment|pdf|proof/.test(lower)) type = "file";
       else if (/done|checked|verified|active|enabled|yes\/no|agree/.test(lower)) type = "checkbox";
-      else if (/address|comment|remark|description|note|message|reason|feedback/.test(lower)) type = "textarea";
-      else if (/url|link|website/.test(lower)) type = "url";
-      else if (/status|gender|category|mode|type|priority|shift|department|state/.test(lower)) {
+      else if (/address|comment|remark|description|note|message|reason|feedback|fit|about/.test(lower)) type = "textarea";
+      else if (/url|link|website|portfolio|linkedin|github/.test(lower)) type = "url";
+      else if (/status|gender|category|mode|type|priority|shift|department|state|role|position|experience|notice|work\s*preference/.test(lower)) {
         type = "select";
       }
     }
@@ -257,6 +358,9 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
 
   const [formTitle, setFormTitle] = useState("Untitled Form");
   const [worksheetName, setWorksheetName] = useState("Sheet1");
+  const [formDescription, setFormDescription] = useState("");
+  const [showJdSection, setShowJdSection] = useState(false);
+  const [previewJdExpanded, setPreviewJdExpanded] = useState(false);
   const [fields, setFields] = useState<DraftField[]>([createDraftField()]);
   const [error, setError] = useState<string | null>(null);
 
@@ -320,6 +424,13 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
   function loadTemplate(tpl: FormTemplate) {
     setFormTitle(tpl.name);
     setWorksheetName(tpl.worksheetName);
+    if (tpl.jd) {
+      setFormDescription(tpl.jd);
+      setShowJdSection(true);
+    } else {
+      setFormDescription("");
+      setShowJdSection(false);
+    }
     setFields(
       tpl.fields.map((f) => ({
         id: Math.random().toString(36).slice(2),
@@ -413,6 +524,7 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
     setError(null);
     await onSubmit({
       formTitle: trimmedTitle,
+      description: formDescription.trim() || undefined,
       worksheetName: trimmedWorksheet,
       destination,
       existingSheetUrl: destination === "existing" ? existingSheetUrl.trim() : undefined,
@@ -605,6 +717,94 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                 )}
               </div>
             </div>
+          </div>
+
+          {/* ─────────────────────────────────────────────────────────────
+              Job Description (JD) / Role Overview Section (Collapsible)
+             ───────────────────────────────────────────────────────────── */}
+          <div className="rounded-2xl border border-zinc-200 bg-white overflow-hidden shadow-xs transition-all">
+            <button
+              type="button"
+              onClick={() => setShowJdSection(!showJdSection)}
+              className="w-full flex items-center justify-between p-4 bg-zinc-50/50 hover:bg-zinc-100/60 transition-colors"
+            >
+              <div className="flex items-center gap-2.5 text-left">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white text-xs">
+                  💼
+                </span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] font-bold text-zinc-950">
+                      Job Description (JD) & Role Details
+                    </span>
+                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full border border-emerald-200/50">
+                      Collapsible on Form
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-500 mt-0.5">
+                    {formDescription.trim()
+                      ? `${formDescription.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 65)}...`
+                      : "Add role details, responsibilities & perks (candidates can expand/collapse on mobile)"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {formDescription.trim() && (
+                  <span className="text-[10px] font-mono font-medium text-zinc-400 hidden sm:inline">
+                    {formDescription.length} chars
+                  </span>
+                )}
+                <svg
+                  className={`w-4 h-4 text-zinc-500 transition-transform duration-200 ${showJdSection ? "rotate-180" : ""}`}
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </button>
+
+            {showJdSection && (
+              <div className="p-4 pt-3 border-t border-zinc-100 space-y-3 bg-white animate-in fade-in">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-600">
+                    JD Content (Overview, Requirements & Perks)
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setFormDescription(DEFAULT_JOB_DESCRIPTION)}
+                      className="px-2.5 py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors flex items-center gap-1"
+                    >
+                      <span>✨</span>
+                      <span>Insert Sample JD</span>
+                    </button>
+                    {formDescription && (
+                      <button
+                        type="button"
+                        onClick={() => setFormDescription("")}
+                        className="px-2 py-1 text-[11px] font-medium text-zinc-500 hover:text-red-600 rounded-lg hover:bg-zinc-100 transition-colors"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <RichTextEditor
+                  value={formDescription}
+                  onChange={setFormDescription}
+                  placeholder="Enter Job Description, Key Responsibilities, Requirements, CTC, Location & Benefits..."
+                  maxLength={10000}
+                />
+
+                <p className="text-[11px] text-zinc-400 flex items-center gap-1 pt-1">
+                  <span>💡</span>
+                  <span>
+                    This JD will appear at the top of the form with a smooth <strong>[View Full JD ▾]</strong> accordion toggle, keeping the form fast and clean on mobile.
+                  </span>
+                </p>
+              </div>
+            )}
           </div>
 
           {/* UI/UX Appearance Drawer */}
@@ -925,6 +1125,36 @@ export default function FormBuilder({ submitting, onSubmit }: Props) {
                     {formTitle || "Untitled Form"}
                   </h1>
                 </div>
+
+                {/* Collapsible JD Card in Live Preview */}
+                {formDescription.trim() && (
+                  <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-left">
+                    <div className="flex items-center justify-between gap-2 mb-1.5 pb-1 border-b border-zinc-200/60">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs">💼</span>
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+                          Job Description (JD)
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewJdExpanded(!previewJdExpanded)}
+                        className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-100 shadow-2xs transition-colors"
+                      >
+                        {previewJdExpanded ? "▲ Hide JD" : "▼ View JD"}
+                      </button>
+                    </div>
+                    <div
+                      className={`rich-description text-[12px] leading-relaxed text-zinc-700 overflow-hidden transition-all duration-300 ${
+                        previewJdExpanded ? "" : "max-h-[3.6em]"
+                      }`}
+                      dangerouslySetInnerHTML={{ __html: formDescription }}
+                    />
+                    {!previewJdExpanded && formDescription.length > 80 && (
+                      <div className="h-4 -mt-4 relative pointer-events-none bg-gradient-to-t from-zinc-50 to-transparent" />
+                    )}
+                  </div>
+                )}
 
                 <div className="space-y-3.5">
                   {fields
